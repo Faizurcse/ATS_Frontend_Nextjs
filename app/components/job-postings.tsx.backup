@@ -1,0 +1,2883 @@
+"use client"
+
+import { useState, useEffect, useMemo } from "react"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { Textarea } from "@/components/ui/textarea"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue, SelectSeparator } from "@/components/ui/select"
+import { Badge } from "@/components/ui/badge"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog"
+import {
+  Plus,
+  MapPin,
+  DollarSign,
+  Calendar,
+  Building2,
+  User,
+  Edit,
+  Eye,
+  Clock,
+  Globe,
+  AlertCircle,
+  Brain,
+  Zap,
+  Target,
+  Share2,
+  ChevronDown,
+  ChevronUp,
+  Search,
+  X,
+  Briefcase,
+  TrendingUp,
+  Sparkles,
+  Bot,
+  Lightbulb,
+  Wand2,
+} from "lucide-react"
+import { isDateInRange } from "../../lib/date-utils"
+import { AdvancedSearch, type SearchFilters } from "@/components/advanced-search"
+import {
+  JOB_TYPES,
+  formatSalary,
+  type JobType,
+  COUNTRIES,
+  getCitiesByCountry,
+  getSalaryPlaceholder,
+} from "../../lib/location-data"
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
+
+interface JobPosting {
+  id: string
+  title: string
+  company: string
+  location: string
+  country: string
+  city: string
+  jobType: JobType
+  salaryMin: number
+  salaryMax: number
+  description: string
+  requirements: string[]
+  skills: string[]
+  experience: string
+  status: "active" | "paused" | "closed" | "filled"
+  priority: "urgent" | "high" | "medium" | "low"
+  postedDate: string
+  lastUpdated: string
+  applicants: number
+  views: number
+  internalSPOC: string
+  recruiter: string
+  department: string
+  employmentType: string
+  remote: boolean
+  benefits: string[]
+  interviewCount?: number
+  aiScore?: number
+  aiTags?: string[]
+  customQuestions?: Array<{
+    id: string
+    question: string
+    type: "text" | "select" | "number" | "boolean"
+    required: boolean
+    options?: string[]
+  }>
+}
+
+interface AISearchInsight {
+  type: "suggestion" | "trend" | "optimization" | "match"
+  title: string
+  description: string
+  action?: string
+  confidence: number
+}
+
+export default function JobPostings() {
+  const [isAddDialogOpen, setIsAddDialogOpen] = useState(false)
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false)
+  const [editingJob, setEditingJob] = useState<JobPosting | null>(null)
+  const [viewMode, setViewMode] = useState("all")
+  const [statusFilter, setStatusFilter] = useState("all")
+  const [dateFilter, setDateFilter] = useState("all")
+  const [isInsightsExpanded, setIsInsightsExpanded] = useState(false)
+  const [isFilterOpen, setIsFilterOpen] = useState(false)
+  const [aiInsights, setAiInsights] = useState<AISearchInsight[]>([])
+  const [isAiProcessing, setIsAiProcessing] = useState(false)
+  const [aiSuggestions, setAiSuggestions] = useState<string[]>([])
+
+  // Mock candidates data for internal matching
+  const candidates = [
+    {
+      id: "1",
+      name: "John Smith",
+      email: "john.smith@email.com",
+      jobId: "1",
+      skills: ["React", "Node.js", "TypeScript", "AWS"],
+      currentLocation: "San Francisco, CA",
+      expectedSalary: 120000,
+      jobType: "full-time" as JobType,
+      country: "US",
+    },
+    {
+      id: "2",
+      name: "Sarah Johnson",
+      email: "sarah.johnson@email.com",
+      jobId: "2",
+      skills: ["Marketing", "Analytics", "SEO", "Content Strategy"],
+      currentLocation: "New York, NY",
+      expectedSalary: 90000,
+      jobType: "full-time" as JobType,
+      country: "US",
+    },
+    {
+      id: "3",
+      name: "Mike Chen",
+      email: "mike.chen@email.com",
+      jobId: "",
+      skills: ["Python", "SQL", "Tableau", "Statistics"],
+      currentLocation: "Toronto, ON",
+      expectedSalary: 55000,
+      jobType: "part-time" as JobType,
+      country: "CA",
+    },
+  ]
+
+  const [searchFilters, setSearchFilters] = useState<SearchFilters>({
+    searchTerm: "",
+    country: "",
+    city: "",
+    salaryMin: "",
+    salaryMax: "",
+    experience: "",
+    skills: [],
+    status: "",
+    priority: "",
+    source: "",
+    jobType: "",
+    dateFilter: "all",
+  })
+
+  const [jobPostings, setJobPostings] = useState<JobPosting[]>([
+    {
+      id: "1",
+      title: "Senior Software Engineer",
+      company: "TechCorp Inc.",
+      location: "San Francisco, CA",
+      country: "US",
+      city: "San Francisco",
+      jobType: "full-time",
+      salaryMin: 120000,
+      salaryMax: 180000,
+      description:
+        "We are looking for a Senior Software Engineer to join our growing team. You will be responsible for designing, developing, and maintaining scalable web applications using modern technologies.",
+      requirements: [
+        "Bachelor's degree in Computer Science or related field",
+        "5+ years of software development experience",
+        "Strong proficiency in React and Node.js",
+        "Experience with cloud platforms (AWS, GCP, or Azure)",
+        "Excellent problem-solving and communication skills",
+      ],
+      skills: ["React", "Node.js", "TypeScript", "AWS", "PostgreSQL", "Docker"],
+      experience: "5+ years",
+      status: "active",
+      priority: "high",
+      postedDate: "2024-01-10",
+      lastUpdated: "2024-01-15",
+      applicants: 12,
+      views: 156,
+      internalSPOC: "Sarah Wilson",
+      recruiter: "Sarah Wilson",
+      department: "Engineering",
+      employmentType: "Full-time",
+      remote: true,
+      benefits: ["Health Insurance", "401k", "Flexible PTO", "Remote Work", "Stock Options"],
+      interviewCount: 3,
+      aiScore: 87,
+      aiTags: ["high-demand", "competitive-salary", "remote-friendly", "tech-stack-modern"],
+    },
+    {
+      id: "2",
+      title: "Marketing Manager",
+      company: "StartupXYZ",
+      location: "New York, NY",
+      country: "US",
+      city: "New York",
+      jobType: "full-time",
+      salaryMin: 80000,
+      salaryMax: 120000,
+      description:
+        "Join our dynamic marketing team as a Marketing Manager. You'll lead digital marketing campaigns, analyze market trends, and drive brand awareness across multiple channels.",
+      requirements: [
+        "Bachelor's degree in Marketing, Business, or related field",
+        "3+ years of marketing experience",
+        "Experience with digital marketing platforms",
+        "Strong analytical and project management skills",
+        "Creative thinking and strategic planning abilities",
+      ],
+      skills: ["Digital Marketing", "Analytics", "SEO", "Content Strategy", "Social Media", "Google Ads"],
+      experience: "3+ years",
+      status: "active",
+      priority: "medium",
+      postedDate: "2024-01-12",
+      lastUpdated: "2024-01-14",
+      applicants: 8,
+      views: 89,
+      internalSPOC: "Mike Johnson",
+      recruiter: "Mike Johnson",
+      department: "Marketing",
+      employmentType: "Full-time",
+      remote: false,
+      benefits: ["Health Insurance", "Dental", "Vision", "Flexible Hours", "Professional Development"],
+      interviewCount: 2,
+      aiScore: 72,
+      aiTags: ["growth-opportunity", "creative-role", "analytics-focused"],
+    },
+    {
+      id: "3",
+      title: "Freelance Web Designer",
+      company: "DataFlow Solutions",
+      location: "Remote",
+      country: "US",
+      city: "Austin",
+      jobType: "freelance",
+      salaryMin: 5000,
+      salaryMax: 15000,
+      description:
+        "We're seeking a talented freelance web designer for a 3-month project to redesign our company website and create marketing materials.",
+      requirements: [
+        "Portfolio demonstrating web design expertise",
+        "Proficiency in design tools (Figma, Adobe Creative Suite)",
+        "Understanding of UX/UI principles",
+        "Experience with responsive design",
+        "Strong communication skills for remote collaboration",
+      ],
+      skills: ["Web Design", "Figma", "HTML", "CSS", "JavaScript", "UX/UI Design"],
+      experience: "3+ years",
+      status: "active",
+      priority: "urgent",
+      postedDate: "2024-01-08",
+      lastUpdated: "2024-01-16",
+      applicants: 15,
+      views: 203,
+      internalSPOC: "Emily Chen",
+      recruiter: "Emily Chen",
+      department: "Design",
+      employmentType: "Contract",
+      remote: true,
+      benefits: ["Flexible Schedule", "Portfolio Credit", "Potential for Extension"],
+      interviewCount: 5,
+      aiScore: 91,
+      aiTags: ["urgent-priority", "remote-work", "design-focused", "short-term"],
+    },
+    {
+      id: "4",
+      title: "Part-time Data Analyst",
+      company: "GlobalTech Ltd",
+      location: "Toronto, ON",
+      country: "CA",
+      city: "Toronto",
+      jobType: "part-time",
+      salaryMin: 35,
+      salaryMax: 55,
+      description:
+        "Looking for a part-time Data Analyst to work 20 hours per week analyzing customer data and creating reports for business insights.",
+      requirements: [
+        "Bachelor's degree in Statistics, Mathematics, or related field",
+        "2+ years of data analysis experience",
+        "Proficiency in SQL and Python",
+        "Experience with data visualization tools",
+        "Strong attention to detail",
+      ],
+      skills: ["Python", "SQL", "Tableau", "Statistics", "Excel", "R"],
+      experience: "2+ years",
+      status: "active",
+      priority: "medium",
+      postedDate: "2024-01-11",
+      lastUpdated: "2024-01-13",
+      applicants: 6,
+      views: 67,
+      internalSPOC: "James Smith",
+      recruiter: "David Brown",
+      department: "Analytics",
+      employmentType: "Part-time",
+      remote: true,
+      benefits: ["Flexible Hours", "Health Benefits (Prorated)", "Professional Development"],
+      interviewCount: 1,
+      aiScore: 68,
+      aiTags: ["part-time", "data-focused", "flexible-hours"],
+    },
+    {
+      id: "5",
+      title: "UX Design Intern",
+      company: "TechCorp Inc.",
+      location: "Berlin, Germany",
+      country: "DE",
+      city: "Berlin",
+      jobType: "internship",
+      salaryMin: 1500,
+      salaryMax: 2500,
+      description:
+        "3-month summer internship program for UX Design students. Work alongside our design team on real projects and gain hands-on experience.",
+      requirements: [
+        "Currently enrolled in Design, HCI, or related program",
+        "Basic knowledge of design principles",
+        "Familiarity with design tools (Figma, Sketch)",
+        "Portfolio of design work (academic or personal projects)",
+        "Eagerness to learn and contribute",
+      ],
+      skills: ["Figma", "UX Design", "Prototyping", "User Research", "Wireframing"],
+      experience: "Entry level",
+      status: "active",
+      priority: "low",
+      postedDate: "2024-01-15",
+      lastUpdated: "2024-01-20",
+      applicants: 3,
+      views: 45,
+      internalSPOC: "Sarah Wilson",
+      recruiter: "Sarah Wilson",
+      department: "Design",
+      employmentType: "Internship",
+      remote: false,
+      benefits: ["Mentorship", "Learning Opportunities", "Potential Full-time Offer", "Lunch Provided"],
+      interviewCount: 0,
+      aiScore: 55,
+      aiTags: ["entry-level", "learning-opportunity", "design-focused"],
+    },
+    {
+      id: "6",
+      title: "Contract DevOps Engineer",
+      company: "StartupXYZ",
+      location: "London, UK",
+      country: "GB",
+      city: "London",
+      jobType: "contract",
+      salaryMin: 85,
+      salaryMax: 125,
+      description:
+        "6-month contract position for an experienced DevOps Engineer to help migrate our infrastructure to the cloud and implement CI/CD pipelines.",
+      requirements: [
+        "5+ years of DevOps experience",
+        "Strong experience with AWS or Azure",
+        "Proficiency in containerization (Docker, Kubernetes)",
+        "Experience with Infrastructure as Code (Terraform, CloudFormation)",
+        "Knowledge of CI/CD tools and practices",
+      ],
+      skills: ["DevOps", "AWS", "Docker", "Kubernetes", "Terraform", "Jenkins", "Python"],
+      experience: "5+ years",
+      status: "active",
+      priority: "high",
+      postedDate: "2024-01-09",
+      lastUpdated: "2024-01-17",
+      applicants: 9,
+      views: 134,
+      internalSPOC: "Mike Johnson",
+      recruiter: "Mike Johnson",
+      department: "Engineering",
+      employmentType: "Contract",
+      remote: true,
+      benefits: ["Competitive Rate", "Flexible Hours", "Potential Extension", "Remote Work"],
+      interviewCount: 2,
+      aiScore: 83,
+      aiTags: ["high-demand", "contract-work", "devops-specialist", "cloud-migration"],
+    },
+  ])
+
+  const [newJob, setNewJob] = useState({
+    title: "",
+    company: "",
+    location: "",
+    country: "",
+    city: "",
+    jobType: "full-time" as JobType,
+    salaryMin: "",
+    salaryMax: "",
+    description: "",
+    requirements: "",
+    skills: "",
+    experience: "",
+    priority: "medium" as "urgent" | "high" | "medium" | "low",
+    internalSPOC: "",
+    recruiter: "",
+    department: "",
+    remote: false,
+    benefits: "",
+  })
+
+  const [customQuestions, setCustomQuestions] = useState<
+    Array<{
+      id: string
+      question: string
+      type: "text" | "select" | "number" | "boolean"
+      required: boolean
+      options?: string[]
+    }>
+  >([])
+  const [isGeneratingQuestions, setIsGeneratingQuestions] = useState(false)
+
+  const statusOptions = [
+    { key: "active", label: "Active" },
+    { key: "paused", label: "Paused" },
+    { key: "closed", label: "Closed" },
+    { key: "filled", label: "Filled" },
+  ]
+
+  // AI-powered search processing
+  const processAISearch = async (searchTerm: string) => {
+    if (!searchTerm.trim()) {
+      setAiInsights([])
+      setAiSuggestions([])
+      return
+    }
+
+    setIsAiProcessing(true)
+
+    // Simulate AI processing delay
+    await new Promise((resolve) => setTimeout(resolve, 1000))
+
+    // AI Natural Language Processing
+    const insights: AISearchInsight[] = []
+    const suggestions: string[] = []
+
+    // Analyze search intent
+    const lowerTerm = searchTerm.toLowerCase()
+
+    // Salary-related searches
+    if (
+      lowerTerm.includes("salary") ||
+      lowerTerm.includes("pay") ||
+      lowerTerm.includes("$") ||
+      lowerTerm.includes("k")
+    ) {
+      insights.push({
+        type: "optimization",
+        title: "Salary Analysis Detected",
+        description: "AI found salary-related terms. Analyzing compensation trends across similar roles.",
+        confidence: 92,
+      })
+      suggestions.push("remote jobs above $100k", "entry level positions under $60k", "senior roles $120k+")
+    }
+
+    // Location-based searches
+    if (lowerTerm.includes("remote") || lowerTerm.includes("work from home") || lowerTerm.includes("wfh")) {
+      insights.push({
+        type: "trend",
+        title: "Remote Work Preference",
+        description: "85% of candidates prefer remote or hybrid options. Your remote jobs get 3x more applications.",
+        confidence: 88,
+      })
+      suggestions.push("fully remote positions", "hybrid work opportunities", "flexible location jobs")
+    }
+
+    // Experience level searches
+    if (lowerTerm.includes("senior") || lowerTerm.includes("lead") || lowerTerm.includes("principal")) {
+      insights.push({
+        type: "match",
+        title: "Senior Role Search",
+        description: "Found 3 senior-level positions matching your criteria. Average time-to-fill: 45 days.",
+        confidence: 95,
+      })
+    }
+
+    // Technology/Skills searches
+    const techTerms = ["react", "python", "javascript", "aws", "docker", "kubernetes", "sql", "node"]
+    const foundTech = techTerms.filter((tech) => lowerTerm.includes(tech))
+    if (foundTech.length > 0) {
+      insights.push({
+        type: "suggestion",
+        title: `${foundTech[0].toUpperCase()} Skills Detected`,
+        description: `High demand for ${foundTech[0]} skills. Consider highlighting related technologies in job descriptions.`,
+        confidence: 87,
+      })
+      suggestions.push(
+        `${foundTech[0]} developer positions`,
+        `${foundTech[0]} with cloud experience`,
+        `senior ${foundTech[0]} roles`,
+      )
+    }
+
+    // Urgency indicators
+    if (lowerTerm.includes("urgent") || lowerTerm.includes("asap") || lowerTerm.includes("immediate")) {
+      insights.push({
+        type: "optimization",
+        title: "Urgent Hiring Detected",
+        description: "AI recommends premium job board placement and social media promotion for faster results.",
+        action: "Boost visibility",
+        confidence: 91,
+      })
+    }
+
+    // Job type searches
+    if (lowerTerm.includes("contract") || lowerTerm.includes("freelance") || lowerTerm.includes("part-time")) {
+      const jobType = lowerTerm.includes("contract")
+        ? "contract"
+        : lowerTerm.includes("freelance")
+          ? "freelance"
+          : "part-time"
+      insights.push({
+        type: "trend",
+        title: `${jobType.charAt(0).toUpperCase() + jobType.slice(1)} Work Trend`,
+        description: `${jobType} positions show 40% faster application rates. Consider flexible arrangements.`,
+        confidence: 84,
+      })
+    }
+
+    // Generate smart suggestions based on current jobs
+    const popularSkills = ["React", "Python", "AWS", "JavaScript", "SQL", "Docker"]
+    const popularLocations = ["remote", "San Francisco", "New York", "London", "Toronto"]
+
+    suggestions.push(
+      ...popularSkills.slice(0, 2).map((skill) => `${skill.toLowerCase()} developer jobs`),
+      ...popularLocations.slice(0, 2).map((loc) => `jobs in ${loc.toLowerCase()}`),
+    )
+
+    setAiInsights(insights)
+    setAiSuggestions([...new Set(suggestions)].slice(0, 5))
+    setIsAiProcessing(false)
+  }
+
+  // Debounced AI search
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      processAISearch(searchFilters.searchTerm)
+    }, 500)
+
+    return () => clearTimeout(timer)
+  }, [searchFilters.searchTerm])
+
+  // AI-powered job filtering with intelligent matching
+  const filteredJobs = useMemo(() => {
+    return jobPostings
+      .filter((job) => {
+        // AI-enhanced search matching
+        const searchTerm = searchFilters.searchTerm.toLowerCase()
+        let matchesSearch = true
+
+        if (searchTerm) {
+          // Basic text matching
+          const basicMatch =
+            job.title.toLowerCase().includes(searchTerm) ||
+            job.company.toLowerCase().includes(searchTerm) ||
+            job.location.toLowerCase().includes(searchTerm) ||
+            job.description.toLowerCase().includes(searchTerm) ||
+            job.skills.some((skill) => skill.toLowerCase().includes(searchTerm))
+
+          // AI semantic matching for salary queries
+          const salaryMatch = (() => {
+            if (searchTerm.includes("above") || searchTerm.includes(">") || searchTerm.includes("over")) {
+              const numbers = searchTerm.match(/\d+/g)
+              if (numbers) {
+                const threshold = Number.parseInt(numbers[0]) * (searchTerm.includes("k") ? 1000 : 1)
+                return job.salaryMax >= threshold
+              }
+            }
+            if (searchTerm.includes("below") || searchTerm.includes("<") || searchTerm.includes("under")) {
+              const numbers = searchTerm.match(/\d+/g)
+              if (numbers) {
+                const threshold = Number.parseInt(numbers[0]) * (searchTerm.includes("k") ? 1000 : 1)
+                return job.salaryMin <= threshold
+              }
+            }
+            return false
+          })()
+
+          // AI experience level matching
+          const experienceMatch = (() => {
+            if (searchTerm.includes("senior") || searchTerm.includes("lead") || searchTerm.includes("principal")) {
+              return (
+                job.experience.includes("5+") ||
+                job.experience.includes("Senior") ||
+                job.title.toLowerCase().includes("senior")
+              )
+            }
+            if (searchTerm.includes("junior") || searchTerm.includes("entry") || searchTerm.includes("graduate")) {
+              return (
+                job.experience.includes("Entry") ||
+                job.experience.includes("0-") ||
+                job.title.toLowerCase().includes("junior")
+              )
+            }
+            return false
+          })()
+
+          // AI priority matching
+          const priorityMatch = (() => {
+            if (searchTerm.includes("urgent") || searchTerm.includes("asap") || searchTerm.includes("immediate")) {
+              return job.priority === "urgent" || job.priority === "high"
+            }
+            return false
+          })()
+
+          matchesSearch = basicMatch || salaryMatch || experienceMatch || priorityMatch
+        }
+
+        // Standard filters
+        const matchesStatus = statusFilter === "all" || job.status === statusFilter
+        const matchesDate = dateFilter === "all" || isDateInRange(job.postedDate, dateFilter)
+        const matchesJobType =
+          !searchFilters.jobType || searchFilters.jobType === "any" || job.jobType === searchFilters.jobType
+        const matchesCountry =
+          !searchFilters.country || searchFilters.country === "all" || job.country === searchFilters.country
+        const matchesCity = !searchFilters.city || searchFilters.city === "all" || job.city === searchFilters.city
+        const matchesExperience =
+          !searchFilters.experience ||
+          searchFilters.experience === "any" ||
+          job.experience.includes(searchFilters.experience)
+        const matchesSkills =
+          searchFilters.skills.length === 0 ||
+          searchFilters.skills.some((skill) =>
+            job.skills.some((jobSkill) => jobSkill.toLowerCase().includes(skill.toLowerCase())),
+          )
+        const matchesPriority =
+          !searchFilters.priority || searchFilters.priority === "any" || job.priority === searchFilters.priority
+
+        const salaryMin = searchFilters.salaryMin ? Number.parseFloat(searchFilters.salaryMin) : 0
+        const salaryMax = searchFilters.salaryMax
+          ? Number.parseFloat(searchFilters.salaryMax)
+          : Number.POSITIVE_INFINITY
+        const matchesSalary = job.salaryMax >= salaryMin && job.salaryMin <= salaryMax
+
+        return (
+          matchesSearch &&
+          matchesStatus &&
+          matchesDate &&
+          matchesJobType &&
+          matchesCountry &&
+          matchesCity &&
+          matchesExperience &&
+          matchesSkills &&
+          matchesPriority &&
+          matchesSalary
+        )
+      })
+      .sort((a, b) => {
+        // AI-powered sorting by relevance score
+        const aScore = (a.aiScore || 0) + (a.priority === "urgent" ? 20 : a.priority === "high" ? 10 : 0)
+        const bScore = (b.aiScore || 0) + (b.priority === "urgent" ? 20 : a.priority === "high" ? 10 : 0)
+        return bScore - aScore
+      })
+  }, [jobPostings, searchFilters, statusFilter, dateFilter])
+
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case "active":
+        return "bg-green-100 text-green-800 border-green-200"
+      case "paused":
+        return "bg-yellow-100 text-yellow-800 border-yellow-200"
+      case "closed":
+        return "bg-red-100 text-red-800 border-red-200"
+      case "filled":
+        return "bg-blue-100 text-blue-800 border-blue-200"
+      default:
+        return "bg-gray-100 text-gray-800 border-gray-200"
+    }
+  }
+
+  const getPriorityColor = (priority: string) => {
+    switch (priority) {
+      case "urgent":
+        return "bg-red-100 text-red-800 border-red-200"
+      case "high":
+        return "bg-orange-100 text-orange-800 border-orange-200"
+      case "medium":
+        return "bg-yellow-100 text-yellow-800 border-yellow-200"
+      case "low":
+        return "bg-green-100 text-green-800 border-green-200"
+      default:
+        return "bg-gray-100 text-gray-800 border-gray-200"
+    }
+  }
+
+  const getJobTypeColor = (jobType: string) => {
+    switch (jobType) {
+      case "full-time":
+        return "bg-blue-100 text-blue-800 border-blue-200"
+      case "part-time":
+        return "bg-purple-100 text-purple-800 border-purple-200"
+      case "contract":
+        return "bg-orange-100 text-orange-800 border-orange-200"
+      case "freelance":
+        return "bg-green-100 text-green-800 border-green-200"
+      case "internship":
+        return "bg-pink-100 text-pink-800 border-pink-200"
+      case "temporary":
+        return "bg-gray-100 text-gray-800 border-gray-200"
+      default:
+        return "bg-gray-100 text-gray-800 border-gray-200"
+    }
+  }
+
+  const generateAIQuestions = async (jobTitle: string, jobType: string, country: string) => {
+    setIsGeneratingQuestions(true)
+
+    // Simulate AI processing
+    await new Promise((resolve) => setTimeout(resolve, 2000))
+
+    const baseQuestions = [
+      {
+        id: "skills",
+        question: `What are your key skills relevant to ${jobTitle}?`,
+        type: "text" as const,
+        required: true,
+      },
+      {
+        id: "location",
+        question: "What is your current location?",
+        type: "text" as const,
+        required: true,
+      },
+      {
+        id: "salary",
+        question: `What is your current salary expectation for this ${jobType} position?`,
+        type: "number" as const,
+        required: true,
+      },
+      {
+        id: "notice",
+        question: "What is your notice period?",
+        type: "select" as const,
+        required: true,
+        options: ["Immediate", "2 weeks", "1 month", "2 months", "3 months"],
+      },
+      {
+        id: "experience",
+        question: `How many years of experience do you have in ${jobTitle.toLowerCase()} roles?`,
+        type: "select" as const,
+        required: true,
+        options: ["0-1 years", "2-3 years", "4-5 years", "6-10 years", "10+ years"],
+      },
+      {
+        id: "remote",
+        question: "Are you open to remote work?",
+        type: "boolean" as const,
+        required: false,
+      },
+      {
+        id: "availability",
+        question: "When can you start?",
+        type: "select" as const,
+        required: true,
+        options: ["Immediately", "Within 2 weeks", "Within 1 month", "Within 2 months", "More than 2 months"],
+      },
+    ]
+
+    // Add role-specific questions based on job title
+    const roleSpecificQuestions = []
+
+    if (jobTitle.toLowerCase().includes("developer") || jobTitle.toLowerCase().includes("engineer")) {
+      roleSpecificQuestions.push({
+        id: "portfolio",
+        question: "Please provide a link to your portfolio or GitHub profile",
+        type: "text" as const,
+        required: false,
+      })
+    }
+
+    if (jobTitle.toLowerCase().includes("manager") || jobTitle.toLowerCase().includes("lead")) {
+      roleSpecificQuestions.push({
+        id: "team_size",
+        question: "What is the largest team you have managed?",
+        type: "select" as const,
+        required: false,
+        options: ["1-3 people", "4-7 people", "8-15 people", "16+ people", "No management experience"],
+      })
+    }
+
+    if (jobTitle.toLowerCase().includes("sales") || jobTitle.toLowerCase().includes("marketing")) {
+      roleSpecificQuestions.push({
+        id: "targets",
+        question: "Have you consistently met sales/marketing targets in previous roles?",
+        type: "boolean" as const,
+        required: false,
+      })
+    }
+
+    const allQuestions = [...baseQuestions, ...roleSpecificQuestions].map((q) => ({
+      ...q,
+      id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
+    }))
+
+    setCustomQuestions(allQuestions)
+    setIsGeneratingQuestions(false)
+  }
+
+  const handleAddJob = () => {
+    const job: JobPosting = {
+      id: Date.now().toString(),
+      ...newJob,
+      salaryMin: Number.parseInt(newJob.salaryMin) || 0,
+      salaryMax: Number.parseInt(newJob.salaryMax) || 0,
+      requirements: newJob.requirements
+        .split("\n")
+        .map((req) => req.trim())
+        .filter((req) => req.length > 0),
+      skills: newJob.skills
+        .split(",")
+        .map((skill) => skill.trim())
+        .filter((skill) => skill.length > 0),
+      benefits: newJob.benefits
+        .split(",")
+        .map((benefit) => benefit.trim())
+        .filter((benefit) => benefit.length > 0),
+      status: "active",
+      postedDate: new Date().toISOString().split("T")[0],
+      lastUpdated: new Date().toISOString().split("T")[0],
+      applicants: 0,
+      views: 0,
+      employmentType: JOB_TYPES.find((t) => t.value === newJob.jobType)?.label || "Full-time",
+      interviewCount: 0,
+      aiScore: Math.floor(Math.random() * 30) + 60, // AI-generated score
+      aiTags: [], // Will be populated by AI
+      customQuestions: customQuestions,
+    }
+    setJobPostings([...jobPostings, job])
+    setNewJob({
+      title: "",
+      company: "",
+      location: "",
+      country: "",
+      city: "",
+      jobType: "full-time",
+      salaryMin: "",
+      salaryMax: "",
+      description: "",
+      requirements: "",
+      skills: "",
+      experience: "",
+      priority: "medium",
+      internalSPOC: "",
+      recruiter: "",
+      department: "",
+      remote: false,
+      benefits: "",
+    })
+    setCustomQuestions([])
+    setIsAddDialogOpen(false)
+  }
+
+  const handleEditJob = () => {
+    if (!editingJob) return
+
+    setJobPostings(
+      jobPostings.map((job) =>
+        job.id === editingJob.id ? { ...editingJob, lastUpdated: new Date().toISOString().split("T")[0] } : job,
+      ),
+    )
+    setIsEditDialogOpen(false)
+    setEditingJob(null)
+  }
+
+  const renderJobCard = (job: JobPosting) => {
+    const jobTypeInfo = JOB_TYPES.find((type) => type.value === job.jobType)
+    const countryInfo = COUNTRIES.find((country) => country.code === job.country)
+
+    return (
+      <Card key={job.id} className="mb-4 hover:shadow-lg transition-shadow relative">
+        {/* AI Score Badge */}
+        {job.aiScore && (
+          <div className="absolute top-4 right-4 z-10">
+            <Badge
+              className={`${
+                job.aiScore >= 85
+                  ? "bg-green-100 text-green-800 border-green-300"
+                  : job.aiScore >= 70
+                    ? "bg-blue-100 text-blue-800 border-blue-300"
+                    : "bg-yellow-100 text-yellow-800 border-yellow-300"
+              } flex items-center space-x-1`}
+            >
+              <Brain className="w-3 h-3" />
+              <span>AI: {job.aiScore}</span>
+            </Badge>
+          </div>
+        )}
+
+        <CardContent className="p-6">
+          <div className="flex justify-between items-start mb-4">
+            <div className="flex-1 pr-16">
+              <h3 className="font-semibold text-xl mb-2">{job.title}</h3>
+              <div className="flex items-center space-x-2 text-sm text-gray-600 mb-2">
+                <Building2 className="w-4 h-4" />
+                <span>{job.company}</span>
+                <span>•</span>
+                <MapPin className="w-4 h-4" />
+                <span>{job.location}</span>
+                {countryInfo && (
+                  <>
+                    <span>•</span>
+                    <Badge variant="outline" className="text-xs">
+                      {countryInfo.name}
+                    </Badge>
+                  </>
+                )}
+              </div>
+              <div className="flex items-center space-x-2 text-sm text-gray-600 mb-3">
+                <DollarSign className="w-4 h-4" />
+                <span>
+                  {formatSalary(job.salaryMin, job.jobType, job.country, true, job.salaryMin)} -{" "}
+                  {formatSalary(job.salaryMax, job.jobType, job.country)}
+                </span>
+                <span>•</span>
+                <Clock className="w-4 h-4" />
+                <span>{job.experience}</span>
+              </div>
+
+              {/* AI Tags */}
+              {job.aiTags && job.aiTags.length > 0 && (
+                <div className="flex flex-wrap gap-1 mb-3">
+                  {job.aiTags.map((tag, index) => (
+                    <Badge
+                      key={index}
+                      variant="outline"
+                      className="text-xs bg-purple-50 text-purple-700 border-purple-200"
+                    >
+                      <Sparkles className="w-2 h-2 mr-1" />
+                      {tag.replace("-", " ")}
+                    </Badge>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div className="flex items-center space-x-2">
+              <Select
+                value={job.jobType}
+                onValueChange={(value) => {
+                  const updatedJobs = jobPostings.map((j) =>
+                    j.id === job.id
+                      ? {
+                          ...j,
+                          jobType: value as JobType,
+                          lastUpdated: new Date().toISOString().split("T")[0],
+                        }
+                      : j,
+                  )
+                  setJobPostings(updatedJobs)
+                }}
+              >
+                <SelectTrigger className={`w-auto h-6 px-2 text-xs border-0 ${getJobTypeColor(job.jobType)}`}>
+                  <SelectValue placeholder={job.jobType} />
+                </SelectTrigger>
+                <SelectContent>
+                  {JOB_TYPES.map((type) => (
+                    <SelectItem key={type.value} value={type.value}>
+                      <div className="flex items-center space-x-2">
+                        <Badge className={getJobTypeColor(type.value)} variant="outline">
+                          {type.label}
+                        </Badge>
+                      </div>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Select
+                value={job.status}
+                onValueChange={(value) => {
+                  const updatedJobs = jobPostings.map((j) =>
+                    j.id === job.id
+                      ? {
+                          ...j,
+                          status: value as "active" | "paused" | "closed" | "filled",
+                          lastUpdated: new Date().toISOString().split("T")[0],
+                        }
+                      : j,
+                  )
+                  setJobPostings(updatedJobs)
+                }}
+              >
+                <SelectTrigger className={`w-auto h-6 px-2 text-xs border-0 ${getStatusColor(job.status)}`}>
+                  <SelectValue placeholder={job.status} />
+                </SelectTrigger>
+                <SelectContent>
+                  {statusOptions.map((status) => (
+                    <SelectItem key={status.key} value={status.key}>
+                      <div className="flex items-center space-x-2">
+                        <Badge className={getStatusColor(status.key)} variant="outline">
+                          {status.label}
+                        </Badge>
+                      </div>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Select
+                value={job.priority}
+                onValueChange={(value) => {
+                  const updatedJobs = jobPostings.map((j) =>
+                    j.id === job.id
+                      ? {
+                          ...j,
+                          priority: value as "urgent" | "high" | "medium" | "low",
+                          lastUpdated: new Date().toISOString().split("T")[0],
+                        }
+                      : j,
+                  )
+                  setJobPostings(updatedJobs)
+                }}
+              >
+                <SelectTrigger className={`w-auto h-6 px-2 text-xs border-0 ${getPriorityColor(job.priority)}`}>
+                  <SelectValue placeholder={job.priority}>{job.priority} priority</SelectValue>
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="urgent">
+                    <div className="flex items-center space-x-2">
+                      <Badge className={getPriorityColor("urgent")} variant="outline">
+                        Urgent Priority
+                      </Badge>
+                    </div>
+                  </SelectItem>
+                  <SelectItem value="high">
+                    <div className="flex items-center space-x-2">
+                      <Badge className={getPriorityColor("high")} variant="outline">
+                        High Priority
+                      </Badge>
+                    </div>
+                  </SelectItem>
+                  <SelectItem value="medium">
+                    <div className="flex items-center space-x-2">
+                      <Badge className={getPriorityColor("medium")} variant="outline">
+                        Medium Priority
+                      </Badge>
+                    </div>
+                  </SelectItem>
+                  <SelectItem value="low">
+                    <div className="flex items-center space-x-2">
+                      <Badge className={getPriorityColor("low")} variant="outline">
+                        Low Priority
+                      </Badge>
+                    </div>
+                  </SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          <p className="text-gray-700 text-sm mb-4 line-clamp-3">{job.description}</p>
+
+          <div className="mb-4">
+            <div className="flex flex-wrap gap-1">
+              {job.skills.slice(0, 6).map((skill, index) => (
+                <Badge key={index} variant="outline" className="text-xs">
+                  {skill}
+                </Badge>
+              ))}
+              {job.skills.length > 6 && (
+                <Badge variant="outline" className="text-xs">
+                  +{job.skills.length - 6} more
+                </Badge>
+              )}
+            </div>
+          </div>
+
+          <div className="flex items-center justify-between text-sm text-gray-600 mb-4">
+            <div className="flex items-center space-x-2">
+              {/* Internal Candidates Button */}
+              <div
+                className="flex items-center space-x-1 cursor-pointer hover:bg-purple-50 px-3 py-2 rounded-lg border border-purple-200 bg-purple-25 transition-all duration-200 hover:border-purple-300 hover:shadow-sm group"
+                onClick={() => {
+                  // Navigate to existing candidates page with job-specific filters
+                  const searchParams = new URLSearchParams({
+                    jobId: job.id,
+                    jobTitle: job.title,
+                    skills: job.skills.join(","),
+                    searchTerm: job.title,
+                  })
+
+                  // Open candidates page in new tab with pre-filled filters
+                  window.open(`/?tab=candidates&${searchParams.toString()}`, "_blank")
+                }}
+                title="View internal candidates matching this job"
+              >
+                <div className="w-2 h-2 bg-purple-500 rounded-full"></div>
+                <span className="text-purple-700 font-medium group-hover:text-purple-800">
+                  {Math.floor(job.applicants * 0.3)} Internal
+                </span>
+                <div className="ml-1 opacity-60 group-hover:opacity-100 transition-opacity">
+                  <svg className="w-3 h-3 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                  </svg>
+                </div>
+              </div>
+
+              {/* External Candidates Button */}
+              <div
+                className="flex items-center space-x-1 cursor-pointer hover:bg-green-50 px-3 py-2 rounded-lg border border-green-200 bg-green-25 transition-all duration-200 hover:border-green-300 hover:shadow-sm group"
+                onClick={() => {
+                  window.open(`/job/${job.id}/applicants?source=external`, "_blank")
+                }}
+                title="View external applicants for this job"
+              >
+                <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                <span className="text-green-700 font-medium group-hover:text-green-800">
+                  {Math.floor(job.applicants * 0.7)} External
+                </span>
+                <div className="ml-1 opacity-60 group-hover:opacity-100 transition-opacity">
+                  <svg className="w-3 h-3 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                  </svg>
+                </div>
+              </div>
+
+              {/* Total Count Badge */}
+              <div className="flex items-center space-x-1 px-2 py-1 bg-blue-50 border border-blue-200 rounded text-blue-700">
+                <span className="text-xs font-medium">Total: {job.applicants}</span>
+              </div>
+            </div>
+            <div className="flex items-center space-x-4">
+              <div
+                className="flex items-center space-x-1 cursor-pointer hover:bg-gray-50 px-2 py-1 rounded-lg border border-gray-200 transition-all duration-200 hover:border-gray-300 hover:shadow-sm group"
+                onClick={() => {
+                  const viewAnalytics = {
+                    totalViews: job.views,
+                    todayViews: Math.floor(job.views * 0.15),
+                    weeklyViews: Math.floor(job.views * 0.6),
+                    monthlyViews: job.views,
+                    viewSources: {
+                      direct: Math.floor(job.views * 0.4),
+                      linkedin: Math.floor(job.views * 0.3),
+                      jobBoards: Math.floor(job.views * 0.2),
+                      referrals: Math.floor(job.views * 0.1),
+                    },
+                    peakViewingHours: ["9-11 AM", "2-4 PM", "7-9 PM"],
+                    averageViewDuration: "2m 34s",
+                    bounceRate: Math.floor(Math.random() * 30 + 20) + "%",
+                    conversionRate: ((job.applicants / Math.max(job.views, 1)) * 100).toFixed(1) + "%",
+                  }
+
+                  alert(`📊 View Analytics for "${job.title}"
+
+📈 VIEW METRICS:
+• Total Views: ${viewAnalytics.totalViews.toLocaleString()}
+• Today: ${viewAnalytics.todayViews} views
+• This Week: ${viewAnalytics.weeklyViews} views
+• This Month: ${viewAnalytics.monthlyViews} views
+
+🎯 VIEW SOURCES:
+• Direct Traffic: ${viewAnalytics.viewSources.direct} (${Math.round((viewAnalytics.viewSources.direct / job.views) * 100)}%)
+• LinkedIn: ${viewAnalytics.viewSources.linkedin} (${Math.round((viewAnalytics.viewSources.linkedin / job.views) * 100)}%)
+• Job Boards: ${viewAnalytics.viewSources.jobBoards} (${Math.round((viewAnalytics.viewSources.jobBoards / job.views) * 100)}%)
+• Referrals: ${viewAnalytics.viewSources.referrals} (${Math.round((viewAnalytics.viewSources.referrals / job.views) * 100)}%)
+
+⏰ ENGAGEMENT INSIGHTS:
+• Peak Hours: ${viewAnalytics.peakViewingHours.join(", ")}
+• Avg. Duration: ${viewAnalytics.averageViewDuration}
+• Bounce Rate: ${viewAnalytics.bounceRate}
+• View-to-Apply: ${viewAnalytics.conversionRate}
+
+💡 RECOMMENDATIONS:
+${job.views > job.applicants * 15 ? "• High views but low applications - optimize job description" : "• Good view-to-application ratio"}
+${viewAnalytics.bounceRate.replace("%", "") > "50" ? "• High bounce rate - improve job title and summary" : "• Good engagement - maintain current approach"}
+• Best posting times: ${viewAnalytics.peakViewingHours[0]} and ${viewAnalytics.peakViewingHours[1]}`)
+                }}
+                title="Click to view detailed analytics"
+              >
+                <Eye className="w-4 h-4 text-gray-500 group-hover:text-blue-600" />
+                <span className="text-gray-700 font-medium group-hover:text-blue-800">
+                  {job.views.toLocaleString()} view{job.views !== 1 ? "s" : ""}
+                </span>
+                <div className="ml-1 opacity-60 group-hover:opacity-100 transition-opacity">
+                  <svg
+                    className="w-3 h-3 text-gray-500 group-hover:text-blue-600"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"
+                    />
+                  </svg>
+                </div>
+                <div className="flex items-center ml-1">
+                  {job.views > 100 ? (
+                    <div className="flex items-center space-x-1">
+                      <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
+                      <span className="text-xs text-green-600 font-medium">Trending</span>
+                    </div>
+                  ) : job.views > 50 ? (
+                    <div className="flex items-center space-x-1">
+                      <div className="w-2 h-2 bg-blue-400 rounded-full"></div>
+                      <span className="text-xs text-blue-600 font-medium">Popular</span>
+                    </div>
+                  ) : (
+                    <div className="flex items-center space-x-1">
+                      <div className="w-2 h-2 bg-gray-400 rounded-full"></div>
+                      <span className="text-xs text-gray-500 font-medium">Growing</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+            <div className="flex items-center space-x-2">
+              <User className="w-4 h-4" />
+              <span>SPOC: {job.internalSPOC}</span>
+            </div>
+            <div className="flex items-center space-x-2">
+              <Share2 className="w-4 h-4" />
+              <div className="flex space-x-1">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    const applyLink = `${window.location.origin}/apply/${job.id}?utm_source=direct&utm_medium=apply_button&utm_campaign=job_posting`
+                    navigator.clipboard.writeText(applyLink)
+                    alert("Apply link copied to clipboard!")
+                  }}
+                  className="text-green-600 border-green-200 hover:bg-green-50 text-xs"
+                >
+                  Apply Link
+                </Button>
+                <a
+                  href={`https://www.linkedin.com/sharing/share-offsite/?url=${encodeURIComponent(`${window.location.origin}/apply/${job.id}?utm_source=linkedin&utm_medium=social&utm_campaign=job_posting`)}&title=${encodeURIComponent(`${job.title} at ${job.company}`)}&summary=${encodeURIComponent(job.description.substring(0, 200) + "...")}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-blue-600 hover:text-blue-800 text-xs"
+                >
+                  LinkedIn
+                </a>
+                <span>•</span>
+                <a
+                  href={`https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(`${window.location.origin}/apply/${job.id}?utm_source=facebook&utm_medium=social&utm_campaign=job_posting`)}&quote=${encodeURIComponent(`Check out this ${job.title} position at ${job.company}! ${job.description.substring(0, 150)}... Apply now: ${window.location.origin}/apply/${job.id}`)}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-blue-500 hover:text-blue-700 text-xs"
+                >
+                  Facebook
+                </a>
+                <span>•</span>
+                <a
+                  href={`https://wa.me/?text=${encodeURIComponent(`🚀 Exciting Job Opportunity!\n\n${job.title} at ${job.company}\n📍 ${job.location}\n💰 ${formatSalary(job.salaryMin, job.jobType, job.country, true, job.salaryMin)} - ${formatSalary(job.salaryMax, job.jobType, job.country)}\n\n${job.description.substring(0, 200)}...\n\nApply now: ${window.location.origin}/apply/${job.id}?utm_source=whatsapp&utm_medium=social&utm_campaign=job_posting`)}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-green-600 hover:text-green-800 text-xs"
+                >
+                  WhatsApp
+                </a>
+              </div>
+            </div>
+          </div>
+
+          {/* Enhanced AI Job Performance Insights - Collapsible */}
+          <Collapsible open={isInsightsExpanded} onOpenChange={setIsInsightsExpanded}>
+            <div className="bg-gradient-to-r from-purple-50 to-blue-50 border border-purple-200 rounded-lg mb-4">
+              <CollapsibleTrigger asChild>
+                <div className="flex items-center justify-between p-4 cursor-pointer hover:bg-purple-100/50 transition-colors rounded-t-lg">
+                  <div className="flex items-center space-x-2">
+                    <Brain className="w-5 h-5 text-purple-600" />
+                    <h4 className="text-sm font-semibold text-purple-900">AI Performance Analytics</h4>
+                    <Badge variant="outline" className="text-xs bg-purple-100 text-purple-700 border-purple-300">
+                      Live
+                    </Badge>
+                    <Badge variant="outline" className="text-xs bg-blue-100 text-blue-700 border-blue-300">
+                      {job.aiScore ||
+                        Math.min(
+                          95,
+                          Math.max(45, job.applicants * 3 + job.views * 0.2 + Math.floor(Math.random() * 20) + 40),
+                        )}
+                      Score
+                    </Badge>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <span className="text-xs text-purple-600">
+                      {isInsightsExpanded ? "Hide Details" : "View Details"}
+                    </span>
+                    {isInsightsExpanded ? (
+                      <ChevronUp className="w-4 h-4 text-purple-600" />
+                    ) : (
+                      <ChevronDown className="w-4 h-4 text-purple-600" />
+                    )}
+                  </div>
+                </div>
+              </CollapsibleTrigger>
+
+              <CollapsibleContent>
+                <div className="px-4 pb-4">
+                  <div className="flex items-center justify-end mb-3">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => {
+                        const insights = {
+                          optimizationTips: [
+                            "Consider adding remote work benefits to increase applications",
+                            "Salary range is competitive for this market",
+                            "Job description could highlight growth opportunities",
+                            "Skills requirements align well with market demand",
+                            "Location attracts quality candidates",
+                          ],
+                          marketComparison: {
+                            avgApplications: Math.floor(job.applicants * 1.3),
+                            marketSalaryRange: `${formatSalary(
+                              job.salaryMin * 0.9,
+                              job.jobType,
+                              job.country,
+                            )} - ${formatSalary(job.salaryMax * 1.1, job.jobType, job.country)}`,
+                            competitorCount: Math.floor(Math.random() * 15) + 5,
+                            industryBenchmark: Math.floor(Math.random() * 30) + 70,
+                          },
+                          predictedMetrics: {
+                            expectedApplications: Math.floor(job.applicants * 1.5),
+                            timeToFill: Math.floor(Math.random() * 20) + 10,
+                            qualityScore: Math.floor(Math.random() * 30) + 70,
+                            conversionRate: ((job.interviewCount / Math.max(job.applicants, 1)) * 100).toFixed(1),
+                          },
+                          performanceHistory: {
+                            weeklyGrowth: Math.floor(Math.random() * 20) + 5,
+                            peakApplicationDay: ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"][
+                              Math.floor(Math.random() * 5)
+                            ],
+                            avgResponseTime: Math.floor(Math.random() * 48) + 12,
+                          },
+                        }
+                        alert(
+                          `🤖 Comprehensive AI Analysis for "${job.title}"\n\n` +
+                            `📊 PERFORMANCE METRICS:\n` +
+                            `• AI Score: ${job.aiScore || Math.min(95, Math.max(45, job.applicants * 3 + job.views * 0.2 + Math.floor(Math.random() * 20) + 40))}/100\n` +
+                            `• Application Velocity: ${(
+                              job.applicants /
+                                Math.max(
+                                  1,
+                                  Math.floor(
+                                    (new Date().getTime() - new Date(job.postedDate).getTime()) / (1000 * 60 * 60 * 24),
+                                  ),
+                                )
+                            ).toFixed(1)} apps/day\n` +
+                            `• Conversion Rate: ${insights.predictedMetrics.conversionRate}%\n` +
+                            `• Weekly Growth: +${insights.performanceHistory.weeklyGrowth}%\n\n` +
+                            `🎯 OPTIMIZATION RECOMMENDATIONS:\n${insights.optimizationTips
+                              .map((tip, i) => `${i + 1}. ${tip}`)
+                              .join("\n")}\n\n` +
+                            `📈 MARKET ANALYSIS:\n` +
+                            `• Industry Benchmark: ${insights.marketComparison.industryBenchmark}% match rate\n` +
+                            `• Market Salary Range: ${insights.marketComparison.marketSalaryRange}\n` +
+                            `• Active Competitors: ${insights.marketComparison.competitorCount} similar roles\n` +
+                            `• Peak Application Day: ${insights.performanceHistory.peakApplicationDay}\n\n` +
+                            `🔮 PREDICTIONS:\n` +
+                            `• Expected Total Applications: ${insights.predictedMetrics.expectedApplications}\n` +
+                            `• Estimated Time to Fill: ${insights.predictedMetrics.timeToFill} days\n` +
+                            `• Quality Score Projection: ${insights.predictedMetrics.qualityScore}%\n` +
+                            `• Average Response Time: ${insights.performanceHistory.avgResponseTime} hours`,
+                        )
+                      }}
+                      className="text-purple-600 hover:text-purple-800"
+                    >
+                      <Target className="w-3 h-3 mr-1" />
+                      Export Full Report
+                    </Button>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
+                    <div className="bg-white rounded-lg p-3 border border-purple-100 hover:shadow-md transition-shadow">
+                      <div className="flex items-center space-x-2 mb-2">
+                        <Brain className="w-4 h-4 text-purple-500" />
+                        <span className="text-xs font-medium text-purple-700">AI Performance Score</span>
+                      </div>
+                      <div className="flex items-center space-x-2 mb-2">
+                        <Badge
+                          className={`${
+                            job.applicants > 20
+                              ? "bg-green-100 text-green-800"
+                              : job.applicants > 10
+                                ? "bg-blue-100 text-blue-800"
+                                : job.applicants > 5
+                                  ? "bg-yellow-100 text-yellow-800"
+                                  : "bg-red-100 text-red-800"
+                          }`}
+                        >
+                          {job.aiScore ||
+                            Math.min(
+                              95,
+                              Math.max(45, job.applicants * 3 + job.views * 0.2 + Math.floor(Math.random() * 20) + 40),
+                            )}
+                          /100
+                        </Badge>
+                        <span className="text-xs text-gray-500">
+                          {job.applicants > 20
+                            ? "Excellent"
+                            : job.applicants > 10
+                              ? "Good"
+                              : job.applicants > 5
+                                ? "Average"
+                                : "Needs Attention"}
+                        </span>
+                      </div>
+                      <div className="text-xs text-purple-600">
+                        📊 Based on 12+ data points including application rate, view-to-apply ratio, and market
+                        positioning
+                      </div>
+                    </div>
+
+                    <div className="bg-white rounded-lg p-3 border border-blue-100 hover:shadow-md transition-shadow">
+                      <div className="flex items-center space-x-2 mb-2">
+                        <Zap className="w-4 h-4 text-blue-500" />
+                        <span className="text-xs font-medium text-blue-700">Application Velocity</span>
+                      </div>
+                      <div className="flex items-center space-x-2 mb-2">
+                        <span className="text-sm font-semibold text-blue-800">
+                          {(
+                            job.applicants /
+                            Math.max(
+                              1,
+                              Math.floor(
+                                (new Date().getTime() - new Date(job.postedDate).getTime()) / (1000 * 60 * 60 * 24),
+                              ),
+                            )
+                          ).toFixed(1)}
+                        </span>
+                        <span className="text-xs text-gray-500">apps/day</span>
+                      </div>
+                      <div className="text-xs text-blue-600">
+                        {job.applicants > 15
+                          ? "🔥 Trending - High momentum with consistent daily applications"
+                          : job.applicants > 8
+                            ? "📈 Growing - Steady increase in application rate"
+                            : job.applicants > 3
+                              ? "📊 Stable - Moderate but consistent interest"
+                              : "⚠️ Slow - Consider boosting visibility or reviewing requirements"}
+                      </div>
+                    </div>
+
+                    <div className="bg-white rounded-lg p-3 border border-green-100 hover:shadow-md transition-shadow">
+                      <div className="flex items-center space-x-2 mb-2">
+                        <Target className="w-4 h-4 text-green-500" />
+                        <span className="text-xs font-medium text-green-700">Candidate Quality</span>
+                      </div>
+                      <div className="flex items-center space-x-2 mb-2">
+                        <span className="text-sm font-semibold text-green-800">
+                          {Math.floor((job.interviewCount / Math.max(job.applicants, 1)) * 100)}%
+                        </span>
+                        <span className="text-xs text-gray-500">interview rate</span>
+                      </div>
+                      <div className="text-xs text-green-600">
+                        {job.interviewCount / Math.max(job.applicants, 1) > 0.3
+                          ? "🎯 Excellent - High-quality candidates matching requirements perfectly"
+                          : job.interviewCount / Math.max(job.applicants, 1) > 0.15
+                            ? "✅ Good - Solid candidate pool with relevant experience"
+                            : job.interviewCount / Math.max(job.applicants, 1) > 0.05
+                              ? "🔍 Mixed - Some qualified candidates, review screening criteria"
+                              : "⚡ Low - Consider adjusting requirements or improving job description"}
+                      </div>
+                    </div>
+
+                    <div className="bg-white rounded-lg p-3 border border-orange-100 hover:shadow-md transition-shadow">
+                      <div className="flex items-center space-x-2 mb-2">
+                        <Globe className="w-4 h-4 text-orange-500" />
+                        <span className="text-xs font-medium text-orange-700">Market Competitiveness</span>
+                      </div>
+                      <div className="flex items-center space-x-2 mb-2">
+                        <Badge
+                          variant="outline"
+                          className={`text-xs ${
+                            job.views > 200
+                              ? "border-green-300 text-green-700"
+                              : job.views > 100
+                                ? "border-blue-300 text-blue-700"
+                                : job.views > 50
+                                  ? "border-yellow-300 text-yellow-700"
+                                  : "border-red-300 text-red-700"
+                          }`}
+                        >
+                          {job.views > 200
+                            ? "Top 10%"
+                            : job.views > 100
+                              ? "Top 25%"
+                              : job.views > 50
+                                ? "Average"
+                                : "Below Average"}
+                        </Badge>
+                      </div>
+                      <div className="text-xs text-orange-600">
+                        📍 {job.views} views vs {Math.floor(job.views * 1.3)} market average for {job.jobType} roles in{" "}
+                        {job.city}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                    <div className="bg-white rounded-lg p-4 border border-gray-200">
+                      <div className="flex items-center space-x-2 mb-3">
+                        <Zap className="w-4 h-4 text-indigo-500" />
+                        <span className="text-sm font-medium text-indigo-700">Performance Trends</span>
+                      </div>
+                      <div className="space-y-2">
+                        <div className="flex justify-between items-center">
+                          <span className="text-xs text-gray-600">Weekly Growth Rate</span>
+                          <Badge variant="outline" className="text-xs text-green-700 border-green-300">
+                            +{Math.floor(Math.random() * 20) + 5}%
+                          </Badge>
+                        </div>
+                        <div className="flex justify-between items-center">
+                          <span className="text-xs text-gray-600">Peak Application Day</span>
+                          <span className="text-xs font-medium">
+                            {["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"][Math.floor(Math.random() * 5)]}
+                          </span>
+                        </div>
+                        <div className="flex justify-between items-center">
+                          <span className="text-xs text-gray-600">Avg. Response Time</span>
+                          <span className="text-xs font-medium">{Math.floor(Math.random() * 48) + 12}h</span>
+                        </div>
+                        <div className="flex justify-between items-center">
+                          <span className="text-xs text-gray-600">Source Diversity</span>
+                          <Badge variant="outline" className="text-xs">
+                            {Math.floor(Math.random() * 5) + 3} channels
+                          </Badge>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="bg-white rounded-lg p-4 border border-gray-200">
+                      <div className="flex items-center space-x-2 mb-3">
+                        <Target className="w-4 h-4 text-pink-500" />
+                        <span className="text-sm font-medium text-pink-700">Optimization Opportunities</span>
+                      </div>
+                      <div className="space-y-2">
+                        <div className="flex items-start space-x-2">
+                          <div className="w-2 h-2 bg-pink-400 rounded-full mt-1.5 flex-shrink-0"></div>
+                          <span className="text-xs text-gray-700">
+                            {job.views > job.applicants * 15
+                              ? "High views but low applications - simplify application process"
+                              : "Good view-to-application ratio - maintain current strategy"}
+                          </span>
+                        </div>
+                        <div className="flex items-start space-x-2">
+                          <div className="w-2 h-2 bg-pink-400 rounded-full mt-1.5 flex-shrink-0"></div>
+                          <span className="text-xs text-gray-700">
+                            {job.priority === "urgent" && job.applicants < 10
+                              ? "Urgent role needs immediate promotion boost"
+                              : "Timeline aligns well with application flow"}
+                          </span>
+                        </div>
+                        <div className="flex items-start space-x-2">
+                          <div className="w-2 h-2 bg-pink-400 rounded-full mt-1.5 flex-shrink-0"></div>
+                          <span className="text-xs text-gray-700">
+                            {job.remote
+                              ? "Remote option attracts wider talent pool"
+                              : "Consider adding hybrid/remote options to increase reach"}
+                          </span>
+                        </div>
+                        <div className="flex items-start space-x-2">
+                          <div className="w-2 h-2 bg-pink-400 rounded-full mt-1.5 flex-shrink-0"></div>
+                          <span className="text-xs text-gray-700">
+                            Salary range is {job.salaryMin > 80000 ? "competitive" : "below market average"} for this
+                            role
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="pt-3 border-t border-purple-200">
+                    <div className="flex items-center space-x-2 mb-3">
+                      <Brain className="w-4 h-4 text-purple-500" />
+                      <span className="text-sm font-medium text-purple-700">Smart Recommendations</span>
+                      <Badge variant="outline" className="text-xs bg-purple-50 text-purple-600 border-purple-300">
+                        AI-Powered
+                      </Badge>
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                      <div className="space-y-2">
+                        <h5 className="text-xs font-medium text-gray-700">Immediate Actions</h5>
+                        <div className="flex flex-wrap gap-2">
+                          {job.applicants < 5 && (
+                            <Badge variant="outline" className="text-xs bg-red-50 text-red-700 border-red-300">
+                              🚨 Boost social media presence
+                            </Badge>
+                          )}
+                          {job.views > job.applicants * 10 && (
+                            <Badge variant="outline" className="text-xs bg-yellow-50 text-yellow-700 border-yellow-300">
+                              🎯 Simplify application process
+                            </Badge>
+                          )}
+                          {job.interviewCount === 0 && job.applicants > 5 && (
+                            <Badge variant="outline" className="text-xs bg-orange-50 text-orange-700 border-orange-300">
+                              📋 Schedule candidate reviews
+                            </Badge>
+                          )}
+                        </div>
+                      </div>
+                      <div className="space-y-2">
+                        <h5 className="text-xs font-medium text-gray-700">Strategic Improvements</h5>
+                        <div className="flex flex-wrap gap-2">
+                          {job.priority === "urgent" && job.applicants < 10 && (
+                            <Badge variant="outline" className="text-xs bg-purple-50 text-purple-700 border-purple-300">
+                              ⚡ Consider premium job board placement
+                            </Badge>
+                          )}
+                          <Badge variant="outline" className="text-xs bg-blue-50 text-blue-700 border-blue-300">
+                            📊 A/B test job descriptions
+                          </Badge>
+                          <Badge variant="outline" className="text-xs bg-green-50 text-green-700 border-green-300">
+                            🎯 Optimize for mobile applications
+                          </Badge>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </CollapsibleContent>
+            </div>
+          </Collapsible>
+
+          <div className="flex items-center justify-between text-sm">
+            <div className="flex items-center space-x-2">
+              <Calendar className="w-4 h-4 text-gray-400" />
+              <span>
+                Posted:{" "}
+                {new Date(job.postedDate)
+                  .toLocaleDateString("en-GB", {
+                    day: "2-digit",
+                    month: "short",
+                    year: "numeric",
+                  })
+                  .replace(/ /g, "-")}
+              </span>
+              <span>•</span>
+              <span>
+                Updated:{" "}
+                {new Date(job.lastUpdated)
+                  .toLocaleDateString("en-GB", {
+                    day: "2-digit",
+                    month: "short",
+                    year: "numeric",
+                  })
+                  .replace(/ /g, "-")}
+              </span>
+            </div>
+            <div className="flex space-x-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  setEditingJob(job)
+                  setIsEditDialogOpen(true)
+                }}
+              >
+                <Edit className="w-3 h-3 mr-1" />
+                Edit
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => simulateViewIncrease(job.id)}
+                className="text-blue-600 border-blue-200 hover:bg-blue-50"
+              >
+                <Eye className="w-3 h-3 mr-1" />
+                +View
+              </Button>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+    )
+  }
+
+  const availableCitiesForNewJob = newJob.country ? getCitiesByCountry(newJob.country) : []
+  const salaryPlaceholdersForNewJob = getSalaryPlaceholder(newJob.jobType, newJob.country)
+
+  const simulateViewIncrease = (jobId: string) => {
+    setJobPostings((prevJobs) =>
+      prevJobs.map((job) =>
+        job.id === jobId
+          ? {
+              ...job,
+              views: job.views + Math.floor(Math.random() * 5) + 1,
+              lastUpdated: new Date().toISOString().split("T")[0],
+            }
+          : job,
+      ),
+    )
+  }
+
+  const getActiveFilterCount = () => {
+    let count = 0
+    if (searchFilters.searchTerm) count++
+    if (searchFilters.country) count++
+    if (searchFilters.city) count++
+    if (searchFilters.jobType) count++
+    if (searchFilters.priority) count++
+    return count
+  }
+
+  return (
+    <div className="space-y-6">
+      <div className="flex justify-between items-center">
+        <div>
+          <h2 className="text-3xl font-bold text-gray-900">Step 1: Job Postings</h2>
+          <p className="text-gray-600">Create and manage job postings with location-based salary formatting</p>
+          <div className="flex items-center space-x-2 mt-2">
+            <Badge variant="outline" className="bg-blue-50 text-blue-700">
+              {jobPostings.length} Total Jobs
+            </Badge>
+            <Badge variant="outline" className="bg-green-50 text-green-700">
+              {filteredJobs.length} Filtered Results
+            </Badge>
+            <Badge variant="outline" className="bg-orange-50 text-orange-700">
+              {jobPostings.filter((job) => job.status === "active").length} Active
+            </Badge>
+          </div>
+        </div>
+        <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
+          <DialogTrigger asChild>
+            <Button className="bg-blue-600 hover:bg-blue-700">
+              <Plus className="w-4 h-4 mr-2" />
+              Create Job Posting
+            </Button>
+          </DialogTrigger>
+          <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle>Create New Job Posting</DialogTitle>
+              <DialogDescription>
+                Fill in the details for your new job posting with location-based salary formatting
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className="bg-gradient-to-r from-purple-50 to-blue-50 border border-purple-200 rounded-lg p-4">
+              <div className="flex items-center space-x-2 mb-3">
+                <Brain className="w-5 h-5 text-purple-600" />
+                <h3 className="text-sm font-semibold text-purple-900">AI Job Creation Assistant</h3>
+                <Badge variant="outline" className="text-xs bg-purple-100 text-purple-700 border-purple-300">
+                  Beta
+                </Badge>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    if (newJob.title && newJob.jobType) {
+                      const aiDescription = `We are seeking a talented ${newJob.title} to join our dynamic team. This ${JOB_TYPES.find(
+                        (t) => t.value === newJob.jobType,
+                      )?.label.toLowerCase()} position offers exciting opportunities to work with cutting-edge technologies and contribute to innovative projects. The ideal candidate will bring expertise in relevant technologies and a passion for delivering high-quality solutions.`
+                      setNewJob({ ...newJob, description: aiDescription })
+                    }
+                  }}
+                  disabled={!newJob.title || !newJob.jobType}
+                  className="text-purple-600 border-purple-200 hover:bg-purple-50"
+                >
+                  <Zap className="w-3 h-3 mr-1" />
+                  Generate Description
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    if (newJob.title) {
+                      const skillSuggestions = {
+                        "software engineer": "JavaScript, React, Node.js, Python, SQL, Git",
+                        "data scientist": "Python, R, SQL, Machine Learning, Statistics, Tableau",
+                        "marketing manager": "Digital Marketing, Analytics, SEO, Content Strategy, Social Media",
+                        "product manager": "Product Strategy, Agile, Analytics, Leadership, SQL",
+                        designer: "Figma, Adobe Creative Suite, UX/UI Design, Prototyping",
+                        devops: "AWS, Docker, Kubernetes, Terraform, CI/CD, Linux",
+                      }
+                      const titleLower = newJob.title.toLowerCase()
+                      const suggestedSkills = Object.keys(skillSuggestions).find((key) => titleLower.includes(key))
+                      if (suggestedSkills) {
+                        setNewJob({
+                          ...newJob,
+                          skills: skillSuggestions[suggestedSkills as keyof typeof skillSuggestions],
+                        })
+                      }
+                    }
+                  }}
+                  disabled={!newJob.title}
+                  className="text-purple-600 border-purple-200 hover:bg-purple-50"
+                >
+                  <Target className="w-3 h-3 mr-1" />
+                  Suggest Skills
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    if (newJob.title && newJob.country && newJob.jobType) {
+                      const salaryRanges = {
+                        "software engineer": { US: [90000, 150000], CA: [75000, 125000], GB: [50000, 85000] },
+                        "data scientist": { US: [100000, 160000], CA: [80000, 130000], GB: [55000, 90000] },
+                        "marketing manager": { US: [70000, 120000], CA: [60000, 100000], GB: [40000, 70000] },
+                        "product manager": { US: [110000, 170000], CA: [90000, 140000], GB: [60000, 95000] },
+                      }
+                      const titleLower = newJob.title.toLowerCase()
+                      const roleKey = Object.keys(salaryRanges).find((key) => titleLower.includes(key))
+                      if (
+                        roleKey &&
+                        salaryRanges[roleKey as keyof typeof salaryRanges][
+                          newJob.country as keyof (typeof salaryRanges)[keyof typeof salaryRanges]
+                        ]
+                      ) {
+                        const range =
+                          salaryRanges[roleKey as keyof typeof salaryRanges][
+                            newJob.country as keyof (typeof salaryRanges)[keyof typeof salaryRanges]
+                          ]
+                        setNewJob({ ...newJob, salaryMin: range[0].toString(), salaryMax: range[1].toString() })
+                      }
+                    }
+                  }}
+                  disabled={!newJob.title || !newJob.country || !newJob.jobType}
+                  className="text-purple-600 border-purple-200 hover:bg-purple-50"
+                >
+                  <DollarSign className="w-3 h-3 mr-1" />
+                  Suggest Salary
+                </Button>
+              </div>
+              <p className="text-xs text-purple-600 mt-2">
+                AI suggestions are based on industry standards and can be customized to fit your specific needs.
+              </p>
+            </div>
+
+            <div className="bg-gradient-to-r from-green-50 to-emerald-50 border border-green-200 rounded-lg p-4">
+              <div className="flex items-center space-x-2 mb-3">
+                <Brain className="w-5 h-5 text-green-600" />
+                <h3 className="text-sm font-semibold text-green-900">AI Custom Questions Generator</h3>
+                <Badge variant="outline" className="text-xs bg-green-100 text-green-700 border-green-300">
+                  Smart
+                </Badge>
+              </div>
+              <div className="space-y-3">
+                <p className="text-sm text-green-700">
+                  Generate intelligent screening questions based on your job requirements. These questions will be shown
+                  to candidates when they apply through social media or external platforms.
+                </p>
+                <div className="flex space-x-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => generateAIQuestions(newJob.title, newJob.jobType, newJob.country)}
+                    disabled={!newJob.title || !newJob.jobType || isGeneratingQuestions}
+                    className="text-green-600 border-green-200 hover:bg-green-50"
+                  >
+                    {isGeneratingQuestions ? (
+                      <>
+                        <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-green-600 mr-2"></div>
+                        Generating...
+                      </>
+                    ) : (
+                      <>
+                        <Zap className="w-3 h-3 mr-1" />
+                        Generate Questions
+                      </>
+                    )}
+                  </Button>
+                  {customQuestions.length > 0 && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setCustomQuestions([])}
+                      className="text-red-600 border-red-200 hover:bg-red-50"
+                    >
+                      Clear All
+                    </Button>
+                  )}
+                </div>
+
+                {customQuestions.length > 0 && (
+                  <div className="mt-4 space-y-3">
+                    <h4 className="text-sm font-medium text-green-900">
+                      Generated Questions ({customQuestions.length})
+                    </h4>
+                    <div className="max-h-64 overflow-y-auto space-y-2">
+                      {customQuestions.map((question, index) => (
+                        <div key={question.id} className="bg-white p-3 rounded border border-green-200">
+                          <div className="flex items-start justify-between">
+                            <div className="flex-1">
+                              <div className="flex items-center space-x-2 mb-1">
+                                <span className="text-xs font-medium text-green-700">Q{index + 1}</span>
+                                <Badge variant="outline" className="text-xs">
+                                  {question.type}
+                                </Badge>
+                                {question.required && (
+                                  <Badge variant="outline" className="text-xs text-red-600 border-red-200">
+                                    Required
+                                  </Badge>
+                                )}
+                              </div>
+                              <p className="text-sm text-gray-700">{question.question}</p>
+                              {question.options && (
+                                <div className="mt-1">
+                                  <p className="text-xs text-gray-500">Options: {question.options.join(", ")}</p>
+                                </div>
+                              )}
+                            </div>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => setCustomQuestions((prev) => prev.filter((q) => q.id !== question.id))}
+                              className="text-red-500 hover:text-red-700 ml-2"
+                            >
+                              ×
+                            </Button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                    <div className="flex items-center space-x-2 text-xs text-green-600">
+                      <Target className="w-3 h-3" />
+                      <span>These questions will be automatically added to your job application form</span>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div className="grid gap-6 py-4">
+              <div className="space-y-4">
+                <h3 className="text-lg font-semibold">Basic Information</h3>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="title">Job Title *</Label>
+                    <Input
+                      id="title"
+                      value={newJob.title}
+                      onChange={(e) => setNewJob({ ...newJob, title: e.target.value })}
+                      placeholder="Senior Software Engineer"
+                      required
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="company">Company *</Label>
+                    <Input
+                      id="company"
+                      value={newJob.company}
+                      onChange={(e) => setNewJob({ ...newJob, company: e.target.value })}
+                      placeholder="TechCorp Inc."
+                      required
+                    />
+                  </div>
+                </div>
+                <div className="grid grid-cols-3 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="department">Department</Label>
+                    <Input
+                      id="department"
+                      value={newJob.department}
+                      onChange={(e) => setNewJob({ ...newJob, department: e.target.value })}
+                      placeholder="Engineering"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="internalSPOC">Internal SPOC *</Label>
+                    <Input
+                      id="internalSPOC"
+                      value={newJob.internalSPOC}
+                      onChange={(e) => setNewJob({ ...newJob, internalSPOC: e.target.value })}
+                      placeholder="Sarah Wilson"
+                      required
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="recruiter">Recruiter</Label>
+                    <Input
+                      id="recruiter"
+                      value={newJob.recruiter}
+                      onChange={(e) => setNewJob({ ...newJob, recruiter: e.target.value })}
+                      placeholder="Sarah Wilson"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <div className="space-y-4">
+                <h3 className="text-lg font-semibold">Job Type & Location</h3>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="jobType">Job Type *</Label>
+                    <Select
+                      value={newJob.jobType}
+                      onChange={(value) => setNewJob({ ...newJob, jobType: value.target.value })}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select job type" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {JOB_TYPES.map((type) => (
+                          <SelectItem key={type.value} value={type.value}>
+                            <div className="flex items-center space-x-2">
+                              <span>{type.label}</span>
+                              <span className="text-xs text-gray-500">({type.salaryPeriod})</span>
+                            </div>
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="experience">Experience Level</Label>
+                    <Select
+                      value={newJob.experience}
+                      onChange={(value) => setNewJob({ ...newJob, experience: value.target.value })}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select experience level" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="Entry level">Entry Level (0-2 years)</SelectItem>
+                        <SelectItem value="Mid level">Mid Level (3-5 years)</SelectItem>
+                        <SelectItem value="Senior level">Senior Level (6-10 years)</SelectItem>
+                        <SelectItem value="Lead/Principal">Lead/Principal (10+ years)</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-4 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="country">Country *</Label>
+                    <Select
+                      value={newJob.country}
+                      onValueChange={(value) => {
+                        setNewJob({ ...newJob, country: value, city: "", location: "" })
+                      }}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select country" />
+                      </SelectTrigger>
+                      <SelectContent searchable searchPlaceholder="Search countries...">
+                        {COUNTRIES.map((country) => (
+                          <SelectItem key={country.code} value={country.code}>
+                            <div className="flex items-center space-x-2">
+                              <span>{country.name}</span>
+                              <span className="text-xs text-gray-500">({country.currencySymbol})</span>
+                            </div>
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="city">City *</Label>
+                    <Select
+                      value={newJob.city}
+                      onValueChange={(value) => {
+                        const selectedCity = value === "full-location" ? "" : value
+                        const fullLocation =
+                          value === "full-location"
+                            ? `${newJob.country ? COUNTRIES.find((c) => c.code === newJob.country)?.name : ""}, Full Location`
+                            : `${value}, ${newJob.country ? COUNTRIES.find((c) => c.code === newJob.country)?.name : ""}`
+                        setNewJob({
+                          ...newJob,
+                          city: selectedCity,
+                          location: newJob.location || fullLocation,
+                        })
+                      }}
+                      disabled={!newJob.country}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder={newJob.country ? "Select city" : "Select country first"} />
+                      </SelectTrigger>
+                      <SelectContent searchable searchPlaceholder="Search cities...">
+                        <SelectItem value="full-location">
+                          <div className="flex items-center space-x-2">
+                            <Globe className="w-4 h-4 text-blue-500" />
+                            <span className="font-medium">Full Location (Editable)</span>
+                          </div>
+                        </SelectItem>
+                        {newJob.country && (
+                          <>
+                            <SelectSeparator />
+                            {getCitiesByCountry(newJob.country).map((city) => (
+                              <SelectItem key={city} value={city}>
+                                <div className="flex items-center space-x-2">
+                                  <MapPin className="w-3 h-3 text-gray-400" />
+                                  <span>{city}</span>
+                                </div>
+                              </SelectItem>
+                            ))}
+                          </>
+                        )}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="location">Full Location *</Label>
+                    <Input
+                      id="location"
+                      value={newJob.location}
+                      onChange={(e) => setNewJob({ ...newJob, location: e.target.value })}
+                      placeholder="Enter complete location (e.g., San Francisco, CA, USA)"
+                      className="bg-blue-50/30 border-blue-200 focus:border-blue-400"
+                    />
+                    <p className="text-xs text-gray-500">
+                      This field auto-fills based on your selections above, but you can edit it manually
+                    </p>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="remote">Work Type</Label>
+                    <Select
+                      value={newJob.remote.toString()}
+                      onValueChange={(value) => setNewJob({ ...newJob, remote: value === "true" })}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder={newJob.remote.toString()} />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="false">
+                          <div className="flex items-center space-x-2">
+                            <Building2 className="w-3 h-3 text-gray-500" />
+                            <span>On-site</span>
+                          </div>
+                        </SelectItem>
+                        <SelectItem value="true">
+                          <div className="flex items-center space-x-2">
+                            <Globe className="w-3 h-3 text-blue-500" />
+                            <span>Remote</span>
+                          </div>
+                        </SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+              </div>
+
+              <div className="space-y-4">
+                <div className="flex items-center space-x-2">
+                  <DollarSign className="w-4 h-4 text-gray-500" />
+                  <h3 className="text-lg font-semibold">Salary Information</h3>
+                  {newJob.country && (
+                    <Badge variant="outline" className="text-xs">
+                      {COUNTRIES.find((c) => c.code === newJob.country)?.currencySymbol} -
+                      {JOB_TYPES.find((t) => t.value === newJob.jobType)?.salaryPeriod}
+                    </Badge>
+                  )}
+                </div>
+                <div className="grid grid-cols-3 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="salaryMin">Minimum Salary</Label>
+                    <Input
+                      id="salaryMin"
+                      type="number"
+                      value={newJob.salaryMin}
+                      onChange={(e) => setNewJob({ ...newJob, salaryMin: e.target.value })}
+                      placeholder={salaryPlaceholdersForNewJob.min.replace(/[^\d]/g, "")}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="salaryMax">Maximum Salary</Label>
+                    <Input
+                      id="salaryMax"
+                      type="number"
+                      value={newJob.salaryMax}
+                      onChange={(e) => setNewJob({ ...newJob, salaryMax: e.target.value })}
+                      placeholder={salaryPlaceholdersForNewJob.max.replace(/[^\d]/g, "")}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="priority">Priority</Label>
+                    <Select
+                      value={newJob.priority}
+                      onChange={(value) => setNewJob({ ...newJob, priority: value.target.value })}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder={newJob.priority} />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="urgent">Urgent</SelectItem>
+                        <SelectItem value="high">High</SelectItem>
+                        <SelectItem value="medium">Medium</SelectItem>
+                        <SelectItem value="low">Low</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+                <p className="text-xs text-gray-500">
+                  Enter {JOB_TYPES.find((t) => t.value === newJob.jobType)?.salaryPeriod} rates (e.g.,{" "}
+                  {salaryPlaceholdersForNewJob.min} - {salaryPlaceholdersForNewJob.max})
+                </p>
+              </div>
+
+              <div className="space-y-4">
+                <h3 className="text-lg font-semibold">Job Details</h3>
+                <div className="space-y-2">
+                  <Label htmlFor="description">Job Description *</Label>
+                  <Textarea
+                    id="description"
+                    value={newJob.description}
+                    onChange={(e) => setNewJob({ ...newJob, description: e.target.value })}
+                    placeholder="Describe the role, responsibilities, and what makes this position exciting..."
+                    rows={4}
+                    required
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="requirements">Requirements (one per line)</Label>
+                  <Textarea
+                    id="requirements"
+                    value={newJob.requirements}
+                    onChange={(e) => setNewJob({ ...newJob, requirements: e.target.value })}
+                    placeholder="Bachelor's degree in Computer Science&#10;5+ years of experience&#10;Strong communication skills"
+                    rows={4}
+                  />
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="skills">Required Skills (comma-separated)</Label>
+                    <Input
+                      id="skills"
+                      value={newJob.skills}
+                      onChange={(e) => setNewJob({ ...newJob, skills: e.target.value })}
+                      placeholder="React, Node.js, TypeScript, AWS"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="benefits">Benefits (comma-separated)</Label>
+                    <Input
+                      id="benefits"
+                      value={newJob.benefits}
+                      onChange={(e) => setNewJob({ ...newJob, benefits: e.target.value })}
+                      placeholder="Health Insurance, 401k, Flexible PTO"
+                    />
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div className="flex justify-end space-x-2">
+              <Button variant="outline" onClick={() => setIsAddDialogOpen(false)}>
+                Cancel
+              </Button>
+              <Button
+                onClick={handleAddJob}
+                className="bg-blue-600 hover:bg-blue-700"
+                disabled={!newJob.title || !newJob.company || !newJob.country || !newJob.city || !newJob.description}
+              >
+                Create Job Posting
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
+
+        <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
+          <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle>Edit Job Posting</DialogTitle>
+              <DialogDescription>Update job posting details and salary information</DialogDescription>
+            </DialogHeader>
+            {editingJob && (
+              <div className="grid gap-6 py-4">
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="edit-title">Job Title</Label>
+                    <Input
+                      id="edit-title"
+                      value={editingJob.title}
+                      onChange={(e) => setEditingJob({ ...editingJob, title: e.target.value })}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="edit-company">Company</Label>
+                    <Input
+                      id="edit-company"
+                      value={editingJob.company}
+                      onChange={(e) => setEditingJob({ ...editingJob, company: e.target.value })}
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="edit-jobType">Job Type</Label>
+                    <Select
+                      value={editingJob.jobType}
+                      onChange={(value) => setEditingJob({ ...editingJob, jobType: value.target.value })}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder={editingJob.jobType} />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {JOB_TYPES.map((type) => (
+                          <SelectItem key={type.value} value={type.value}>
+                            {type.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="edit-status">Status</Label>
+                    <Select
+                      value={editingJob.status}
+                      onChange={(value) => setEditingJob({ ...editingJob, status: value.target.value })}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder={editingJob.status} />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {statusOptions.map((status) => (
+                          <SelectItem key={status.key} value={status.key}>
+                            {status.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+
+                <div className="space-y-3">
+                  <div className="flex items-center space-x-2">
+                    <Globe className="w-4 h-4 text-gray-500" />
+                    <Label>Location</Label>
+                  </div>
+                  <div className="grid grid-cols-3 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="edit-country">Country</Label>
+                      <Select
+                        value={editingJob.country}
+                        onValueChange={(value) => setEditingJob({ ...editingJob, country: value, city: "" })}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select country" />
+                        </SelectTrigger>
+                        <SelectContent searchable searchPlaceholder="Search countries...">
+                          {COUNTRIES.map((country) => (
+                            <SelectItem key={country.code} value={country.code}>
+                              <div className="flex items-center space-x-2">
+                                <span>{country.name}</span>
+                                <span className="text-xs text-gray-500">({country.currencySymbol})</span>
+                              </div>
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="edit-city">City</Label>
+                      <Select
+                        value={editingJob.city}
+                        onValueChange={(value) => {
+                          const selectedCity = value === "full-location" ? "" : value
+                          const fullLocation =
+                            value === "full-location"
+                              ? `${editingJob.country ? COUNTRIES.find((c) => c.code === editingJob.country)?.name : ""}, Full Location`
+                              : `${value}, ${editingJob.country ? COUNTRIES.find((c) => c.code === editingJob.country)?.name : ""}`
+                          setEditingJob({
+                            ...editingJob,
+                            city: selectedCity,
+                            location: editingJob.location || fullLocation,
+                          })
+                        }}
+                        disabled={!editingJob.country}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder={editingJob.country ? "Select city" : "Select country first"} />
+                        </SelectTrigger>
+                        <SelectContent searchable searchPlaceholder="Search cities...">
+                          <SelectItem value="full-location">
+                            <div className="flex items-center space-x-2">
+                              <Globe className="w-4 h-4 text-blue-500" />
+                              <span className="font-medium">Full Location (Editable)</span>
+                            </div>
+                          </SelectItem>
+                          {editingJob.country && (
+                            <>
+                              <SelectSeparator />
+                              {getCitiesByCountry(editingJob.country).map((city) => (
+                                <SelectItem key={city} value={city}>
+                                  <div className="flex items-center space-x-2">
+                                    <MapPin className="w-3 h-3 text-gray-400" />
+                                    <span>{city}</span>
+                                  </div>
+                                </SelectItem>
+                              ))}
+                            </>
+                          )}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="edit-location">Full Location</Label>
+                      <Input
+                        id="edit-location"
+                        value={editingJob.location}
+                        onChange={(e) => setEditingJob({ ...editingJob, location: e.target.value })}
+                        className="bg-blue-50/30 border-blue-200 focus:border-blue-400"
+                        placeholder="Enter complete location"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="edit-salaryMin">Minimum Salary</Label>
+                    <Input
+                      id="edit-salaryMin"
+                      type="number"
+                      value={editingJob.salaryMin}
+                      onChange={(e) => setEditingJob({ ...editingJob, salaryMin: Number(e.target.value) })}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="edit-salaryMax">Maximum Salary</Label>
+                    <Input
+                      id="edit-salaryMax"
+                      type="number"
+                      value={editingJob.salaryMax}
+                      onChange={(e) => setEditingJob({ ...editingJob, salaryMax: Number(e.target.value) })}
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="edit-description">Job Description</Label>
+                  <Textarea
+                    id="edit-description"
+                    value={editingJob.description}
+                    onChange={(e) => setEditingJob({ ...editingJob, description: e.target.value })}
+                    rows={4}
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="edit-skills">Required Skills (comma-separated)</Label>
+                  <Input
+                    id="edit-skills"
+                    value={editingJob.skills.join(", ")}
+                    onChange={(e) =>
+                      setEditingJob({
+                        ...editingJob,
+                        skills: e.target.value
+                          .split(",")
+                          .map((skill) => skill.trim())
+                          .filter((skill) => skill.length > 0),
+                      })
+                    }
+                  />
+                </div>
+              </div>
+            )}
+            <div className="flex justify-end space-x-2">
+              <Button variant="outline" onClick={() => setIsEditDialogOpen(false)}>
+                Cancel
+              </Button>
+              <Button onClick={handleEditJob} className="bg-blue-600 hover:bg-blue-700">
+                Update Job Posting
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
+      </div>
+
+      <div className="bg-gradient-to-r from-purple-50 to-blue-50 border border-purple-200 rounded-lg p-6">
+        <div className="flex items-center space-x-2 mb-4">
+          <Brain className="w-5 h-5 text-purple-600" />
+          <h3 className="text-lg font-semibold text-purple-900">AI-Powered Smart Search</h3>
+          <Badge variant="outline" className="text-xs bg-purple-100 text-purple-700 border-purple-300">
+            Intelligent
+          </Badge>
+        </div>
+
+        <div className="flex gap-2 mb-4">
+          <div className="relative flex-1">
+            <div className="absolute left-3 top-1/2 transform -translate-y-1/2 flex items-center space-x-2">
+              <Brain className="text-purple-500 w-4 h-4" />
+              <Search className="text-gray-400 w-4 h-4" />
+            </div>
+            <Input
+              placeholder="Ask AI anything about job postings... (e.g., 'Show me remote React jobs with 100k+ salary' or 'Find urgent marketing roles in New York')"
+              value={searchFilters.searchTerm}
+              onChange={(e) => setSearchFilters({ ...searchFilters, searchTerm: e.target.value })}
+              className="pl-16 pr-4 py-3 text-base border-2 border-purple-200 focus:border-purple-400 focus:ring-purple-100 bg-gradient-to-r from-purple-50/30 to-blue-50/30"
+            />
+            <div className="absolute right-3 top-1/2 transform -translate-y-1/2 flex items-center space-x-2">
+              <Badge variant="outline" className="text-xs bg-purple-100 text-purple-700 border-purple-300">
+                AI Powered
+              </Badge>
+              {searchFilters.searchTerm && (
+                <button
+                  onClick={() => setSearchFilters({ ...searchFilters, searchTerm: "" })}
+                  className="text-gray-400 hover:text-gray-600 transition-colors"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              )}
+            </div>
+          </div>
+          <Button
+            variant="outline"
+            onClick={() => setIsFilterOpen(!isFilterOpen)}
+            className="relative bg-gradient-to-r from-purple-50 to-blue-50 border-purple-200 hover:border-purple-300 text-purple-700"
+          >
+            <Zap className="w-4 h-4 mr-2" />
+            Smart Filters
+            {getActiveFilterCount() > 0 && (
+              <Badge className="absolute -top-2 -right-2 h-5 w-5 rounded-full p-0 text-xs bg-purple-600">
+                {getActiveFilterCount()}
+              </Badge>
+            )}
+          </Button>
+        </div>
+
+        {searchFilters.searchTerm && (
+          <div className="bg-white border border-purple-200 rounded-lg p-4 mb-4">
+            <div className="flex items-center space-x-2 mb-3">
+              <Brain className="w-4 h-4 text-purple-600" />
+              <span className="text-sm font-medium text-purple-900">AI Search Insights</span>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-xs">
+              <div className="flex items-center space-x-2 text-purple-700">
+                <Target className="w-3 h-3" />
+                <span>Searching across titles, companies, skills, and descriptions</span>
+              </div>
+              <div className="flex items-center space-x-2 text-purple-700">
+                <Zap className="w-3 h-3" />
+                <span>Understanding salary ranges, locations, and job types</span>
+              </div>
+              <div className="flex items-center space-x-2 text-purple-700">
+                <Globe className="w-3 h-3" />
+                <span>Analyzing experience levels and remote work options</span>
+              </div>
+            </div>
+            <div className="mt-3 flex flex-wrap gap-2">
+              <span className="text-xs text-purple-600">Try: </span>
+              {aiSuggestions.map((suggestion, index) => (
+                <button
+                  key={index}
+                  onClick={() => setSearchFilters({ ...searchFilters, searchTerm: suggestion })}
+                  className="text-xs px-2 py-1 bg-purple-50 border border-purple-200 rounded hover:bg-purple-100 text-purple-700 transition-colors"
+                >
+                  {suggestion}
+                </button>
+              ))}
+            </div>
+            {isAiProcessing && (
+              <div className="flex items-center space-x-2 mt-3 text-purple-600">
+                <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-purple-600"></div>
+                <span>AI is processing...</span>
+              </div>
+            )}
+            {aiInsights.length > 0 && (
+              <div className="mt-4 space-y-3">
+                {aiInsights.map((insight, index) => (
+                  <div key={index} className="bg-purple-50 border border-purple-200 rounded-lg p-3">
+                    <div className="flex items-center space-x-2 mb-1">
+                      {insight.type === "suggestion" && <Lightbulb className="w-3 h-3 text-purple-500" />}
+                      {insight.type === "trend" && <TrendingUp className="w-3 h-3 text-purple-500" />}
+                      {insight.type === "optimization" && <Wand2 className="w-3 h-3 text-purple-500" />}
+                      {insight.type === "match" && <Bot className="w-3 h-3 text-purple-500" />}
+                      <span className="text-sm font-medium text-purple-900">{insight.title}</span>
+                      <Badge variant="outline" className="text-xs bg-purple-100 text-purple-700 border-purple-300">
+                        Confidence: {insight.confidence}%
+                      </Badge>
+                    </div>
+                    <p className="text-xs text-gray-700">{insight.description}</p>
+                    {insight.action && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="mt-2 text-purple-600 border-purple-200 hover:bg-purple-50 bg-transparent"
+                      >
+                        {insight.action}
+                      </Button>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {isFilterOpen && (
+          <Card className="border-purple-200">
+            <CardHeader className="pb-3">
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-sm flex items-center gap-2">
+                  <Brain className="w-4 h-4 text-purple-600" />
+                  AI Smart Filters
+                </CardTitle>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() =>
+                    setSearchFilters({
+                      searchTerm: "",
+                      country: "",
+                      city: "",
+                      salaryMin: "",
+                      salaryMax: "",
+                      experience: "",
+                      skills: [],
+                      status: "",
+                      priority: "",
+                      source: "",
+                      jobType: "",
+                      dateFilter: "all",
+                    })
+                  }
+                  className="text-xs text-gray-500 hover:text-gray-700"
+                >
+                  Clear All
+                </Button>
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="space-y-3">
+                <div className="flex items-center space-x-2">
+                  <Briefcase className="w-4 h-4 text-gray-500" />
+                  <span className="text-sm font-medium">Job Type</span>
+                </div>
+                <Select
+                  value={searchFilters.jobType}
+                  onValueChange={(value) => setSearchFilters({ ...searchFilters, jobType: value })}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Any job type" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="">Any job type</SelectItem>
+                    {JOB_TYPES.map((type) => (
+                      <SelectItem key={type.value} value={type.value}>
+                        {type.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-3">
+                <div className="flex items-center space-x-2">
+                  <Globe className="w-4 h-4 text-gray-500" />
+                  <span className="text-sm font-medium">Location Intelligence</span>
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <Select
+                    value={searchFilters.country}
+                    onValueChange={(value) => setSearchFilters({ ...searchFilters, country: value, city: "" })}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Country" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="">All Countries</SelectItem>
+                      {COUNTRIES.map((country) => (
+                        <SelectItem key={country.code} value={country.code}>
+                          {country.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <Select
+                    value={searchFilters.city}
+                    onValueChange={(value) => setSearchFilters({ ...searchFilters, city: value })}
+                    disabled={!searchFilters.country}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="City" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="">All Cities</SelectItem>
+                      {searchFilters.country &&
+                        getCitiesByCountry(searchFilters.country).map((city) => (
+                          <SelectItem key={city} value={city}>
+                            {city}
+                          </SelectItem>
+                        ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <span className="text-sm font-medium">Priority</span>
+                <Select
+                  value={searchFilters.priority}
+                  onValueChange={(value) => setSearchFilters({ ...searchFilters, priority: value })}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Any priority" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="">Any priority</SelectItem>
+                    <SelectItem value="urgent">Urgent</SelectItem>
+                    <SelectItem value="high">High</SelectItem>
+                    <SelectItem value="medium">Medium</SelectItem>
+                    <SelectItem value="low">Low</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {getActiveFilterCount() > 0 && (
+          <div className="flex flex-wrap gap-2 mt-4">
+            {searchFilters.searchTerm && (
+              <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200">
+                Search: {searchFilters.searchTerm}
+                <button
+                  onClick={() => setSearchFilters({ ...searchFilters, searchTerm: "" })}
+                  className="ml-1 hover:text-red-600"
+                >
+                  <X className="w-3 h-3" />
+                </button>
+              </Badge>
+            )}
+            {searchFilters.jobType && (
+              <Badge variant="outline" className="bg-purple-50 text-purple-700 border-purple-200">
+                <Briefcase className="w-3 h-3 mr-1" />
+                {JOB_TYPES.find((t) => t.value === searchFilters.jobType)?.label}
+                <button
+                  onClick={() => setSearchFilters({ ...searchFilters, jobType: "" })}
+                  className="ml-1 hover:text-red-600"
+                >
+                  <X className="w-3 h-3" />
+                </button>
+              </Badge>
+            )}
+            {searchFilters.country && (
+              <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
+                <MapPin className="w-3 h-3 mr-1" />
+                {COUNTRIES.find((c) => c.code === searchFilters.country)?.name}
+                <button
+                  onClick={() => setSearchFilters({ ...searchFilters, country: "", city: "" })}
+                  className="ml-1 hover:text-red-600"
+                >
+                  <X className="w-3 h-3" />
+                </button>
+              </Badge>
+            )}
+            {searchFilters.priority && (
+              <Badge variant="outline" className="bg-red-50 text-red-700 border-red-200">
+                Priority: {searchFilters.priority}
+                <button
+                  onClick={() => setSearchFilters({ ...searchFilters, priority: "" })}
+                  className="ml-1 hover:text-red-600"
+                >
+                  <X className="w-3 h-3" />
+                </button>
+              </Badge>
+            )}
+          </div>
+        )}
+      </div>
+
+      <AdvancedSearch
+        filters={{ ...searchFilters, dateFilter: dateFilter }}
+        onFiltersChange={(filters) => {
+          const { dateFilter: newDateFilter, ...otherFilters } = filters
+          setSearchFilters(otherFilters)
+          if (newDateFilter !== undefined) {
+            setDateFilter(newDateFilter)
+          }
+        }}
+        statusOptions={statusOptions}
+        showJobTypeFilter={true}
+        showSalaryFilter={true}
+        showExperienceFilter={true}
+        showSkillsFilter={true}
+        showStatusFilter={true}
+        showPriorityFilter={true}
+        showSourceFilter={false}
+        showDateFilter={true}
+        className="mb-6"
+      />
+
+      <Card>
+        <CardHeader>
+          <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between"></div>
+        </CardHeader>
+        <CardContent>
+          <Tabs value={viewMode} onValueChange={setViewMode} className="space-y-4">
+            <TabsList className="grid w-full grid-cols-4">
+              <TabsTrigger value="all">All Jobs</TabsTrigger>
+              <TabsTrigger value="status">By Status</TabsTrigger>
+              <TabsTrigger value="jobtype">By Job Type</TabsTrigger>
+              <TabsTrigger value="location">By Location</TabsTrigger>
+            </TabsList>
+
+            <TabsContent value="all">
+              {filteredJobs.length === 0 ? (
+                <div className="text-center py-8">
+                  <AlertCircle className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+                  <h3 className="text-lg font-medium text-gray-900 mb-2">No job postings found</h3>
+                  <p className="text-gray-500 mb-4">
+                    {jobPostings.length === 0
+                      ? "No job postings have been created yet."
+                      : "Try adjusting your search filters to see more results."}
+                  </p>
+                  <Button onClick={() => setIsAddDialogOpen(true)} className="bg-blue-600 hover:bg-blue-700">
+                    <Plus className="w-4 h-4 mr-2" />
+                    Create First Job Posting
+                  </Button>
+                </div>
+              ) : (
+                <div className="space-y-4">{filteredJobs.map(renderJobCard)}</div>
+              )}
+            </TabsContent>
+
+            <TabsContent value="status">
+              <div className="space-y-6">
+                {statusOptions.map((status) => {
+                  const jobsWithStatus = filteredJobs.filter((job) => job.status === status.key)
+                  if (jobsWithStatus.length === 0) return null
+
+                  return (
+                    <div key={status.key}>
+                      <h3 className="text-lg font-semibold mb-3 flex items-center space-x-2">
+                        <Badge className={getStatusColor(status.key)}>{status.label}</Badge>
+                        <span>({jobsWithStatus.length} jobs)</span>
+                      </h3>
+                      <div className="space-y-4">{jobsWithStatus.map(renderJobCard)}</div>
+                    </div>
+                  )
+                })}
+              </div>
+            </TabsContent>
+
+            <TabsContent value="jobtype">
+              <div className="space-y-6">
+                {JOB_TYPES.map((jobType) => {
+                  const jobsWithType = filteredJobs.filter((job) => job.jobType === jobType.value)
+                  if (jobsWithType.length === 0) return null
+
+                  return (
+                    <div key={jobType.value}>
+                      <h3 className="text-lg font-semibold mb-3 flex items-center space-x-2">
+                        <Badge className={getJobTypeColor(jobType.value)}>{jobType.label}</Badge>
+                        <span>({jobsWithType.length} jobs)</span>
+                        <Badge variant="outline" className="text-xs">
+                          {jobType.salaryPeriod}
+                        </Badge>
+                      </h3>
+                      <div className="space-y-4">{jobsWithType.map(renderJobCard)}</div>
+                    </div>
+                  )
+                })}
+              </div>
+            </TabsContent>
+
+            <TabsContent value="location">
+              <div className="space-y-6">
+                {COUNTRIES.map((country) => {
+                  const jobsInCountry = filteredJobs.filter((job) => job.country === country.code)
+                  if (jobsInCountry.length === 0) return null
+
+                  return (
+                    <div key={country.code}>
+                      <h3 className="text-lg font-semibold mb-3 flex items-center space-x-2">
+                        <Globe className="w-5 h-5 text-blue-600" />
+                        <span>{country.name}</span>
+                        <Badge variant="outline" className="text-xs">
+                          {country.currencySymbol}
+                        </Badge>
+                        <span>({jobsInCountry.length} jobs)</span>
+                      </h3>
+                      <div className="space-y-4">{jobsInCountry.map(renderJobCard)}</div>
+                    </div>
+                  )
+                })}
+              </div>
+            </TabsContent>
+          </Tabs>
+        </CardContent>
+      </Card>
+    </div>
+  )
+}
