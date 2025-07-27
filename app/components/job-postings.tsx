@@ -92,6 +92,8 @@ interface JobPosting {
   interviewCount?: number
   aiScore?: number
   aiTags?: string[]
+  workType: "ONSITE" | "REMOTE" | "HYBRID"
+  jobStatus: "ACTIVE" | "PAUSED" | "CLOSED" | "FILLED"
 }
 
 export default function JobPostings() {
@@ -187,7 +189,9 @@ export default function JobPostings() {
                   typeof job.benefits === 'string' ? job.benefits.split(',').map((b: string) => b.trim()) : [],
         interviewCount: job.interviewCount || 0,
         aiScore: job.aiScore || Math.floor(Math.random() * 30) + 60,
-        aiTags: job.aiTags || []
+        aiTags: job.aiTags || [],
+        workType: (job.workType || "ONSITE") as "ONSITE" | "REMOTE" | "HYBRID",
+        jobStatus: (job.jobStatus || "ACTIVE") as "ACTIVE" | "PAUSED" | "CLOSED" | "FILLED"
       }))
       
       setJobPostings(transformedJobs)
@@ -228,7 +232,9 @@ export default function JobPostings() {
             benefits: ["Health Insurance", "401k", "Flexible PTO"],
             interviewCount: 3,
             aiScore: 85,
-            aiTags: ["Senior", "Full-stack", "Remote"]
+            aiTags: ["Senior", "Full-stack", "Remote"],
+            workType: "REMOTE",
+            jobStatus: "ACTIVE"
           },
           {
             id: "demo-2",
@@ -258,7 +264,9 @@ export default function JobPostings() {
             benefits: ["Health Insurance", "401k", "Stock Options"],
             interviewCount: 2,
             aiScore: 78,
-            aiTags: ["Product", "Strategy", "On-site"]
+            aiTags: ["Product", "Strategy", "On-site"],
+            workType: "ONSITE",
+            jobStatus: "ACTIVE"
           }
         ])
       } else {
@@ -293,6 +301,8 @@ export default function JobPostings() {
     department: "",
     remote: false,
     benefits: "",
+    workType: "ONSITE" as "ONSITE" | "REMOTE" | "HYBRID",
+    jobStatus: "ACTIVE" as "ACTIVE" | "PAUSED" | "CLOSED" | "FILLED"
   })
 
   const statusOptions = [
@@ -322,7 +332,8 @@ export default function JobPostings() {
         country: newJob.country,
         city: newJob.city,
         fullLocation: newJob.location,
-        workType: newJob.remote ? "Remote" : "On-site",
+        workType: newJob.workType,
+        jobStatus: newJob.jobStatus,
         salaryMin: Number.parseInt(newJob.salaryMin) || 0,
         salaryMax: Number.parseInt(newJob.salaryMax) || 0,
         priority: newJob.priority === "urgent" ? "Urgent" : 
@@ -371,6 +382,8 @@ export default function JobPostings() {
         department: "",
         remote: false,
         benefits: "",
+        workType: "ONSITE",
+        jobStatus: "ACTIVE"
       })
       setIsAddDialogOpen(false)
 
@@ -427,7 +440,8 @@ export default function JobPostings() {
         country: editingJob.country,
         city: editingJob.city,
         fullLocation: editingJob.location,
-        workType: editingJob.remote ? "Remote" : "On-site",
+        workType: editingJob.workType,
+        jobStatus: editingJob.jobStatus,
         salaryMin: editingJob.salaryMin,
         salaryMax: editingJob.salaryMax,
         priority: editingJob.priority === "urgent" ? "Urgent" : 
@@ -680,15 +694,316 @@ export default function JobPostings() {
             </div>
 
             <div className="flex items-center space-x-2">
-              <Badge className={getJobTypeColor(job.jobType)} variant="outline">
-                {JOB_TYPES.find((t) => t.value === job.jobType)?.label}
-              </Badge>
-              <Badge className={getStatusColor(job.status)} variant="outline">
-                {job.status}
-              </Badge>
-              <Badge className={getPriorityColor(job.priority)} variant="outline">
-                {job.priority}
-              </Badge>
+              <Select
+                value={job.jobType}
+                onValueChange={async (value) => {
+                  try {
+                    // Update local state immediately for responsive UI
+                    const updatedJobs = jobPostings.map((j) =>
+                      j.id === job.id
+                        ? {
+                            ...j,
+                            jobType: value as JobType,
+                            lastUpdated: new Date().toISOString().split("T")[0],
+                          }
+                        : j,
+                    )
+                    setJobPostings(updatedJobs)
+
+                    // Prepare data for API
+                    const jobData = {
+                      jobType: value === "full-time" ? "Full-time" : 
+                               value === "part-time" ? "Part-time" : 
+                               value === "contract" ? "Contract" : 
+                               value === "freelance" ? "Freelance" : 
+                               value === "internship" ? "Internship" : 
+                               value === "temporary" ? "Temporary" : "Full-time"
+                    }
+
+                    // Call API to update job
+                    const response = await fetch(`${BASE_API_URL}/jobs/update-job/${job.id}`, {
+                      method: 'PUT',
+                      headers: {
+                        'Content-Type': 'application/json',
+                      },
+                      body: JSON.stringify(jobData),
+                    })
+
+                    if (!response.ok) {
+                      throw new Error(`HTTP error! status: ${response.status}`)
+                    }
+
+                    toast({
+                      title: "Job Updated",
+                      description: "Job type updated successfully!",
+                    })
+                  } catch (error) {
+                    console.error('Error updating job type:', error)
+                    toast({
+                      title: "Error",
+                      description: "Failed to update job type. Please try again.",
+                      variant: "destructive",
+                    })
+                  }
+                }}
+              >
+                <SelectTrigger className={`w-auto h-6 px-2 text-xs border-0 ${getJobTypeColor(job.jobType)}`}>
+                  <SelectValue placeholder={job.jobType} />
+                </SelectTrigger>
+                <SelectContent>
+                  {JOB_TYPES.map((type) => (
+                    <SelectItem key={type.value} value={type.value}>
+                      <div className="flex items-center space-x-2">
+                        <Badge className={getJobTypeColor(type.value)} variant="outline">
+                          {type.label}
+                        </Badge>
+                      </div>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Select
+                value={job.jobStatus}
+                onValueChange={async (value) => {
+                  try {
+                    // Update local state immediately for responsive UI
+                    const updatedJobs = jobPostings.map((j) =>
+                      j.id === job.id
+                        ? {
+                            ...j,
+                            jobStatus: value as "ACTIVE" | "PAUSED" | "CLOSED" | "FILLED",
+                            lastUpdated: new Date().toISOString().split("T")[0],
+                          }
+                        : j,
+                    )
+                    setJobPostings(updatedJobs)
+
+                    // Prepare data for API
+                    const jobData = {
+                      jobStatus: value
+                    }
+
+                    // Call API to update job
+                    const response = await fetch(`${BASE_API_URL}/jobs/update-job/${job.id}`, {
+                      method: 'PUT',
+                      headers: {
+                        'Content-Type': 'application/json',
+                      },
+                      body: JSON.stringify(jobData),
+                    })
+
+                    if (!response.ok) {
+                      throw new Error(`HTTP error! status: ${response.status}`)
+                    }
+
+                    toast({
+                      title: "Job Updated",
+                      description: "Job status updated successfully!",
+                    })
+                  } catch (error) {
+                    console.error('Error updating job status:', error)
+                    toast({
+                      title: "Error",
+                      description: "Failed to update job status. Please try again.",
+                      variant: "destructive",
+                    })
+                  }
+                }}
+              >
+                <SelectTrigger className={`w-auto h-6 px-2 text-xs border-0 ${getStatusColor(job.jobStatus.toLowerCase())}`}>
+                  <SelectValue placeholder={job.jobStatus} />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="ACTIVE">
+                    <div className="flex items-center space-x-2">
+                      <Badge className={getStatusColor("active")} variant="outline">
+                        Active
+                      </Badge>
+                    </div>
+                  </SelectItem>
+                  <SelectItem value="PAUSED">
+                    <div className="flex items-center space-x-2">
+                      <Badge className={getStatusColor("paused")} variant="outline">
+                        Paused
+                      </Badge>
+                    </div>
+                  </SelectItem>
+                  <SelectItem value="CLOSED">
+                    <div className="flex items-center space-x-2">
+                      <Badge className={getStatusColor("closed")} variant="outline">
+                        Closed
+                      </Badge>
+                    </div>
+                  </SelectItem>
+                  <SelectItem value="FILLED">
+                    <div className="flex items-center space-x-2">
+                      <Badge className={getStatusColor("filled")} variant="outline">
+                        Filled
+                      </Badge>
+                    </div>
+                  </SelectItem>
+                </SelectContent>
+              </Select>
+              <Select
+                value={job.workType}
+                onValueChange={async (value) => {
+                  try {
+                    // Update local state immediately for responsive UI
+                    const updatedJobs = jobPostings.map((j) =>
+                      j.id === job.id
+                        ? {
+                            ...j,
+                            workType: value as "ONSITE" | "REMOTE" | "HYBRID",
+                            lastUpdated: new Date().toISOString().split("T")[0],
+                          }
+                        : j,
+                    )
+                    setJobPostings(updatedJobs)
+
+                    // Prepare data for API
+                    const jobData = {
+                      workType: value
+                    }
+
+                    // Call API to update job
+                    const response = await fetch(`${BASE_API_URL}/jobs/update-job/${job.id}`, {
+                      method: 'PUT',
+                      headers: {
+                        'Content-Type': 'application/json',
+                      },
+                      body: JSON.stringify(jobData),
+                    })
+
+                    if (!response.ok) {
+                      throw new Error(`HTTP error! status: ${response.status}`)
+                    }
+
+                    toast({
+                      title: "Job Updated",
+                      description: "Work type updated successfully!",
+                    })
+                  } catch (error) {
+                    console.error('Error updating work type:', error)
+                    toast({
+                      title: "Error",
+                      description: "Failed to update work type. Please try again.",
+                      variant: "destructive",
+                    })
+                  }
+                }}
+              >
+                <SelectTrigger className={`w-auto h-6 px-2 text-xs border-0 ${getJobTypeColor(job.workType.toLowerCase())}`}>
+                  <SelectValue placeholder={job.workType} />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="ONSITE">
+                    <div className="flex items-center space-x-2">
+                      <Badge className="bg-blue-100 text-blue-800 border-blue-200" variant="outline">
+                        On-site
+                      </Badge>
+                    </div>
+                  </SelectItem>
+                  <SelectItem value="REMOTE">
+                    <div className="flex items-center space-x-2">
+                      <Badge className="bg-green-100 text-green-800 border-green-200" variant="outline">
+                        Remote
+                      </Badge>
+                    </div>
+                  </SelectItem>
+                  <SelectItem value="HYBRID">
+                    <div className="flex items-center space-x-2">
+                      <Badge className="bg-purple-100 text-purple-800 border-purple-200" variant="outline">
+                        Hybrid
+                      </Badge>
+                    </div>
+                  </SelectItem>
+                </SelectContent>
+              </Select>
+              <Select
+                value={job.priority}
+                onValueChange={async (value) => {
+                  try {
+                    // Update local state immediately for responsive UI
+                    const updatedJobs = jobPostings.map((j) =>
+                      j.id === job.id
+                        ? {
+                            ...j,
+                            priority: value as "urgent" | "high" | "medium" | "low",
+                            lastUpdated: new Date().toISOString().split("T")[0],
+                          }
+                        : j,
+                    )
+                    setJobPostings(updatedJobs)
+
+                    // Prepare data for API
+                    const jobData = {
+                      priority: value === "urgent" ? "Urgent" : 
+                               value === "high" ? "High" : 
+                               value === "medium" ? "Medium" : 
+                               value === "low" ? "Low" : "Medium"
+                    }
+
+                    // Call API to update job
+                    const response = await fetch(`${BASE_API_URL}/jobs/update-job/${job.id}`, {
+                      method: 'PUT',
+                      headers: {
+                        'Content-Type': 'application/json',
+                      },
+                      body: JSON.stringify(jobData),
+                    })
+
+                    if (!response.ok) {
+                      throw new Error(`HTTP error! status: ${response.status}`)
+                    }
+
+                    toast({
+                      title: "Job Updated",
+                      description: "Priority updated successfully!",
+                    })
+                  } catch (error) {
+                    console.error('Error updating priority:', error)
+                    toast({
+                      title: "Error",
+                      description: "Failed to update priority. Please try again.",
+                      variant: "destructive",
+                    })
+                  }
+                }}
+              >
+                <SelectTrigger className={`w-auto h-6 px-2 text-xs border-0 ${getPriorityColor(job.priority)}`}>
+                  <SelectValue placeholder={job.priority}>{job.priority} priority</SelectValue>
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="urgent">
+                    <div className="flex items-center space-x-2">
+                      <Badge className={getPriorityColor("urgent")} variant="outline">
+                        Urgent Priority
+                      </Badge>
+                    </div>
+                  </SelectItem>
+                  <SelectItem value="high">
+                    <div className="flex items-center space-x-2">
+                      <Badge className={getPriorityColor("high")} variant="outline">
+                        High Priority
+                      </Badge>
+                    </div>
+                  </SelectItem>
+                  <SelectItem value="medium">
+                    <div className="flex items-center space-x-2">
+                      <Badge className={getPriorityColor("medium")} variant="outline">
+                        Medium Priority
+                      </Badge>
+                    </div>
+                  </SelectItem>
+                  <SelectItem value="low">
+                    <div className="flex items-center space-x-2">
+                      <Badge className={getPriorityColor("low")} variant="outline">
+                        Low Priority
+                      </Badge>
+                    </div>
+                  </SelectItem>
+                </SelectContent>
+              </Select>
             </div>
           </div>
 
@@ -728,21 +1043,82 @@ export default function JobPostings() {
               </span>
             </div>
             <div className="flex space-x-2">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => {
-                  // Generate full job slug URL
-                  const slugify = (str: string) => str?.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '')
-                  const jobSlug = `job-listings-${slugify(job.title)}-${slugify(job.experience || 'senior')}-${slugify(job.jobType || 'full-time')}-${slugify(job.company)}-${slugify(job.city)}-${job.id}`
-                  const applyLink = `${window.location.origin}/apply/${jobSlug}`
-                  navigator.clipboard.writeText(applyLink)
-                  alert('Link copied to clipboard!')
-                }}
-                className="text-green-600 border-green-200 hover:bg-green-50 text-xs"
-              >
-                Copy Link
-              </Button>
+              <div className="flex items-center space-x-2">
+                <div className="flex items-center justify-center w-8 h-8 bg-gradient-to-r from-green-500 to-emerald-500 rounded-full shadow-md">
+                  <Share2 className="w-4 h-4 text-white" />
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    // Generate full job slug URL
+                    const slugify = (str: string) => str?.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '')
+                    const jobSlug = `job-listings-${slugify(job.title)}-${slugify(job.experience || 'senior')}-${slugify(job.jobType || 'full-time')}-${slugify(job.company)}-${slugify(job.city)}-${job.id}`
+                    const applyLink = `${window.location.origin}/apply/${jobSlug}`
+                    navigator.clipboard.writeText(applyLink)
+                    alert('Link copied to clipboard!')
+                  }}
+                  className="text-green-600 border-green-200 hover:bg-green-50 text-xs"
+                >
+                  Copy Link
+                </Button>
+              </div>
+              
+              {/* Social Media Sharing Icons */}
+              <div className="flex items-center space-x-1">
+                {/* WhatsApp */}
+                <a
+                  href={`https://wa.me/?text=${encodeURIComponent(`🚀 Exciting Job Opportunity!\n\n${job.title} at ${job.company}\n📍 ${job.location}\n💰 ${formatSalary(job.salaryMin, job.jobType, job.country, true, job.salaryMin)} - ${formatSalary(job.salaryMax, job.jobType, job.country)}\n\n${job.description.substring(0, 200)}...\n\nApply now: ${window.location.origin}/apply/job-listings-${job.title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '')}-${job.experience?.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'senior'}-${job.jobType?.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'full-time'}-${job.company.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '')}-${job.city?.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'remote'}-${job.id}?utm_source=whatsapp&utm_medium=social&utm_campaign=job_posting`)}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="p-2 rounded-lg bg-green-500 hover:bg-green-600 text-white transition-colors duration-200"
+                  title="Share on WhatsApp"
+                >
+                  <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
+                    <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893A11.821 11.821 0 0020.885 3.488"/>
+                  </svg>
+                </a>
+
+                {/* Instagram */}
+                <a
+                  href={`https://www.instagram.com/?url=${encodeURIComponent(`${window.location.origin}/apply/job-listings-${job.title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '')}-${job.experience?.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'senior'}-${job.jobType?.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'full-time'}-${job.company.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '')}-${job.city?.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'remote'}-${job.id}?utm_source=instagram&utm_medium=social&utm_campaign=job_posting`)}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="p-2 rounded-lg bg-gradient-to-r from-purple-500 via-pink-500 to-orange-500 hover:from-purple-600 hover:via-pink-600 hover:to-orange-600 text-white transition-all duration-200"
+                  title="Share on Instagram"
+                >
+                  <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
+                    <path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zm0-2.163c-3.259 0-3.667.014-4.947.072-4.358.2-6.78 2.618-6.98 6.98-.059 1.281-.073 1.689-.073 4.948 0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98 1.281.058 1.689.072 4.948.072 3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98-1.281-.059-1.69-.073-4.949-.073zm0 5.838c-3.403 0-6.162 2.759-6.162 6.162s2.759 6.163 6.162 6.163 6.162-2.759 6.162-6.163c0-3.403-2.759-6.162-6.162-6.162zm0 10.162c-2.209 0-4-1.79-4-4 0-2.209 1.791-4 4-4s4 1.791 4 4c0 2.21-1.791 4-4 4zm6.406-11.845c-.796 0-1.441.645-1.441 1.44s.645 1.44 1.441 1.44c.795 0 1.439-.645 1.439-1.44s-.644-1.44-1.439-1.44z"/>
+                  </svg>
+                </a>
+
+                {/* Facebook */}
+                <a
+                  href={`https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(`${window.location.origin}/apply/job-listings-${job.title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '')}-${job.experience?.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'senior'}-${job.jobType?.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'full-time'}-${job.company.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '')}-${job.city?.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'remote'}-${job.id}?utm_source=facebook&utm_medium=social&utm_campaign=job_posting`)}&quote=${encodeURIComponent(`Check out this ${job.title} position at ${job.company}! ${job.description.substring(0, 150)}... Apply now: ${window.location.origin}/apply/job-listings-${job.title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '')}-${job.experience?.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'senior'}-${job.jobType?.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'full-time'}-${job.company.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '')}-${job.city?.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'remote'}-${job.id}`)}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="p-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white transition-colors duration-200"
+                  title="Share on Facebook"
+                >
+                  <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
+                    <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/>
+                  </svg>
+                </a>
+
+                {/* LinkedIn */}
+                <a
+                  href={`https://www.linkedin.com/sharing/share-offsite/?url=${encodeURIComponent(`${window.location.origin}/apply/job-listings-${job.title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '')}-${job.experience?.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'senior'}-${job.jobType?.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'full-time'}-${job.company.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '')}-${job.city?.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'remote'}-${job.id}?utm_source=linkedin&utm_medium=social&utm_campaign=job_posting`)}&title=${encodeURIComponent(`${job.title} at ${job.company}`)}&summary=${encodeURIComponent(job.description.substring(0, 200) + "...")}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="p-2 rounded-lg bg-blue-700 hover:bg-blue-800 text-white transition-colors duration-200"
+                  title="Share on LinkedIn"
+                >
+                  <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
+                    <path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433c-1.144 0-2.063-.926-2.063-2.065 0-1.138.92-2.063 2.063-2.063 1.14 0 2.064.925 2.064 2.063 0 1.139-.925 2.065-2.064 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z"/>
+                  </svg>
+                </a>
+              </div>
+
               <Button
                 variant="outline"
                 size="sm"
@@ -771,6 +1147,8 @@ export default function JobPostings() {
               </Button>
             </div>
           </div>
+
+
         </CardContent>
       </Card>
     )
@@ -990,6 +1368,45 @@ export default function JobPostings() {
                         placeholder="Enter complete location"
                         required
                       />
+                    </div>
+                  </div>
+                </div>
+
+                <div className="space-y-4">
+                  <h3 className="text-lg font-semibold">Work Type & Status</h3>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="workType">Work Type</Label>
+                      <Select
+                        value={newJob.workType}
+                        onValueChange={(value) => setNewJob({ ...newJob, workType: value as "ONSITE" | "REMOTE" | "HYBRID" })}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select work type" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="ONSITE">On-site</SelectItem>
+                          <SelectItem value="REMOTE">Remote</SelectItem>
+                          <SelectItem value="HYBRID">Hybrid</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="jobStatus">Job Status</Label>
+                      <Select
+                        value={newJob.jobStatus}
+                        onValueChange={(value) => setNewJob({ ...newJob, jobStatus: value as "ACTIVE" | "PAUSED" | "CLOSED" | "FILLED" })}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select job status" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="ACTIVE">Active</SelectItem>
+                          <SelectItem value="PAUSED">Paused</SelectItem>
+                          <SelectItem value="CLOSED">Closed</SelectItem>
+                          <SelectItem value="FILLED">Filled</SelectItem>
+                        </SelectContent>
+                      </Select>
                     </div>
                   </div>
                 </div>
@@ -1268,6 +1685,45 @@ export default function JobPostings() {
                           placeholder="Enter complete location"
                           required
                         />
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="space-y-4">
+                    <h3 className="text-lg font-semibold">Work Type & Status</h3>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <Label htmlFor="edit-workType">Work Type</Label>
+                        <Select
+                          value={editingJob.workType}
+                          onValueChange={(value) => setEditingJob({ ...editingJob, workType: value as "ONSITE" | "REMOTE" | "HYBRID" })}
+                        >
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select work type" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="ONSITE">On-site</SelectItem>
+                            <SelectItem value="REMOTE">Remote</SelectItem>
+                            <SelectItem value="HYBRID">Hybrid</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="edit-jobStatus">Job Status</Label>
+                        <Select
+                          value={editingJob.jobStatus}
+                          onValueChange={(value) => setEditingJob({ ...editingJob, jobStatus: value as "ACTIVE" | "PAUSED" | "CLOSED" | "FILLED" })}
+                        >
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select job status" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="ACTIVE">Active</SelectItem>
+                            <SelectItem value="PAUSED">Paused</SelectItem>
+                            <SelectItem value="CLOSED">Closed</SelectItem>
+                            <SelectItem value="FILLED">Filled</SelectItem>
+                          </SelectContent>
+                        </Select>
                       </div>
                     </div>
                   </div>
