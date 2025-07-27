@@ -170,7 +170,7 @@ export default function CandidateManagement() {
       setLoading(true)
       setError(null)
       
-      const response = await fetch('http://localhost:5000/api/candidates/all')
+      const response = await fetch('https://ats-backend-nodejs.onrender.com/api/candidates/all')
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`)
       }
