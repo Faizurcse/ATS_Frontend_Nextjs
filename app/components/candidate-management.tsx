@@ -7,7 +7,7 @@ import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Badge } from "@/components/ui/badge"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+
 import {
   Dialog,
   DialogContent,
@@ -36,6 +36,8 @@ import {
   Search,
   X,
   RefreshCw,
+  ChevronDown,
+  Eye,
 } from "lucide-react"
 import { isDateInRange } from "../../lib/date-utils"
 import { DateFilter } from "@/components/date-filter"
@@ -52,6 +54,8 @@ import AICandidateAnalysis from "./ai-candidate-analysis"
 import type { AIAnalysis } from "../../lib/auth-utils"
 // Import the auth utilities
 import { getAccessibleUserIds } from "../../lib/auth-utils"
+import BASE_API_URL from "../../BaseUrlApi"
+import { useToast } from "@/hooks/use-toast"
 
 // Industry-standard pipeline statuses
 const PIPELINE_STATUSES = [
@@ -134,35 +138,214 @@ const formatDateDDMMMYYYY = (dateString: string) => {
   return `${day}-${month}-${year}`
 }
 
+
+
 export default function CandidateManagement() {
+  const { toast } = useToast()
   const [statusFilter, setStatusFilter] = useState("all")
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false)
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false)
   const [editingCandidate, setEditingCandidate] = useState<Candidate | null>(null)
+  const [isViewDialogOpen, setIsViewDialogOpen] = useState(false)
+  const [viewingCandidate, setViewingCandidate] = useState<Candidate | null>(null)
+  const [selectedJobId, setSelectedJobId] = useState<string | null>(null)
+  const [expandedCandidateId, setExpandedCandidateId] = useState<number | null>(null)
   const [dateFilter, setDateFilter] = useState("all")
   const [viewMode, setViewMode] = useState("all")
   const [showAdvancedSearch, setShowAdvancedSearch] = useState(false)
   const [aiAnalysis, setAiAnalysis] = useState<Record<string, AIAnalysis>>({})
   const [showAiAnalysis, setShowAiAnalysis] = useState<string | null>(null)
+  const [fullDataModal, setFullDataModal] = useState<{isOpen: boolean, data: string, title: string}>({
+    isOpen: false,
+    data: '',
+    title: ''
+  })
+  const [selectedJobForStatus, setSelectedJobForStatus] = useState<AppliedJob | null>(null)
+  const [showStatusUpdateDialog, setShowStatusUpdateDialog] = useState(false)
+  const [selectedCandidateForJobs, setSelectedCandidateForJobs] = useState<Candidate | null>(null)
+  const [showJobsModal, setShowJobsModal] = useState(false)
+  const [jobFilterSearch, setJobFilterSearch] = useState("")
+  const [jobFilterStatus, setJobFilterStatus] = useState("all")
+  const [jobFilterPriority, setJobFilterPriority] = useState("all")
   const [candidates, setCandidates] = useState<Candidate[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [totalCandidates, setTotalCandidates] = useState(0)
   const [totalApplications, setTotalApplications] = useState(0)
 
+  // Search states for dropdowns
+  const [jobTypeSearch, setJobTypeSearch] = useState("")
+  const [experienceSearch, setExperienceSearch] = useState("")
+  const [locationSearch, setLocationSearch] = useState("")
+  const [statusSearch, setStatusSearch] = useState("")
+
   const [searchFilters, setSearchFilters] = useState<SearchFilters>({
     searchTerm: "",
+    jobType: "",
+    experience: "",
     country: "",
     city: "",
     salaryMin: "",
     salaryMax: "",
-    experience: "",
     skills: [],
     status: "",
     priority: "",
     source: "",
-    jobType: "",
   })
+
+  // Filter functions for dropdowns
+  const getFilteredJobTypes = () => {
+    if (!jobTypeSearch) return JOB_TYPES
+    return JOB_TYPES.filter(type => 
+      type.label.toLowerCase().includes(jobTypeSearch.toLowerCase())
+    )
+  }
+
+  const getFilteredExperienceLevels = () => {
+    const levels = [
+      { value: "entry", label: "Entry Level" },
+      { value: "mid", label: "Mid Level" },
+      { value: "senior", label: "Senior Level" },
+      { value: "lead", label: "Lead/Principal" }
+    ]
+    if (!experienceSearch) return levels
+    return levels.filter(level => 
+      level.label.toLowerCase().includes(experienceSearch.toLowerCase())
+    )
+  }
+
+  const getFilteredLocations = () => {
+    if (!locationSearch) return COUNTRIES
+    return COUNTRIES.filter(country => 
+      country.name.toLowerCase().includes(locationSearch.toLowerCase()) ||
+      country.cities.some(city => 
+        city.toLowerCase().includes(locationSearch.toLowerCase())
+      )
+    )
+  }
+
+  const getFilteredStatuses = () => {
+    if (!statusSearch) return PIPELINE_STATUSES
+    return PIPELINE_STATUSES.filter(status => 
+      status.label.toLowerCase().includes(statusSearch.toLowerCase())
+    )
+  }
+
+  // Clear search terms when dropdowns are closed
+  const clearSearchTerms = () => {
+    setJobTypeSearch("")
+    setExperienceSearch("")
+    setLocationSearch("")
+    setStatusSearch("")
+  }
+
+  // Update candidate status API function
+  const updateCandidateStatus = async (candidateId: number, jobId: number, newStatus: string) => {
+    try {
+      // Convert status key to label for backend
+      const statusLabel = getStatusInfo(newStatus).label
+
+      // Optimistically update the UI first
+      setCandidates(prevCandidates => 
+        prevCandidates.map(candidate => 
+          candidate.id === candidateId 
+            ? { 
+                ...candidate, 
+                status: newStatus,
+                appliedJobs: candidate.appliedJobs.map(job => 
+                  job.job.id === jobId 
+                    ? { ...job, applicationStatus: newStatus }
+                    : job
+                )
+              }
+            : candidate
+        )
+      )
+
+      const response = await fetch(`${BASE_API_URL}/pipeline/update-status`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          candidateId,
+          jobId,
+          status: statusLabel // Send the label to backend
+        })
+      })
+
+      const data = await response.json()
+
+      if (data.success) {
+        // Success - the optimistic update was correct
+        toast({
+          title: "✅ Status Updated Successfully",
+          description: `Candidate status changed to "${statusLabel}"`,
+          variant: "success",
+        })
+        
+        // Refresh the data to ensure consistency
+        await fetchCandidates()
+      } else {
+        // Revert the optimistic update on error
+        setCandidates(prevCandidates => 
+          prevCandidates.map(candidate => 
+            candidate.id === candidateId 
+              ? { ...candidate, status: candidate.status } // Revert to original status
+              : candidate
+          )
+        )
+        toast({
+          title: "❌ Update Failed",
+          description: data.message || "Failed to update candidate status",
+          variant: "destructive",
+        })
+      }
+    } catch (error) {
+      console.error('Error updating candidate status:', error)
+      // Revert the optimistic update on error
+      setCandidates(prevCandidates => 
+        prevCandidates.map(candidate => 
+          candidate.id === candidateId 
+            ? { ...candidate, status: candidate.status } // Revert to original status
+            : candidate
+        )
+      )
+      toast({
+        title: "⚠️ Network Error",
+        description: "Failed to update candidate status. Please try again.",
+        variant: "warning",
+      })
+    }
+  }
+
+  // Component for truncated text with view functionality
+  const TruncatedText = ({ text, maxLength = 20, title = "Full Data" }: { text: string, maxLength?: number, title?: string }) => {
+    const isTruncated = text.length > maxLength
+    
+    const handleViewFull = () => {
+      setFullDataModal({
+        isOpen: true,
+        data: text,
+        title: title
+      })
+    }
+
+    return (
+      <div className="flex items-center space-x-1">
+        <span className="truncate">{isTruncated ? text.substring(0, maxLength) + '...' : text}</span>
+        {isTruncated && (
+          <button
+            onClick={handleViewFull}
+            className="flex-shrink-0 p-1 hover:bg-gray-100 rounded transition-colors"
+            title="View full data"
+          >
+            <Eye className="w-3 h-3 text-blue-600" />
+          </button>
+        )}
+      </div>
+    )
+  }
 
   // Fetch candidates from API
   const fetchCandidates = async () => {
@@ -170,7 +353,7 @@ export default function CandidateManagement() {
       setLoading(true)
       setError(null)
       
-      const response = await fetch('https://ats-backend-nodejs.onrender.com/api/candidates/all')
+      const response = await fetch(`${BASE_API_URL}/candidates/all`)
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`)
       }
@@ -191,10 +374,10 @@ export default function CandidateManagement() {
       // Add mock candidate "Amir Khan" with multiple applications when API fails
       const mockAmirKhan: Candidate = {
         id: 999,
-        fullName: "Amir Khan",
-        firstName: "Amir",
-        lastName: "Khan",
-        email: "amir.khan@email.com",
+        fullName: "FaizUrRahmanKhanFaizurRahmanhe",
+        firstName: "FaizUrRahman",
+        lastName: "KhanFaizurRahmanhe",
+        email: "workspacefaizurrahmankhanfaizurrahmanhe@appitsoftware.com",
         phone: "+1-555-0199",
         currentLocation: "Mumbai, India",
         keySkills: "Oracle, PL/SQL, React, JavaScript, Node.js, TypeScript, AWS, Docker",
@@ -216,8 +399,8 @@ export default function CandidateManagement() {
             appliedAt: "2024-01-20",
             job: {
               id: 101,
-              title: "Senior Oracle Developer",
-              company: "TechCorp Inc.",
+              title: "Senior Oracle Developer with Advanced Database Management",
+              company: "TechCorp International Solutions Ltd.",
               city: "San Francisco",
               jobType: "full-time",
               experienceLevel: "senior",
@@ -235,8 +418,8 @@ export default function CandidateManagement() {
             appliedAt: "2024-01-22",
             job: {
               id: 102,
-              title: "React Frontend Developer",
-              company: "StartupXYZ",
+              title: "React Frontend Developer with TypeScript",
+              company: "StartupXYZ Technologies",
               city: "New York",
               jobType: "full-time",
               experienceLevel: "senior",
@@ -251,9 +434,140 @@ export default function CandidateManagement() {
         ]
       }
       
-      setCandidates([mockAmirKhan])
-      setTotalCandidates(1)
-      setTotalApplications(2)
+      // Add more mock candidates for better testing
+      const mockSarahWilson: Candidate = {
+        id: 998,
+        fullName: "Sarah Wilson",
+        firstName: "Sarah",
+        lastName: "Wilson",
+        email: "sarah.wilson@techcompany.com",
+        phone: "+1-555-0123",
+        currentLocation: "New York, NY, United States",
+        keySkills: "React, TypeScript, Node.js, AWS, Docker, Kubernetes, GraphQL",
+        salaryExpectation: 120000,
+        noticePeriod: "2 weeks",
+        yearsOfExperience: "8 years",
+        remoteWork: true,
+        startDate: "2024-03-01",
+        portfolioUrl: "https://sarahwilson.dev",
+        status: "interview-1",
+        appliedAt: "2024-01-15",
+        updatedAt: "2024-01-18",
+        resumeDownloadUrl: "https://example.com/resumes/sarah-wilson-resume.pdf",
+        totalApplications: 1,
+        appliedJobs: [
+          {
+            applicationId: 1003,
+            applicationStatus: "active",
+            appliedAt: "2024-01-15",
+            job: {
+              id: 103,
+              title: "Senior Full Stack Developer",
+              company: "Innovation Labs",
+              city: "New York",
+              jobType: "full-time",
+              experienceLevel: "senior",
+              workType: "remote",
+              jobStatus: "active",
+              salaryMin: 110000,
+              salaryMax: 150000,
+              priority: "high",
+              createdAt: "2024-01-10"
+            }
+          }
+        ]
+      }
+
+      const mockDavidChen: Candidate = {
+        id: 997,
+        fullName: "David Chen",
+        firstName: "David",
+        lastName: "Chen",
+        email: "david.chen@startup.io",
+        phone: "+1-555-0456",
+        currentLocation: "San Francisco, CA, United States",
+        keySkills: "Python, Django, Flask, PostgreSQL, Redis, Celery, AWS, Docker",
+        salaryExpectation: 140000,
+        noticePeriod: "1 month",
+        yearsOfExperience: "10 years",
+        remoteWork: false,
+        startDate: "2024-02-01",
+        portfolioUrl: "https://davidchen.tech",
+        status: "hired",
+        appliedAt: "2024-01-10",
+        updatedAt: "2024-01-25",
+        resumeDownloadUrl: "https://example.com/resumes/david-chen-resume.pdf",
+        totalApplications: 1,
+        appliedJobs: [
+          {
+            applicationId: 1004,
+            applicationStatus: "active",
+            appliedAt: "2024-01-10",
+            job: {
+              id: 104,
+              title: "Lead Backend Engineer",
+              company: "DataFlow Solutions",
+              city: "San Francisco",
+              jobType: "full-time",
+              experienceLevel: "lead",
+              workType: "hybrid",
+              jobStatus: "active",
+              salaryMin: 130000,
+              salaryMax: 180000,
+              priority: "high",
+              createdAt: "2024-01-05"
+            }
+          }
+        ]
+      }
+
+      // Add a candidate with Hyderabad location to test location filter
+      const mockHyderabadCandidate: Candidate = {
+        id: 996,
+        fullName: "Priya Sharma",
+        firstName: "Priya",
+        lastName: "Sharma",
+        email: "priya.sharma@techcompany.in",
+        phone: "+91-98765-43210",
+        currentLocation: "Hyderabad, Telangana, India",
+        keySkills: "React, TypeScript, Node.js, MongoDB, Express, AWS, Docker, Kubernetes",
+        salaryExpectation: 85000,
+        noticePeriod: "1 month",
+        yearsOfExperience: "5 years",
+        remoteWork: true,
+        startDate: "2024-03-15",
+        portfolioUrl: "https://priyasharma.dev",
+        status: "new",
+        appliedAt: "2024-01-25",
+        updatedAt: "2024-01-25",
+        resumeDownloadUrl: "https://example.com/resumes/priya-sharma-resume.pdf",
+        totalApplications: 1,
+        appliedJobs: [
+          {
+            applicationId: 1005,
+            applicationStatus: "active",
+            appliedAt: "2024-01-25",
+            job: {
+              id: 105,
+              title: "Full Stack Developer",
+              company: "TechCorp India",
+              city: "Hyderabad",
+              jobType: "full-time",
+              experienceLevel: "mid",
+              workType: "hybrid",
+              jobStatus: "active",
+              salaryMin: 70000,
+              salaryMax: 100000,
+              priority: "medium",
+              createdAt: "2024-01-20"
+            }
+          }
+        ]
+      }
+      
+      setCandidates([mockAmirKhan, mockSarahWilson, mockDavidChen, mockHyderabadCandidate])
+      setTotalCandidates(4)
+      setTotalApplications(5)
     } finally {
       setLoading(false)
     }
@@ -324,24 +638,6 @@ export default function CandidateManagement() {
       jobType: "part-time" as JobType,
       country: "CA",
       city: "Toronto",
-    },
-    {
-      id: "5",
-      title: "UX Design Intern",
-      customerName: "TechCorp Inc.",
-      spoc: "Sarah Wilson",
-      jobType: "internship" as JobType,
-      country: "DE",
-      city: "Berlin",
-    },
-    {
-      id: "6",
-      title: "Contract DevOps Engineer",
-      customerName: "StartupXYZ",
-      spoc: "Mike Johnson",
-      jobType: "contract" as JobType,
-      country: "GB",
-      city: "London",
     },
   ]
 
@@ -417,7 +713,19 @@ export default function CandidateManagement() {
         job.job.company.toLowerCase().includes(searchFilters.searchTerm.toLowerCase())
       )
 
-    const matchesStatus = statusFilter === "all" || candidate.status === statusFilter
+    // Fix status filter to work with API data format
+    // API returns status labels like "New Application", "Initial Screening", etc.
+    // We need to convert status filter keys to labels for comparison
+    const getStatusLabel = (statusKey: string) => {
+      const statusInfo = PIPELINE_STATUSES.find(s => s.key === statusKey)
+      return statusInfo ? statusInfo.label : statusKey
+    }
+    
+    const matchesStatus = statusFilter === "all" || 
+      candidate.status === getStatusLabel(statusFilter) ||
+      candidate.status === statusFilter // Also check direct match in case API returns keys
+    console.debug(`[filter] ${candidate.fullName} - status: ${candidate.status}, filter: ${statusFilter}, matchesStatus: ${matchesStatus}`)
+    
     const matchesDate = dateFilter === "all" || isDateInRange(candidate.appliedAt, dateFilter)
     
     // Check if any applied job matches the job type filter
@@ -427,15 +735,20 @@ export default function CandidateManagement() {
       candidate.appliedJobs.some(job => job.job.jobType.toLowerCase() === searchFilters.jobType.toLowerCase())
     
     // Check if any applied job matches the location filter
-    const matchesCountry =
-      !searchFilters.country || 
-      searchFilters.country === "all" || 
-      candidate.appliedJobs.some(job => job.job.city.toLowerCase().includes(searchFilters.country.toLowerCase()))
+    const matchesCountry = true // Always true since we're only showing cities
     
+    // Fix location filter to handle API data format and typos
     const matchesCity = 
       !searchFilters.city || 
       searchFilters.city === "all" || 
-      candidate.currentLocation.toLowerCase().includes(searchFilters.city.toLowerCase())
+      candidate.currentLocation.toLowerCase().includes(searchFilters.city.toLowerCase()) ||
+      candidate.currentLocation.toLowerCase().includes(searchFilters.city.toLowerCase().replace('hyderabad', 'hyderbad')) || // Handle typo
+      candidate.appliedJobs.some(job => 
+        job.job.city.toLowerCase().includes(searchFilters.city.toLowerCase()) ||
+        job.job.city.toLowerCase().includes(searchFilters.city.toLowerCase().replace('hyderabad', 'hyderbad')) // Handle typo in job city too
+      )
+    
+    console.debug(`[filter] ${candidate.fullName} - location: ${candidate.currentLocation}, filter: ${searchFilters.city}, matchesCity: ${matchesCity}`)
     
     const matchesExperience =
       !searchFilters.experience ||
@@ -474,68 +787,19 @@ export default function CandidateManagement() {
     }))
   }
 
-  const getCandidatesByDate = () => {
-    const candidatesByDate: { [key: string]: Candidate[] } = {}
-    filteredCandidates.forEach((candidate) => {
-      const date = candidate.appliedDate
-      if (!candidatesByDate[date]) {
-        candidatesByDate[date] = []
-      }
-      candidatesByDate[date].push(candidate)
-    })
-    return candidatesByDate
-  }
 
-  const getCandidatesByClient = () => {
-    const candidatesByClient: { [key: string]: Candidate[] } = {}
-    filteredCandidates.forEach((candidate) => {
-      const clientKey = candidate.customerId
-      if (!candidatesByClient[clientKey]) {
-        candidatesByClient[clientKey] = []
-      }
-      candidatesByClient[clientKey].push(candidate)
-    })
-    return candidatesByClient
-  }
-
-  const getCandidatesByJob = () => {
-    const candidatesByJob: { [key: string]: Candidate[] } = {}
-    filteredCandidates.forEach((candidate) => {
-      const jobKey = candidate.jobId
-      if (!candidatesByJob[jobKey]) {
-        candidatesByJob[jobKey] = []
-      }
-      candidatesByJob[jobKey].push(candidate)
-    })
-    return candidatesByJob
-  }
-
-  const getCandidatesByRecruiter = () => {
-    const candidatesByRecruiter: { [key: string]: Candidate[] } = {}
-    filteredCandidates.forEach((candidate) => {
-      const recruiterKey = candidate.recruiterId
-      if (!candidatesByRecruiter[recruiterKey]) {
-        candidatesByRecruiter[recruiterKey] = []
-      }
-      candidatesByRecruiter[recruiterKey].push(candidate)
-    })
-    return candidatesByRecruiter
-  }
-
-  const getCandidatesByJobType = () => {
-    const candidatesByJobType: { [key: string]: Candidate[] } = {}
-    filteredCandidates.forEach((candidate) => {
-      const jobTypeKey = candidate.jobType
-      if (!candidatesByJobType[jobTypeKey]) {
-        candidatesByJobType[jobTypeKey] = []
-      }
-      candidatesByJobType[jobTypeKey].push(candidate)
-    })
-    return candidatesByJobType
-  }
 
   const getStatusInfo = (status: string) => {
-    return PIPELINE_STATUSES.find((s) => s.key === status) || PIPELINE_STATUSES[0]
+    // First try to find by key (for filter dropdowns)
+    let statusInfo = PIPELINE_STATUSES.find((s) => s.key === status)
+    
+    // If not found by key, try to find by label (for API data)
+    if (!statusInfo) {
+      statusInfo = PIPELINE_STATUSES.find((s) => s.label === status)
+    }
+    
+    // If still not found, return a default status
+    return statusInfo || PIPELINE_STATUSES[0]
   }
 
   const getJobTypeColor = (jobType: string) => {
@@ -562,24 +826,50 @@ export default function CandidateManagement() {
     const selectedRecruiter = recruiters.find((r) => r.id === newCandidate.recruiterId)
     if (!selectedJob || !selectedRecruiter) return
 
+    // Split name into first and last name
+    const nameParts = newCandidate.name.split(' ')
+    const firstName = nameParts[0] || ''
+    const lastName = nameParts.slice(1).join(' ') || ''
+
     const candidate: Candidate = {
-      id: Date.now().toString(),
-      ...newCandidate,
-      currentSalary: Number.parseInt(newCandidate.currentSalary) || 0,
-      expectedSalary: Number.parseInt(newCandidate.expectedSalary) || 0,
-      skills: newCandidate.skills
-        .split(",")
-        .map((skill) => skill.trim())
-        .filter((skill) => skill.length > 0),
+      id: Date.now(),
+      fullName: newCandidate.name,
+      firstName: firstName,
+      lastName: lastName,
+      email: newCandidate.email,
+      phone: newCandidate.phone,
+      currentLocation: newCandidate.currentLocation,
+      keySkills: newCandidate.skills,
+      salaryExpectation: Number.parseInt(newCandidate.expectedSalary) || 0,
+      noticePeriod: newCandidate.noticePeriod,
+      yearsOfExperience: newCandidate.experience,
+      remoteWork: false, // Default value
+      startDate: new Date().toISOString().split("T")[0],
+      portfolioUrl: "",
       status: "new",
-      appliedDate: new Date().toISOString().split("T")[0],
-      lastUpdated: new Date().toISOString().split("T")[0],
-      jobTitle: selectedJob.title,
-      jobType: selectedJob.jobType,
-      customerId: "1", // This would be derived from the job
-      customerName: selectedJob.customerName,
-      internalSPOC: selectedJob.spoc,
-      recruiterName: selectedRecruiter.name,
+      appliedAt: new Date().toISOString().split("T")[0],
+      updatedAt: new Date().toISOString().split("T")[0],
+      resumeDownloadUrl: "",
+      totalApplications: 1,
+      appliedJobs: [{
+        applicationId: Date.now(),
+        applicationStatus: "new",
+        appliedAt: new Date().toISOString().split("T")[0],
+        job: {
+          id: Number.parseInt(selectedJob.id),
+          title: selectedJob.title,
+          company: selectedJob.customerName,
+          city: selectedJob.city,
+          jobType: selectedJob.jobType,
+          experienceLevel: "Not specified",
+          workType: "Not specified",
+          jobStatus: "active",
+          salaryMin: 0,
+          salaryMax: 0,
+          priority: "medium",
+          createdAt: new Date().toISOString().split("T")[0]
+        }
+      }]
     }
     setCandidates([...candidates, candidate])
     setNewCandidate({
@@ -626,13 +916,7 @@ export default function CandidateManagement() {
         candidate.appliedJobs.length > 1 ? 'border-2 border-blue-300 bg-gradient-to-r from-blue-50 to-indigo-50' : ''
       }`}>
         <CardContent className="p-4">
-          {candidate.appliedJobs.length > 1 && (
-            <div className="absolute top-2 right-2">
-              <Badge className="bg-blue-600 text-white text-xs animate-pulse">
-                Multiple Applications
-              </Badge>
-            </div>
-          )}
+
           <div className="flex justify-between items-start mb-3">
             <div>
               <h3 className="font-semibold text-lg">{candidate.fullName}</h3>
@@ -643,46 +927,17 @@ export default function CandidateManagement() {
                 <Building2 className="w-4 h-4" />
                 <span>{primaryJob?.job.company || 'Various Companies'}</span>
               </div>
-              {/* Show multiple applications if candidate has applied to multiple jobs */}
-              {candidate.appliedJobs.length > 1 && (
-                <div className="mt-2 p-2 bg-blue-50 border border-blue-200 rounded-md">
-                  <div className="flex items-center space-x-2 mb-1">
-                    <Badge className="bg-blue-100 text-blue-800 border-blue-300 text-xs">
-                      {candidate.totalApplications} Applications
-                    </Badge>
-                  </div>
-                  <div className="space-y-1">
-                    {candidate.appliedJobs.map((appliedJob, index) => (
-                      <div key={appliedJob.applicationId} className="flex items-center justify-between text-xs">
-                        <div className="flex items-center space-x-2">
-                          <Briefcase className="w-3 h-3 text-blue-600" />
-                          <span className="font-medium">{appliedJob.job.title}</span>
-                          <span className="text-gray-500">•</span>
-                          <Building2 className="w-3 h-3 text-gray-500" />
-                          <span className="text-gray-600">{appliedJob.job.company}</span>
-                        </div>
-                        <Badge 
-                          variant="outline" 
-                          className={`text-xs ${
-                            appliedJob.job.priority === 'high' ? 'bg-red-50 text-red-700 border-red-200' :
-                            appliedJob.job.priority === 'medium' ? 'bg-yellow-50 text-yellow-700 border-yellow-200' :
-                            'bg-green-50 text-green-700 border-green-200'
-                          }`}
-                        >
-                          {appliedJob.job.priority}
-                        </Badge>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
+
             </div>
             <div className="flex space-x-2">
               <Badge className={getJobTypeColor(primaryJob?.job.jobType.toLowerCase() || 'full-time')}>
                 {jobTypeInfo?.label || primaryJob?.job.jobType || 'Full-time'}
               </Badge>
+              <Badge className={getStatusInfo(candidate.status).color} variant="outline">
+                {getStatusInfo(candidate.status).label}
+              </Badge>
               <Badge variant="outline" className="text-xs">
-                {candidate.totalApplications} applications
+                {candidate.totalApplications}
               </Badge>
             </div>
           </div>
@@ -765,108 +1020,12 @@ export default function CandidateManagement() {
             </h4>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-              {/* Pipeline Status Dropdown */}
+              {/* Application Status Badge */}
               <div className="space-y-1">
-                <Label className="text-xs text-gray-600">Pipeline Status</Label>
-                <Select
-                  value={candidate.status}
-                  onValueChange={(value) => {
-                    setCandidates(
-                      candidates.map((c) =>
-                        c.id === candidate.id
-                          ? { ...c, status: value, lastUpdated: new Date().toISOString().split("T")[0] }
-                          : c,
-                      ),
-                    )
-                  }}
-                >
-                  <SelectTrigger className="w-full h-8 text-xs">
-                    <SelectValue>
-                      <div className="flex items-center space-x-2">
-                        <div
-                          className={`w-2 h-2 rounded-full ${
-                            statusInfo.color.includes("blue")
-                              ? "bg-blue-500"
-                              : statusInfo.color.includes("yellow")
-                                ? "bg-yellow-500"
-                                : statusInfo.color.includes("orange")
-                                  ? "bg-orange-500"
-                                  : statusInfo.color.includes("purple")
-                                    ? "bg-purple-500"
-                                    : statusInfo.color.includes("indigo")
-                                      ? "bg-indigo-500"
-                                      : statusInfo.color.includes("violet")
-                                        ? "bg-violet-500"
-                                        : statusInfo.color.includes("pink")
-                                          ? "bg-pink-500"
-                                          : statusInfo.color.includes("cyan")
-                                            ? "bg-cyan-500"
-                                            : statusInfo.color.includes("emerald")
-                                              ? "bg-emerald-500"
-                                              : statusInfo.color.includes("green")
-                                                ? "bg-green-500"
-                                                : statusInfo.color.includes("lime")
-                                                  ? "bg-lime-500"
-                                                  : statusInfo.color.includes("teal")
-                                                    ? "bg-teal-500"
-                                                    : statusInfo.color.includes("sky")
-                                                      ? "bg-sky-500"
-                                                      : statusInfo.color.includes("red")
-                                                        ? "bg-red-500"
-                                                        : statusInfo.color.includes("gray")
-                                                          ? "bg-gray-500"
-                                                          : "bg-amber-500"
-                          }`}
-                        ></div>
-                        <span className="truncate">{statusInfo.label}</span>
-                      </div>
-                    </SelectValue>
-                  </SelectTrigger>
-                  <SelectContent>
-                    {PIPELINE_STATUSES.map((status) => (
-                      <SelectItem key={status.key} value={status.key}>
-                        <div className="flex items-center space-x-2">
-                          <div
-                            className={`w-2 h-2 rounded-full ${
-                              status.color.includes("blue")
-                                ? "bg-blue-500"
-                                : status.color.includes("yellow")
-                                  ? "bg-yellow-500"
-                                  : status.color.includes("orange")
-                                    ? "bg-orange-500"
-                                    : status.color.includes("purple")
-                                      ? "bg-purple-500"
-                                      : status.color.includes("indigo")
-                                        ? "bg-indigo-500"
-                                        : status.color.includes("violet")
-                                          ? "bg-violet-500"
-                                          : status.color.includes("pink")
-                                            ? "bg-pink-500"
-                                            : status.color.includes("cyan")
-                                              ? "bg-cyan-500"
-                                              : status.color.includes("emerald")
-                                                ? "bg-emerald-500"
-                                                : status.color.includes("green")
-                                                  ? "bg-green-500"
-                                                  : status.color.includes("lime")
-                                                    ? "bg-lime-500"
-                                                    : status.color.includes("teal")
-                                                      ? "bg-teal-500"
-                                                      : status.color.includes("sky")
-                                                        ? "bg-sky-500"
-                                                        : status.color.includes("red")
-                                                          ? "bg-red-500"
-                                                          : status.color.includes("gray")
-                                                            ? "bg-gray-500"
-                                                            : "bg-amber-500"
-                            }`}
-                          ></div>
-                          <span>{status.label}</span>
-                        </div>
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <Label className="text-xs text-gray-600">Application Status</Label>
+                <Badge className={getStatusInfo(candidate.status).color} variant="outline">
+                  {getStatusInfo(candidate.status).label}
+                </Badge>
               </div>
 
               {/* Recruiter Assignment Dropdown */}
@@ -900,7 +1059,7 @@ export default function CandidateManagement() {
                       </div>
                     </SelectValue>
                   </SelectTrigger>
-                  <SelectContent>
+                  <SelectContent searchable searchPlaceholder="Search recruiters..." onSearchChange={(value) => {}} side="bottom">
                     {recruiters.map((recruiter) => (
                       <SelectItem key={recruiter.id} value={recruiter.id}>
                         <div className="flex items-center space-x-2">
@@ -940,7 +1099,7 @@ export default function CandidateManagement() {
                       </div>
                     </SelectValue>
                   </SelectTrigger>
-                  <SelectContent>
+                  <SelectContent searchable searchPlaceholder="Search sources..." onSearchChange={(value) => {}} side="bottom">
                     <SelectItem value="website">
                       <div className="flex items-center space-x-2">
                         <Globe className="w-3 h-3" />
@@ -1005,11 +1164,11 @@ export default function CandidateManagement() {
                     <SelectValue>
                       <div className="flex items-center space-x-2">
                         <Briefcase className="w-3 h-3 text-gray-400" />
-                        <span className="truncate">{candidate.jobTitle}</span>
+                        <span className="truncate">{candidate.appliedJobs[0]?.job.title || 'No Job'}</span>
                       </div>
                     </SelectValue>
                   </SelectTrigger>
-                  <SelectContent>
+                  <SelectContent searchable searchPlaceholder="Search job postings..." onSearchChange={(value) => {}} side="bottom">
                     {jobPostings.map((job) => (
                       <SelectItem key={job.id} value={job.id}>
                         <div className="flex items-center space-x-2">
@@ -1027,17 +1186,7 @@ export default function CandidateManagement() {
             </div>
           </div>
 
-          {candidate.comments && (
-            <div className="mt-3 pt-3 border-t">
-              <div className="flex items-start space-x-2">
-                <MessageSquare className="w-4 h-4 text-gray-400 mt-0.5" />
-                <div>
-                  <p className="text-xs text-gray-700 font-medium">Comments:</p>
-                  <p className="text-xs text-gray-600">{candidate.comments}</p>
-                </div>
-              </div>
-            </div>
-          )}
+          {/* Comments section removed as it's not part of the Candidate interface */}
 
           {/* AI Analysis Section */}
           {aiAnalysis[candidate.id] && (
@@ -1065,7 +1214,7 @@ export default function CandidateManagement() {
                   size="sm"
                   onClick={(e) => {
                     e.stopPropagation()
-                    setShowAiAnalysis(candidate.id)
+                    setShowAiAnalysis(candidate.id.toString())
                   }}
                   className="text-purple-600 border-purple-200 hover:bg-purple-50"
                 >
@@ -1103,6 +1252,8 @@ export default function CandidateManagement() {
   const salaryPlaceholdersForNewCandidate = selectedJobForNewCandidate
     ? getSalaryPlaceholder(selectedJobForNewCandidate.jobType, selectedJobForNewCandidate.country)
     : getSalaryPlaceholder("full-time", "US")
+
+
 
   return (
     <div className="space-y-6">
@@ -1243,7 +1394,7 @@ export default function CandidateManagement() {
                         <SelectTrigger>
                           <SelectValue placeholder="Select job posting" />
                         </SelectTrigger>
-                        <SelectContent>
+                        <SelectContent searchable searchPlaceholder="Search job postings..." onSearchChange={(value) => {}} side="bottom">
                           {jobPostings.map((job) => (
                             <SelectItem key={job.id} value={job.id}>
                               <div className="flex items-center space-x-2">
@@ -1269,7 +1420,7 @@ export default function CandidateManagement() {
                         <SelectTrigger>
                           <SelectValue placeholder="Select recruiter" />
                         </SelectTrigger>
-                        <SelectContent>
+                        <SelectContent searchable searchPlaceholder="Search recruiters..." onSearchChange={(value) => {}} side="bottom">
                           {recruiters.map((recruiter) => (
                             <SelectItem key={recruiter.id} value={recruiter.id}>
                               {recruiter.name}
@@ -1317,7 +1468,7 @@ export default function CandidateManagement() {
                       <SelectTrigger>
                         <SelectValue placeholder={newCandidate.source || "Select a source"} />
                       </SelectTrigger>
-                      <SelectContent>
+                      <SelectContent searchable searchPlaceholder="Search sources..." onSearchChange={(value) => {}} side="bottom">
                         <SelectItem value="website">Company Website</SelectItem>
                         <SelectItem value="linkedin">LinkedIn</SelectItem>
                         <SelectItem value="referral">Employee Referral</SelectItem>
@@ -1433,7 +1584,7 @@ export default function CandidateManagement() {
               <SelectTrigger className="w-[200px] bg-white/80 border-purple-200">
                 <SelectValue placeholder="Pipeline Status" />
               </SelectTrigger>
-              <SelectContent>
+              <SelectContent searchable searchPlaceholder="Search status types..." onSearchChange={(value) => {}} side="bottom">
                 <SelectItem value="all">
                   <div className="flex items-center space-x-2">
                     <div className="w-2 h-2 rounded-full bg-gray-400"></div>
@@ -1462,9 +1613,9 @@ export default function CandidateManagement() {
               <SelectTrigger className="w-[160px] bg-white/80 border-purple-200">
                 <SelectValue placeholder="Job Type" />
               </SelectTrigger>
-              <SelectContent>
+              <SelectContent searchable searchPlaceholder="Search job types..." onSearchChange={setJobTypeSearch} side="bottom">
                 <SelectItem value="">All Types</SelectItem>
-                {JOB_TYPES.map((type) => (
+                {getFilteredJobTypes().map((type) => (
                   <SelectItem key={type.value} value={type.value}>
                     {type.label}
                   </SelectItem>
@@ -1479,29 +1630,36 @@ export default function CandidateManagement() {
               <SelectTrigger className="w-[160px] bg-white/80 border-purple-200">
                 <SelectValue placeholder="Experience" />
               </SelectTrigger>
-              <SelectContent>
+              <SelectContent searchable searchPlaceholder="Search experience levels..." onSearchChange={setExperienceSearch} side="bottom">
                 <SelectItem value="">Any Level</SelectItem>
-                <SelectItem value="entry">Entry Level</SelectItem>
-                <SelectItem value="mid">Mid Level</SelectItem>
-                <SelectItem value="senior">Senior Level</SelectItem>
-                <SelectItem value="lead">Lead/Principal</SelectItem>
+                {getFilteredExperienceLevels().map((level) => (
+                  <SelectItem key={level.value} value={level.value}>
+                    {level.label}
+                  </SelectItem>
+                ))}
               </SelectContent>
             </Select>
 
             <Select
-              value={searchFilters.country}
-              onValueChange={(value) => setSearchFilters({ ...searchFilters, country: value, city: "" })}
+              value={searchFilters.city}
+              onValueChange={(value) => {
+                setSearchFilters({ ...searchFilters, country: "IN", city: value })
+              }}
             >
-              <SelectTrigger className="w-[140px] bg-white/80 border-purple-200">
+              <SelectTrigger className="w-[200px] bg-white/80 border-purple-200">
                 <SelectValue placeholder="Location" />
               </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="">All Locations</SelectItem>
-                {COUNTRIES.map((country) => (
-                  <SelectItem key={country.code} value={country.code}>
-                    {country.name}
-                  </SelectItem>
-                ))}
+              <SelectContent searchable searchPlaceholder="Search cities..." onSearchChange={setLocationSearch} side="bottom">
+                <SelectItem value="">All Cities</SelectItem>
+                {/* Show proper case in UI but filter handles lowercase */}
+                <SelectItem value="hyderbad">🏙️ Hyderabad</SelectItem>
+                {COUNTRIES.find(country => country.code === "IN")?.cities
+                  .filter(city => city.toLowerCase() !== 'hyderabad') // Remove Hyderabad from list since we have hyderbad
+                  .map(city => (
+                    <SelectItem key={`IN-${city}`} value={city}>
+                      🏙️ {city}
+                    </SelectItem>
+                  ))}
               </SelectContent>
             </Select>
           </div>
@@ -1553,10 +1711,10 @@ export default function CandidateManagement() {
                   </button>
                 </Badge>
               )}
-              {searchFilters.country && (
+              {searchFilters.city && (
                 <Badge className="bg-green-100 text-green-800 border-green-200">
                   <MapPin className="w-3 h-3 mr-1" />
-                  {COUNTRIES.find((c) => c.code === searchFilters.country)?.name}
+                  {searchFilters.city}
                   <button
                     onClick={() => setSearchFilters({ ...searchFilters, country: "", city: "" })}
                     className="ml-1 hover:text-red-600"
@@ -1624,379 +1782,437 @@ export default function CandidateManagement() {
             </div>
           )}
 
-          {/* Content */}
-          {!loading && !error && (
-            <Tabs value={viewMode} onValueChange={setViewMode} className="space-y-4">
-              <TabsList className="grid w-full grid-cols-6">
-                <TabsTrigger value="all">All Candidates</TabsTrigger>
-                <TabsTrigger value="date">By Date</TabsTrigger>
-                <TabsTrigger value="client">By Client</TabsTrigger>
-                <TabsTrigger value="job">By Job</TabsTrigger>
-                <TabsTrigger value="recruiter">By Recruiter</TabsTrigger>
-                <TabsTrigger value="jobtype">By Job Type</TabsTrigger>
-              </TabsList>
+                      {/* Content */}
+            {!loading && !error && (
+              <div>
+                {filteredCandidates.length === 0 ? (
+                  <div className="text-center py-12">
+                    <div className="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-full w-24 h-24 flex items-center justify-center mx-auto mb-6">
+                      <AlertCircle className="w-12 h-12 text-blue-400" />
+                    </div>
+                    <h3 className="text-xl font-semibold text-gray-900 mb-3">No candidates found</h3>
+                    <p className="text-gray-600 mb-6 max-w-md mx-auto">
+                      {candidates.length === 0
+                        ? "Start building your talent pipeline by adding your first candidate."
+                        : "Try adjusting your search filters to see more results."}
+                    </p>
+                    <Button 
+                      onClick={() => setIsAddDialogOpen(true)} 
+                      className="bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white shadow-lg"
+                    >
+                      <Plus className="w-4 h-4 mr-2" />
+                      Add First Candidate
+                    </Button>
+                  </div>
+                ) : (
+                  <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+                    {/* Table Header with Stats */}
+                    <div className="bg-gradient-to-r from-slate-50 via-blue-50 to-indigo-50 px-6 py-4 border-b border-gray-200">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center space-x-6">
+                          <div className="flex items-center space-x-2">
+                            <div className="w-3 h-3 bg-blue-500 rounded-full animate-pulse"></div>
+                            <span className="text-sm font-medium text-gray-700">
+                              {filteredCandidates.length} candidates
+                            </span>
+                          </div>
+                          <div className="flex items-center space-x-2">
+                            <div className="w-3 h-3 bg-green-500 rounded-full"></div>
+                            <span className="text-sm font-medium text-gray-700">
+                              {filteredCandidates.filter(c => c.status === 'hired').length} hired
+                            </span>
+                          </div>
+                          <div className="flex items-center space-x-2">
+                            <div className="w-3 h-3 bg-yellow-500 rounded-full"></div>
+                            <span className="text-sm font-medium text-gray-700">
+                              {filteredCandidates.filter(c => c.status === 'interview-1' || c.status === 'interview-2').length} in interviews
+                            </span>
+                          </div>
+                        </div>
+                        <div className="flex items-center space-x-2">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={fetchCandidates}
+                            className="text-xs border-gray-300 hover:border-blue-300 hover:bg-blue-50"
+                          >
+                            <RefreshCw className="w-3 h-3 mr-1" />
+                            Refresh
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
 
-            <TabsContent value="all">
-              {filteredCandidates.length === 0 ? (
-                <div className="text-center py-8">
-                  <AlertCircle className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-                  <h3 className="text-lg font-medium text-gray-900 mb-2">No candidates found</h3>
-                  <p className="text-gray-500 mb-4">
-                    {candidates.length === 0
-                      ? "No candidates have been added yet."
-                      : "Try adjusting your search filters to see more results."}
-                  </p>
-                  <Button onClick={() => setIsAddDialogOpen(true)} className="bg-green-600 hover:bg-green-700">
-                    <Plus className="w-4 h-4 mr-2" />
-                    Add First Candidate
-                  </Button>
-                </div>
-              ) : (
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Candidate</TableHead>
-                      <TableHead>Job & Client</TableHead>
-                      <TableHead>Location</TableHead>
-                      <TableHead>Contact</TableHead>
-                      <TableHead>Salary & Notice</TableHead>
-                      <TableHead>Status</TableHead>
-                      <TableHead>Applied Date</TableHead>
-                      <TableHead>Actions</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {filteredCandidates.map((candidate) => {
-                      const statusInfo = getStatusInfo(candidate.status)
-                      const jobTypeInfo = JOB_TYPES.find((type) => type.value === candidate.jobType)
-                      const countryInfo = COUNTRIES.find((country) => country.code === candidate.country)
-
-                      return (
-                        <TableRow key={candidate.id} className="hover:bg-gray-50">
-                          <TableCell>
-                            <div>
-                              <div className="font-medium">{candidate.fullName}</div>
-                              <div className="text-sm text-gray-500">{candidate.yearsOfExperience} experience</div>
-                              <div className="flex flex-wrap gap-1 mt-1">
-                                {candidate.keySkills.split(',').slice(0, 3).map((skill, index) => (
-                                  <Badge key={index} variant="outline" className="text-xs">
-                                    {skill.trim()}
-                                  </Badge>
-                                ))}
-                                {candidate.keySkills.split(',').length > 3 && (
-                                  <Badge variant="outline" className="text-xs">
-                                    +{candidate.keySkills.split(',').length - 3}
-                                  </Badge>
-                                )}
+                    {/* Beautiful Table */}
+                    <div className="overflow-x-auto">
+                      <Table className="w-full">
+                        <TableHeader>
+                          <TableRow className="bg-gradient-to-r from-gray-50 to-slate-50 border-b border-gray-200">
+                            <TableHead className="px-6 py-4 text-left">
+                              <div className="flex items-center space-x-2">
+                                <User className="w-4 h-4 text-blue-500" />
+                                <span className="text-xs font-semibold text-gray-700 uppercase tracking-wider">Candidate</span>
                               </div>
-                            </div>
-                          </TableCell>
-                          <TableCell>
-                            <div>
-                              {candidate.appliedJobs.length === 1 ? (
-                                <>
-                                  <div className="font-medium flex items-center space-x-2">
-                                    <Briefcase className="w-4 h-4 text-blue-400" />
-                                    <span>{candidate.appliedJobs[0]?.job.title || 'Multiple Jobs'}</span>
+                            </TableHead>
+                            <TableHead className="px-6 py-4 text-left">
+                              <div className="flex items-center space-x-2">
+                                <Briefcase className="w-4 h-4 text-indigo-500" />
+                                <span className="text-xs font-semibold text-gray-700 uppercase tracking-wider">Position</span>
+                              </div>
+                            </TableHead>
+                            <TableHead className="px-6 py-4 text-left">
+                              <div className="flex items-center space-x-2">
+                                <Building2 className="w-4 h-4 text-teal-500" />
+                                <span className="text-xs font-semibold text-gray-700 uppercase tracking-wider">Company</span>
+                              </div>
+                            </TableHead>
+                            <TableHead className="px-6 py-4 text-left">
+                              <div className="flex items-center space-x-2">
+                                <MapPin className="w-4 h-4 text-orange-500" />
+                                <span className="text-xs font-semibold text-gray-700 uppercase tracking-wider">Location</span>
+                              </div>
+                            </TableHead>
+                            <TableHead className="px-6 py-4 text-left">
+                              <div className="flex items-center space-x-2">
+                                <DollarSign className="w-4 h-4 text-green-500" />
+                                <span className="text-xs font-semibold text-gray-700 uppercase tracking-wider">Salary</span>
+                              </div>
+                            </TableHead>
+                            <TableHead className="px-6 py-4 text-left">
+                              <div className="flex items-center space-x-2">
+                                <Calendar className="w-4 h-4 text-purple-500" />
+                                <span className="text-xs font-semibold text-gray-700 uppercase tracking-wider">Experience</span>
+                              </div>
+                            </TableHead>
+                            <TableHead className="px-6 py-4 text-left">
+                              <div className="flex items-center space-x-2">
+                                <Calendar className="w-4 h-4 text-indigo-500" />
+                                <span className="text-xs font-semibold text-gray-700 uppercase tracking-wider whitespace-nowrap">Applied At & Job Type</span>
+                              </div>
+                            </TableHead>
+                            <TableHead className="px-6 py-4 text-left">
+                              <div className="flex items-center space-x-2">
+                                <AlertCircle className="w-4 h-4 text-amber-500" />
+                                <span className="text-xs font-semibold text-gray-700 uppercase tracking-wider">Status</span>
+                              </div>
+                            </TableHead>
+                            <TableHead className="px-6 py-4 text-left">
+                              <div className="flex items-center space-x-2">
+                                <Edit className="w-4 h-4 text-gray-500" />
+                                <span className="text-xs font-semibold text-gray-700 uppercase tracking-wider">Actions</span>
+                              </div>
+                            </TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {filteredCandidates.map((candidate, index) => {
+                            const statusInfo = getStatusInfo(candidate.status)
+                            const primaryJob = candidate.appliedJobs[0]
+                            const jobTypeInfo = JOB_TYPES.find((type) => type.value === primaryJob?.job.jobType.toLowerCase())
+                            
+                            return (
+                              <TableRow 
+                                key={candidate.id} 
+                                className={`
+                                  hover:bg-gradient-to-r hover:from-blue-50 hover:to-indigo-50 
+                                  transition-all duration-300 border-b border-gray-100 group
+                                  ${index % 2 === 0 ? 'bg-white' : 'bg-gray-50/30'}
+                                `}
+                              >
+                                                                 {/* Candidate Column */}
+                                 <TableCell className="px-6 py-4">
+                                   <div className="flex items-center space-x-3">
+                                     <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-full flex items-center justify-center text-white font-semibold text-sm">
+                                       {candidate.fullName.split(' ').map(n => n[0]).join('').toUpperCase()}
+                                     </div>
+                                     <div className="flex-1 min-w-0">
+                                       <div className="flex items-center space-x-1">
+                                         <div className="relative max-w-[120px]">
+                                           <span className="font-semibold text-gray-900 truncate block">
+                                             {candidate.fullName}
+                                           </span>
+                                           {candidate.fullName.length > 15 && (
+                                             <button
+                                               onClick={() => setFullDataModal({
+                                                 isOpen: true,
+                                                 data: candidate.fullName,
+                                                 title: "Full Name"
+                                               })}
+                                               className="absolute -right-6 top-0 flex-shrink-0 p-1 hover:bg-gray-100 rounded transition-colors"
+                                               title="View full name"
+                                             >
+                                               <Eye className="w-3 h-3 text-blue-600" />
+                                             </button>
+                                           )}
+                                         </div>
+                                       </div>
+                                       <div className="flex items-center space-x-1">
+                                         <div className="relative max-w-[140px]">
+                                           <span className="text-sm text-gray-500 truncate block">
+                                             {candidate.email}
+                                           </span>
+                                           {candidate.email.length > 20 && (
+                                             <button
+                                               onClick={() => setFullDataModal({
+                                                 isOpen: true,
+                                                 data: candidate.email,
+                                                 title: "Email Address"
+                                               })}
+                                               className="absolute -right-6 top-0 flex-shrink-0 p-1 hover:bg-gray-100 rounded transition-colors"
+                                               title="View full email"
+                                             >
+                                               <Eye className="w-3 h-3 text-blue-600" />
+                                             </button>
+                                           )}
+                                         </div>
+                                       </div>
+                                       <div className="flex items-center space-x-1">
+                                         <span className="text-xs text-gray-400 truncate">
+                                           {candidate.phone}
+                                         </span>
+                                         {candidate.phone.length > 15 && (
+                                           <button
+                                             onClick={() => setFullDataModal({
+                                               isOpen: true,
+                                               data: candidate.phone,
+                                               title: "Phone Number"
+                                             })}
+                                             className="flex-shrink-0 p-1 hover:bg-gray-100 rounded transition-colors"
+                                             title="View full phone"
+                                           >
+                                             <Eye className="w-3 h-3 text-blue-600" />
+                                           </button>
+                                         )}
+                                       </div>
+
+                                     </div>
+                                   </div>
+                                 </TableCell>
+
+                                                                 {/* Position Column */}
+                                 <TableCell className="px-6 py-4">
+                                   <div className="space-y-1">
+                                     <div className="relative max-w-[150px]">
+                                       <span className="font-medium text-gray-900 truncate block">
+                                         {primaryJob?.job.title || 'Multiple Positions'}
+                                       </span>
+                                       {(primaryJob?.job.title && primaryJob.job.title.length > 20) && (
+                                         <button
+                                           onClick={() => setFullDataModal({
+                                             isOpen: true,
+                                             data: primaryJob.job.title,
+                                             title: "Job Title"
+                                           })}
+                                           className="absolute -right-6 top-0 flex-shrink-0 p-1 hover:bg-gray-100 rounded transition-colors"
+                                           title="View full job title"
+                                         >
+                                           <Eye className="w-3 h-3 text-blue-600" />
+                                         </button>
+                                       )}
+                                     </div>
+                                                                           {candidate.appliedJobs.length > 1 && (
+                                        <Badge 
+                                          className="bg-blue-100 text-blue-800 text-xs cursor-pointer hover:bg-blue-200 transition-colors"
+                                          onClick={() => {
+                                            setSelectedCandidateForJobs(candidate)
+                                            setShowJobsModal(true)
+                                          }}
+                                        >
+                                          {getApplicationsBadgeText(candidate)}
+                                        </Badge>
+                                      )}
+                                   </div>
+                                 </TableCell>
+
+                                                                 {/* Company Column */}
+                                 <TableCell className="px-6 py-4">
+                                   <div className="space-y-1">
+                                     <div className="relative max-w-[130px]">
+                                       <span className="font-medium text-gray-900 truncate block">
+                                         {primaryJob?.job.company || 'Various Companies'}
+                                       </span>
+                                       {(primaryJob?.job.company && primaryJob.job.company.length > 15) && (
+                                         <button
+                                           onClick={() => setFullDataModal({
+                                             isOpen: true,
+                                             data: primaryJob.job.company,
+                                             title: "Company Name"
+                                           })}
+                                           className="absolute -right-6 top-0 flex-shrink-0 p-1 hover:bg-gray-100 rounded transition-colors"
+                                           title="View full company name"
+                                         >
+                                           <Eye className="w-3 h-3 text-blue-600" />
+                                         </button>
+                                       )}
+                                     </div>
+                                     <div className="text-sm text-gray-500">
+                                       Client: {primaryJob?.job.company || 'N/A'}
+                                     </div>
+                                   </div>
+                                 </TableCell>
+
+                                                                 {/* Location Column */}
+                                 <TableCell className="px-6 py-4">
+                                   <div className="flex items-center space-x-2">
+                                     <MapPin className="w-4 h-4 text-gray-400" />
+                                     <div className="relative max-w-[120px]">
+                                       <span className="text-sm text-gray-900 truncate block">
+                                         {candidate.currentLocation}
+                                       </span>
+                                       {candidate.currentLocation.length > 15 && (
+                                         <button
+                                           onClick={() => setFullDataModal({
+                                             isOpen: true,
+                                             data: candidate.currentLocation,
+                                             title: "Location"
+                                           })}
+                                           className="absolute -right-6 top-0 flex-shrink-0 p-1 hover:bg-gray-100 rounded transition-colors"
+                                           title="View full location"
+                                         >
+                                           <Eye className="w-3 h-3 text-blue-600" />
+                                         </button>
+                                       )}
+                                     </div>
+                                   </div>
+                                 </TableCell>
+
+                                {/* Salary Column */}
+                                <TableCell className="px-6 py-4">
+                                  <div className="space-y-1">
+                                    <div className="font-semibold text-gray-900">
+                                      ₹{candidate.salaryExpectation.toLocaleString()}
+                                    </div>
+                                    <div className="text-xs text-gray-500">
+                                      Expected
+                                    </div>
                                   </div>
-                                  <div className="text-sm text-gray-500 flex items-center space-x-2">
-                                    <Building2 className="w-4 h-4 text-gray-400" />
-                                    <span>{candidate.appliedJobs[0]?.job.company || 'Various Companies'}</span>
+                                </TableCell>
+
+                                {/* Experience Column */}
+                                <TableCell className="px-6 py-4">
+                                  <div className="text-sm text-gray-900">
+                                    {candidate.yearsOfExperience}
                                   </div>
-                                  <Badge className={getJobTypeColor(candidate.appliedJobs[0]?.job.jobType.toLowerCase() || 'full-time')} variant="outline">
-                                    {candidate.appliedJobs[0]?.job.jobType || 'Full-time'}
-                                  </Badge>
-                                </>
-                              ) : (
-                                <div className="space-y-2">
-                                  <div className="flex items-center space-x-2">
-                                    <Badge className="bg-blue-100 text-blue-800 border-blue-300 text-xs">
-                                      {candidate.totalApplications} Applications
+                                </TableCell>
+
+                                {/* Applied At & Job Type Column */}
+                                <TableCell className="px-6 py-4">
+                                  <div className="text-sm text-gray-900">
+                                    <div className="flex flex-col space-y-1">
+                                      <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200 whitespace-nowrap">
+                                        {formatDateDDMMMYYYY(candidate.appliedAt)}
+                                      </Badge>
+                                      {candidate.appliedJobs.length > 1 ? (
+                                        <div className="flex items-center space-x-2">
+                                          <Badge variant="outline" className="bg-purple-50 text-purple-700 border-purple-200 whitespace-nowrap">
+                                            {primaryJob?.job.jobType}
+                                          </Badge>
+                                          <Button
+                                            size="sm"
+                                            variant="outline"
+                                            onClick={() => {
+                                              setSelectedCandidateForJobs(candidate)
+                                              setShowJobsModal(true)
+                                            }}
+                                            className="text-xs h-6 px-2"
+                                          >
+                                            View More
+                                          </Button>
+                                        </div>
+                                      ) : (
+                                        <Badge variant="outline" className="bg-purple-50 text-purple-700 border-purple-200 whitespace-nowrap">
+                                          {primaryJob?.job.jobType}
+                                        </Badge>
+                                      )}
+                                    </div>
+                                  </div>
+                                </TableCell>
+
+                                {/* Status Column */}
+                                <TableCell className="px-6 py-4">
+                                  <div className="space-y-2">
+                                    <Badge 
+                                      variant="outline" 
+                                      className={`whitespace-nowrap text-xs ${
+                                        candidate.status === 'New Application' ? 'bg-blue-50 text-blue-700 border-blue-200' :
+                                        candidate.status === 'Initial Screening' ? 'bg-yellow-50 text-yellow-700 border-yellow-200' :
+                                        candidate.status === 'Final Interview' ? 'bg-purple-50 text-purple-700 border-purple-200' :
+                                        candidate.status === 'Hired' ? 'bg-green-50 text-green-700 border-green-200' :
+                                        candidate.status === 'Rejected' ? 'bg-red-50 text-red-700 border-red-200' :
+                                        'bg-gray-50 text-gray-700 border-gray-200'
+                                      }`}
+                                    >
+                                      {candidate.status || 'New Application'}
                                     </Badge>
                                   </div>
-                                  {candidate.appliedJobs.slice(0, 2).map((appliedJob, index) => (
-                                    <div key={appliedJob.applicationId} className="text-sm">
-                                      <div className="flex items-center space-x-2">
-                                        <Briefcase className="w-3 h-3 text-blue-400" />
-                                        <span className="font-medium">{appliedJob.job.title}</span>
-                                      </div>
-                                      <div className="flex items-center space-x-2 ml-5">
-                                        <Building2 className="w-3 h-3 text-gray-400" />
-                                        <span className="text-gray-500">{appliedJob.job.company}</span>
-                                        <Badge 
-                                          variant="outline" 
-                                          className={`text-xs ${
-                                            appliedJob.job.priority === 'high' ? 'bg-red-50 text-red-700 border-red-200' :
-                                            appliedJob.job.priority === 'medium' ? 'bg-yellow-50 text-yellow-700 border-yellow-200' :
-                                            'bg-green-50 text-green-700 border-green-200'
-                                          }`}
-                                        >
-                                          {appliedJob.job.priority}
-                                        </Badge>
-                                      </div>
-                                    </div>
-                                  ))}
-                                  {candidate.appliedJobs.length > 2 && (
-                                    <div className="text-xs text-gray-500 ml-5">
-                                      +{candidate.appliedJobs.length - 2} more applications
-                                    </div>
-                                  )}
-                                </div>
-                              )}
-                            </div>
-                          </TableCell>
-                          <TableCell>
-                            <div className="space-y-1">
-                              <div className="flex items-center space-x-2 text-sm">
-                                <MapPin className="w-3 h-3 text-gray-400" />
-                                <span>{candidate.currentLocation}</span>
-                              </div>
-                              {countryInfo && (
-                                <Badge variant="outline" className="text-xs">
-                                  {countryInfo.name}
-                                </Badge>
-                              )}
-                            </div>
-                          </TableCell>
-                          <TableCell>
-                            <div className="space-y-1">
-                              <div className="flex items-center space-x-2 text-sm">
-                                <Mail className="w-3 h-3 text-gray-400" />
-                                <span className="truncate max-w-[150px]">{candidate.email}</span>
-                              </div>
-                              <div className="flex items-center space-x-2 text-sm">
-                                <Phone className="w-3 h-3 text-gray-400" />
-                                <span>{candidate.phone}</span>
-                              </div>
-                            </div>
-                          </TableCell>
-                          <TableCell>
-                            <div className="space-y-1">
-                              <div className="flex items-center space-x-2 text-sm">
-                                <DollarSign className="w-3 h-3 text-green-500" />
-                                <span>
-                                  Expected: ₹{candidate.salaryExpectation.toLocaleString()}
-                                </span>
-                              </div>
-                              <div className="flex items-center space-x-2 text-sm">
-                                <Calendar className="w-3 h-3 text-gray-400" />
-                                <span>
-                                  Notice: {candidate.noticePeriod}
-                                </span>
-                              </div>
-                            </div>
-                          </TableCell>
-                          <TableCell>
-                            {/* Quick Status Update Dropdown */}
-                            <Select
-                              value={candidate.status}
-                              onValueChange={(value) => {
-                                setCandidates(
-                                  candidates.map((c) =>
-                                    c.id === candidate.id
-                                      ? { ...c, status: value, lastUpdated: new Date().toISOString().split("T")[0] }
-                                      : c,
-                                  ),
-                                )
-                              }}
-                            >
-                              <SelectTrigger className="w-[180px] h-8">
-                                <SelectValue>
-                                  <Badge className={statusInfo.color} variant="outline">
-                                    {statusInfo.label}
-                                  </Badge>
-                                </SelectValue>
-                              </SelectTrigger>
-                              <SelectContent>
-                                {PIPELINE_STATUSES.map((status) => (
-                                  <SelectItem key={status.key} value={status.key}>
-                                    <div className="flex items-center space-x-2">
-                                      <div
-                                        className={`w-2 h-2 rounded-full ${
-                                          status.color.includes("blue")
-                                            ? "bg-blue-500"
-                                            : status.color.includes("yellow")
-                                              ? "bg-yellow-500"
-                                              : status.color.includes("orange")
-                                                ? "bg-orange-500"
-                                                : status.color.includes("purple")
-                                                  ? "bg-purple-500"
-                                                  : status.color.includes("indigo")
-                                                    ? "bg-indigo-500"
-                                                    : status.color.includes("violet")
-                                                      ? "bg-violet-500"
-                                                      : status.color.includes("pink")
-                                                        ? "bg-pink-500"
-                                                        : status.color.includes("cyan")
-                                                          ? "bg-cyan-500"
-                                                          : status.color.includes("emerald")
-                                                            ? "bg-emerald-500"
-                                                            : status.color.includes("green")
-                                                              ? "bg-green-500"
-                                                              : status.color.includes("lime")
-                                                                ? "bg-lime-500"
-                                                                : status.color.includes("teal")
-                                                                  ? "bg-teal-500"
-                                                                  : status.color.includes("sky")
-                                                                    ? "bg-sky-500"
-                                                                    : status.color.includes("red")
-                                                                      ? "bg-red-500"
-                                                                      : status.color.includes("gray")
-                                                                        ? "bg-gray-500"
-                                                                        : "bg-amber-500"
-                                        }`}
-                                      ></div>
-                                      <span>{status.label}</span>
-                                    </div>
-                                  </SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
-                          </TableCell>
-                          <TableCell>
-                            <div className="text-sm">
-                              <div className="flex items-center space-x-2">
-                                <Calendar className="w-3 h-3 text-gray-400" />
-                                <span>{formatDateDDMMMYYYY(candidate.appliedAt)}</span>
-                              </div>
-                            </div>
-                          </TableCell>
-                          <TableCell>
-                            <div className="text-sm">
-                              <Badge variant="outline" className="capitalize text-xs">
-                                {candidate.status}
-                              </Badge>
-                            </div>
-                          </TableCell>
-                          <TableCell>
-                            <div className="flex space-x-1">
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={() => {
-                                  setEditingCandidate(candidate)
-                                  setIsEditDialogOpen(true)
-                                }}
-                                className="text-xs h-8 px-2"
-                              >
-                                <Edit className="w-3 h-3" />
-                              </Button>
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={() => {
-                                  window.open(candidate.resumeDownloadUrl, '_blank')
-                                }}
-                                className="text-xs h-8 px-2 text-blue-600 border-blue-200 hover:bg-blue-50"
-                              >
-                                <Upload className="w-3 h-3" />
-                              </Button>
-                            </div>
-                          </TableCell>
-                        </TableRow>
-                      )
-                    })}
-                  </TableBody>
-                </Table>
-              )}
-            </TabsContent>
+                                </TableCell>
 
-            <TabsContent value="date">
-              <div className="space-y-6">
-                {Object.entries(getCandidatesByDate())
-                  .sort(([a], [b]) => new Date(b).getTime() - new Date(a).getTime())
-                  .map(([date, candidates]) => (
-                    <div key={date}>
-                      <h3 className="text-lg font-semibold mb-3 flex items-center space-x-2">
-                        <Calendar className="w-5 h-5 text-blue-600" />
-                        <span>
-                          {formatDateDDMMMYYYY(date)} ({candidates.length} candidates)
-                        </span>
-                      </h3>
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">{candidates.map(renderCandidateCard)}</div>
+                                {/* Actions Column */}
+                                <TableCell className="px-6 py-4">
+                                  <div className="flex items-center space-x-2">
+                                    <Button
+                                      variant="outline"
+                                      size="sm"
+                                      onClick={() => {
+                                        setViewingCandidate(candidate)
+                                        setSelectedJobId(null)
+                                        setIsViewDialogOpen(true)
+                                      }}
+                                      className="h-8 px-3 text-green-600 border-green-200 hover:bg-green-50 hover:border-green-300 transition-all duration-200 hover:shadow-md"
+                                    >
+                                      <User className="w-3 h-3 mr-1" />
+                                      View
+                                    </Button>
+                                    <Button
+                                      variant="outline"
+                                      size="sm"
+                                      onClick={() => setShowAiAnalysis(candidate.id.toString())}
+                                      className="h-8 px-3 text-purple-600 border-purple-200 hover:bg-purple-50 hover:border-purple-300 transition-all duration-200 hover:shadow-md"
+                                    >
+                                      <Brain className="w-3 h-3 mr-1" />
+                                      AI
+                                    </Button>
+                                    {candidate.resumeDownloadUrl && (
+                                      <Button
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={() => {
+                                          if (candidate.resumeDownloadUrl) {
+                                            window.open(candidate.resumeDownloadUrl, '_blank')
+                                          }
+                                        }}
+                                        className="h-8 px-3 text-blue-600 border-blue-200 hover:bg-blue-50 hover:border-blue-300 transition-all duration-200 hover:shadow-md"
+                                      >
+                                        <Upload className="w-3 h-3 mr-1" />
+                                        Resume
+                                      </Button>
+                                    )}
+                                  </div>
+                                </TableCell>
+                              </TableRow>
+                            )
+                          })}
+                        </TableBody>
+                      </Table>
                     </div>
-                  ))}
-              </div>
-            </TabsContent>
 
-            <TabsContent value="client">
-              <div className="space-y-6">
-                {Object.entries(getCandidatesByClient()).map(([clientId, candidates]) => {
-                  const client = candidates[0] // Get client info from first candidate
-                  return (
-                    <div key={clientId}>
-                      <h3 className="text-lg font-semibold mb-3 flex items-center space-x-2">
-                        <Building2 className="w-5 h-5 text-purple-600" />
-                        <span>
-                          {client.customerName} - SPOC: {client.internalSPOC} ({candidates.length} candidates)
-                        </span>
-                      </h3>
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">{candidates.map(renderCandidateCard)}</div>
+                    {/* Table Footer */}
+                    <div className="bg-gradient-to-r from-gray-50 to-slate-50 px-6 py-3 border-t border-gray-200">
+                      <div className="flex items-center justify-between text-sm text-gray-600">
+                        <div className="flex items-center space-x-4">
+                          <span>Showing {filteredCandidates.length} of {totalCandidates} candidates</span>
+                          <span>•</span>
+                          <span>{totalApplications} total applications</span>
+                        </div>
+                        <div className="flex items-center space-x-2">
+                          <span className="text-xs text-gray-500">Last updated: {new Date().toLocaleString()}</span>
+                        </div>
+                      </div>
                     </div>
-                  )
-                })}
+                  </div>
+                )}
               </div>
-            </TabsContent>
-
-            <TabsContent value="job">
-              <div className="space-y-6">
-                {Object.entries(getCandidatesByJob()).map(([jobId, candidates]) => {
-                  const job = candidates[0] // Get job info from first candidate
-                  return (
-                    <div key={jobId}>
-                      <h3 className="text-lg font-semibold mb-3 flex items-center space-x-2">
-                        <Briefcase className="w-5 h-5 text-blue-600" />
-                        <span>
-                          {job.jobTitle} - {job.customerName} ({candidates.length} candidates)
-                        </span>
-                      </h3>
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">{candidates.map(renderCandidateCard)}</div>
-                    </div>
-                  )
-                })}
-              </div>
-            </TabsContent>
-
-            <TabsContent value="recruiter">
-              <div className="space-y-6">
-                {Object.entries(getCandidatesByRecruiter()).map(([recruiterId, candidates]) => {
-                  const recruiter = candidates[0] // Get recruiter info from first candidate
-                  return (
-                    <div key={recruiterId}>
-                      <h3 className="text-lg font-semibold mb-3 flex items-center space-x-2">
-                        <User className="w-5 h-5 text-green-600" />
-                        <span>
-                          {recruiter.recruiterName} ({candidates.length} candidates)
-                        </span>
-                      </h3>
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">{candidates.map(renderCandidateCard)}</div>
-                    </div>
-                  )
-                })}
-              </div>
-            </TabsContent>
-
-            <TabsContent value="jobtype">
-              <div className="space-y-6">
-                {Object.entries(getCandidatesByJobType()).map(([jobType, candidates]) => {
-                  const jobTypeInfo = JOB_TYPES.find((type) => type.value === jobType)
-                  return (
-                    <div key={jobType}>
-                      <h3 className="text-lg font-semibold mb-3 flex items-center space-x-2">
-                        <Briefcase className="w-5 h-5 text-indigo-600" />
-                        <span>
-                          {jobTypeInfo?.label || jobType} ({candidates.length} candidates)
-                        </span>
-                        <Badge className={getJobTypeColor(jobType)}>{jobTypeInfo?.salaryPeriod}</Badge>
-                      </h3>
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">{candidates.map(renderCandidateCard)}</div>
-                    </div>
-                  )
-                })}
-              </div>
-            </TabsContent>
-          </Tabs>
-          )}
+            )}
         </CardContent>
       </Card>
       {/* AI Analysis Dialog */}
@@ -2008,13 +2224,445 @@ export default function CandidateManagement() {
               <DialogDescription>Comprehensive AI-powered evaluation and recommendations</DialogDescription>
             </DialogHeader>
             <AICandidateAnalysis
-              candidate={candidates.find((c) => c.id === showAiAnalysis)}
-              jobPosting={jobPostings.find((j) => j.id === candidates.find((c) => c.id === showAiAnalysis)?.jobId)}
+              candidate={candidates.find((c) => c.id === Number.parseInt(showAiAnalysis || '0'))}
+              jobPosting={jobPostings.find((j) => j.id === candidates.find((c) => c.id === Number.parseInt(showAiAnalysis || '0'))?.appliedJobs[0]?.job.id.toString())}
               onAnalysisComplete={(analysis) => handleAiAnalysisComplete(showAiAnalysis, analysis)}
             />
           </DialogContent>
         </Dialog>
       )}
+
+      {/* Full Data Modal */}
+      <Dialog open={fullDataModal.isOpen} onOpenChange={(open) => setFullDataModal({...fullDataModal, isOpen: open})}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center space-x-2">
+              <Eye className="w-5 h-5 text-blue-600" />
+              <span>{fullDataModal.title}</span>
+            </DialogTitle>
+          </DialogHeader>
+          <div className="py-4">
+            <div className="bg-gray-50 p-4 rounded-lg">
+              <p className="text-sm text-gray-900 break-words">{fullDataModal.data}</p>
+            </div>
+          </div>
+          <div className="flex justify-end">
+            <Button onClick={() => setFullDataModal({...fullDataModal, isOpen: false})}>
+              Close
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Professional Status Update Dialog */}
+      <Dialog open={showStatusUpdateDialog} onOpenChange={setShowStatusUpdateDialog}>
+        <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center space-x-2">
+              <Briefcase className="w-5 h-5 text-blue-600" />
+              <span>Select Job to Update Status</span>
+            </DialogTitle>
+            <DialogDescription>
+              Choose a job application to update its status
+            </DialogDescription>
+          </DialogHeader>
+          {selectedCandidateForJobs && (
+            <div className="space-y-4 py-4">
+              {/* Search Filters */}
+              <div className="grid grid-cols-3 gap-4 p-4 bg-gray-50 rounded-lg">
+                <div className="col-span-3 flex justify-end mb-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      setJobFilterSearch("")
+                      setJobFilterStatus("all")
+                      setJobFilterPriority("all")
+                    }}
+                    className="text-xs"
+                  >
+                    <RefreshCw className="w-3 h-3 mr-1" />
+                    Reset Filters
+                  </Button>
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-xs font-medium">Search by Title</Label>
+                  <input
+                    type="text"
+                    placeholder="Search job titles..."
+                    value={jobFilterSearch}
+                    onChange={(e) => setJobFilterSearch(e.target.value)}
+                    className="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-xs font-medium">Filter by Status</Label>
+                  <Select value={jobFilterStatus} onValueChange={setJobFilterStatus}>
+                    <SelectTrigger className="w-full">
+                      <SelectValue placeholder="All statuses" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All statuses</SelectItem>
+                      {PIPELINE_STATUSES.map((status) => (
+                        <SelectItem key={status.key} value={status.key}>
+                          <div className="flex items-center space-x-2">
+                            <div
+                              className={`w-2 h-2 rounded-full ${
+                                status.color.includes("blue")
+                                  ? "bg-blue-500"
+                                  : status.color.includes("yellow")
+                                    ? "bg-yellow-500"
+                                    : status.color.includes("orange")
+                                      ? "bg-orange-500"
+                                      : status.color.includes("purple")
+                                        ? "bg-purple-500"
+                                        : status.color.includes("indigo")
+                                          ? "bg-indigo-500"
+                                          : status.color.includes("violet")
+                                            ? "bg-violet-500"
+                                            : status.color.includes("pink")
+                                              ? "bg-pink-500"
+                                              : status.color.includes("cyan")
+                                                ? "bg-cyan-500"
+                                                : status.color.includes("emerald")
+                                                  ? "bg-emerald-500"
+                                                  : status.color.includes("green")
+                                                    ? "bg-green-500"
+                                                    : status.color.includes("lime")
+                                                      ? "bg-lime-500"
+                                                      : status.color.includes("teal")
+                                                        ? "bg-teal-500"
+                                                        : status.color.includes("sky")
+                                                          ? "bg-sky-500"
+                                                          : status.color.includes("red")
+                                                            ? "bg-red-500"
+                                                            : status.color.includes("gray")
+                                                              ? "bg-gray-500"
+                                                              : "bg-amber-500"
+                              }`}
+                            ></div>
+                            <span>{status.label}</span>
+                          </div>
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-xs font-medium">Filter by Priority</Label>
+                  <Select value={jobFilterPriority} onValueChange={setJobFilterPriority}>
+                    <SelectTrigger className="w-full">
+                      <SelectValue placeholder="All priorities" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All priorities</SelectItem>
+                      <SelectItem value="high">High priority</SelectItem>
+                      <SelectItem value="medium">Medium priority</SelectItem>
+                      <SelectItem value="low">Low priority</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+              {/* Jobs List */}
+              <div className="space-y-3">
+                {selectedCandidateForJobs.appliedJobs
+                  .filter((appliedJob) => {
+                    // Filter by search term
+                    const matchesSearch = !jobFilterSearch || 
+                      appliedJob.job.title.toLowerCase().includes(jobFilterSearch.toLowerCase()) ||
+                      appliedJob.job.company.toLowerCase().includes(jobFilterSearch.toLowerCase())
+                    
+                    // Filter by status
+                    const matchesStatus = jobFilterStatus === "all" || 
+                      appliedJob.applicationStatus === jobFilterStatus
+                    
+                    // Filter by priority
+                    const matchesPriority = jobFilterPriority === "all" || 
+                      appliedJob.job.priority === jobFilterPriority
+                    
+                    return matchesSearch && matchesStatus && matchesPriority
+                  })
+                  .map((appliedJob, index) => {
+                  const jobStatusInfo = getStatusInfo(appliedJob.applicationStatus)
+                  return (
+                    <div key={appliedJob.applicationId} className="bg-gradient-to-br from-gray-50 to-gray-100 p-4 rounded-lg border border-gray-200 hover:border-blue-300 transition-all duration-200 hover:shadow-sm">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center space-x-3 flex-1">
+                          <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center">
+                            <Briefcase className="w-5 h-5 text-blue-600" />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="font-medium text-gray-900">{appliedJob.job.title}</div>
+                            <div className="text-sm text-gray-600">{appliedJob.job.company}</div>
+                            <div className="text-xs text-gray-500">Applied: {formatDateDDMMMYYYY(appliedJob.appliedAt)}</div>
+                          </div>
+                        </div>
+                        <div className="flex items-center space-x-3">
+                          <Badge 
+                            variant="outline" 
+                            className={`text-xs ${
+                              appliedJob.job.priority === 'high' ? 'bg-red-50 text-red-700 border-red-200' :
+                              appliedJob.job.priority === 'medium' ? 'bg-yellow-50 text-yellow-700 border-yellow-200' :
+                              'bg-green-50 text-green-700 border-green-200'
+                            }`}
+                          >
+                            {appliedJob.job.priority}
+                          </Badge>
+                          <Badge className="bg-gray-100 text-gray-800 border-gray-200" variant="outline">
+                            {appliedJob.applicationStatus}
+                          </Badge>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => {
+                              setSelectedJobForStatus(appliedJob)
+                              setShowStatusUpdateDialog(false)
+                              // Open status update dialog for this specific job
+                              setTimeout(() => {
+                                setShowStatusUpdateDialog(true)
+                              }, 100)
+                            }}
+                            className="text-xs"
+                          >
+                            Update Status
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+          )}
+          <div className="flex justify-end">
+            <Button onClick={() => setShowStatusUpdateDialog(false)}>
+              Close
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* All Jobs Modal */}
+      <Dialog open={showJobsModal} onOpenChange={setShowJobsModal}>
+        <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center space-x-2">
+              <Briefcase className="w-5 h-5 text-blue-600" />
+              <span>All Job Applications</span>
+            </DialogTitle>
+            <DialogDescription>
+              {selectedCandidateForJobs?.fullName} - {selectedCandidateForJobs?.appliedJobs.length} applications
+            </DialogDescription>
+          </DialogHeader>
+          {selectedCandidateForJobs && (
+            <div className="py-4">
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow className="bg-gray-50">
+                      <TableHead className="px-4 py-3 text-left">
+                        <div className="flex items-center space-x-2">
+                          <Briefcase className="w-4 h-4 text-blue-500" />
+                          <span className="text-xs font-semibold text-gray-700 uppercase tracking-wider">Job Title</span>
+                        </div>
+                      </TableHead>
+                      <TableHead className="px-4 py-3 text-left">
+                        <div className="flex items-center space-x-2">
+                          <Building2 className="w-4 h-4 text-teal-500" />
+                          <span className="text-xs font-semibold text-gray-700 uppercase tracking-wider">Company</span>
+                        </div>
+                      </TableHead>
+                      <TableHead className="px-4 py-3 text-left">
+                        <div className="flex items-center space-x-2">
+                          <Calendar className="w-4 h-4 text-indigo-500" />
+                          <span className="text-xs font-semibold text-gray-700 uppercase tracking-wider whitespace-nowrap">Applied At & Job Type</span>
+                        </div>
+                      </TableHead>
+                      <TableHead className="px-4 py-3 text-left">
+                        <div className="flex items-center space-x-2">
+                          <AlertCircle className="w-4 h-4 text-amber-500" />
+                          <span className="text-xs font-semibold text-gray-700 uppercase tracking-wider">Status</span>
+                        </div>
+                      </TableHead>
+                      <TableHead className="px-4 py-3 text-left">
+                        <div className="flex items-center space-x-2">
+                          <DollarSign className="w-4 h-4 text-green-500" />
+                          <span className="text-xs font-semibold text-gray-700 uppercase tracking-wider">Priority</span>
+                        </div>
+                      </TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {selectedCandidateForJobs.appliedJobs.map((appliedJob, index) => (
+                      <TableRow key={appliedJob.applicationId} className="hover:bg-gray-50">
+                        <TableCell className="px-4 py-3">
+                          <div className="font-medium text-gray-900">{appliedJob.job.title}</div>
+                        </TableCell>
+                        <TableCell className="px-4 py-3">
+                          <div className="text-sm text-gray-600">{appliedJob.job.company}</div>
+                        </TableCell>
+                        <TableCell className="px-4 py-3">
+                          <div className="flex flex-col space-y-1">
+                            <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200 text-xs">
+                              {formatDateDDMMMYYYY(appliedJob.appliedAt)}
+                            </Badge>
+                            <Badge variant="outline" className="bg-purple-50 text-purple-700 border-purple-200 text-xs">
+                              {appliedJob.job.jobType}
+                            </Badge>
+                          </div>
+                        </TableCell>
+                        <TableCell className="px-4 py-3">
+                          <Badge className="bg-gray-100 text-gray-800 border-gray-200" variant="outline">
+                            {appliedJob.applicationStatus}
+                          </Badge>
+                        </TableCell>
+                        <TableCell className="px-4 py-3">
+                          <Badge 
+                            variant="outline" 
+                            className={`text-xs ${
+                              appliedJob.job.priority === 'high' ? 'bg-red-50 text-red-700 border-red-200' :
+                              appliedJob.job.priority === 'medium' ? 'bg-yellow-50 text-yellow-700 border-yellow-200' :
+                              'bg-green-50 text-green-700 border-green-200'
+                            }`}
+                          >
+                            {appliedJob.job.priority}
+                          </Badge>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            </div>
+          )}
+          <div className="flex justify-end">
+            <Button onClick={() => setShowJobsModal(false)}>
+              Close
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Individual Job Status Update Dialog */}
+      <Dialog open={selectedJobForStatus !== null} onOpenChange={(open) => {
+        if (!open) setSelectedJobForStatus(null)
+      }}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center space-x-2">
+              <Briefcase className="w-5 h-5 text-blue-600" />
+              <span>Update Application Status</span>
+            </DialogTitle>
+            <DialogDescription>
+              Update the status for the selected job application
+            </DialogDescription>
+          </DialogHeader>
+          {selectedJobForStatus && (
+            <div className="space-y-4 py-4">
+              <div className="bg-blue-50 p-3 rounded-lg">
+                <div className="flex items-center space-x-2 mb-2">
+                  <Briefcase className="w-4 h-4 text-blue-600" />
+                  <span className="font-medium text-blue-900">{selectedJobForStatus.job.title}</span>
+                </div>
+                <div className="text-sm text-blue-700">
+                  Company: {selectedJobForStatus.job.company}
+                </div>
+              </div>
+              
+              <div className="space-y-2">
+                <Label>Current Status</Label>
+                <div className="flex items-center space-x-2">
+                  <Badge className={getStatusInfo(selectedJobForStatus.applicationStatus).color} variant="outline">
+                    {getStatusInfo(selectedJobForStatus.applicationStatus).label}
+                  </Badge>
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label>New Status</Label>
+                <Select
+                  value={selectedJobForStatus.applicationStatus}
+                  onValueChange={(value) => {
+                    setCandidates(
+                      candidates.map((c) =>
+                        c.appliedJobs.some(job => job.applicationId === selectedJobForStatus.applicationId)
+                          ? {
+                              ...c,
+                              appliedJobs: c.appliedJobs.map((job) =>
+                                job.applicationId === selectedJobForStatus.applicationId
+                                  ? { ...job, applicationStatus: value }
+                                  : job
+                              ),
+                              updatedAt: new Date().toISOString().split("T")[0]
+                            }
+                          : c,
+                      ),
+                    )
+                    setSelectedJobForStatus(null)
+                  }}
+                >
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder="Select new status" />
+                  </SelectTrigger>
+                  <SelectContent searchable searchPlaceholder="Search status types..." onSearchChange={setStatusSearch} side="bottom">
+                    {getFilteredStatuses().map((status) => (
+                      <SelectItem key={status.key} value={status.key}>
+                        <div className="flex items-center space-x-2">
+                          <div
+                            className={`w-2 h-2 rounded-full ${
+                              status.color.includes("blue")
+                                ? "bg-blue-500"
+                                : status.color.includes("yellow")
+                                  ? "bg-yellow-500"
+                                  : status.color.includes("orange")
+                                    ? "bg-orange-500"
+                                    : status.color.includes("purple")
+                                      ? "bg-purple-500"
+                                      : status.color.includes("indigo")
+                                        ? "bg-indigo-500"
+                                        : status.color.includes("violet")
+                                          ? "bg-violet-500"
+                                          : status.color.includes("pink")
+                                            ? "bg-pink-500"
+                                            : status.color.includes("cyan")
+                                              ? "bg-cyan-500"
+                                              : status.color.includes("emerald")
+                                                ? "bg-emerald-500"
+                                                : status.color.includes("green")
+                                                  ? "bg-green-500"
+                                                  : status.color.includes("lime")
+                                                    ? "bg-lime-500"
+                                                    : status.color.includes("teal")
+                                                      ? "bg-teal-500"
+                                                      : status.color.includes("sky")
+                                                        ? "bg-sky-500"
+                                                        : status.color.includes("red")
+                                                          ? "bg-red-500"
+                                                          : status.color.includes("gray")
+                                                            ? "bg-gray-500"
+                                                            : "bg-amber-500"
+                            }`}
+                          ></div>
+                          <span>{status.label}</span>
+                        </div>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+          )}
+          <div className="flex justify-end space-x-2">
+            <Button variant="outline" onClick={() => setSelectedJobForStatus(null)}>
+              Cancel
+            </Button>
+            <Button onClick={() => setSelectedJobForStatus(null)}>
+              Update Status
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
         <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
@@ -2039,8 +2687,8 @@ export default function CandidateManagement() {
                     <Label>Full Name</Label>
                     <input
                       type="text"
-                      value={editingCandidate.name}
-                      onChange={(e) => setEditingCandidate({ ...editingCandidate, name: e.target.value })}
+                      value={editingCandidate.fullName}
+                      onChange={(e) => setEditingCandidate({ ...editingCandidate, fullName: e.target.value })}
                       className="w-full px-3 py-2 border border-gray-300 rounded-md"
                     />
                   </div>
@@ -2066,13 +2714,13 @@ export default function CandidateManagement() {
                   <div className="space-y-2">
                     <Label>Experience Level</Label>
                     <Select
-                      value={editingCandidate.experience}
-                      onValueChange={(value) => setEditingCandidate({ ...editingCandidate, experience: value })}
+                      value={editingCandidate.yearsOfExperience}
+                      onValueChange={(value) => setEditingCandidate({ ...editingCandidate, yearsOfExperience: value })}
                     >
                       <SelectTrigger>
                         <SelectValue placeholder="Select experience level" />
                       </SelectTrigger>
-                      <SelectContent>
+                      <SelectContent searchable searchPlaceholder="Search experience levels..." onSearchChange={(value) => {}} side="bottom">
                         <SelectItem value="0-1 years">0-1 years</SelectItem>
                         <SelectItem value="1-2 years">1-2 years</SelectItem>
                         <SelectItem value="2-3 years">2-3 years</SelectItem>
@@ -2093,7 +2741,7 @@ export default function CandidateManagement() {
                       <SelectTrigger>
                         <SelectValue placeholder="Select notice period" />
                       </SelectTrigger>
-                      <SelectContent>
+                      <SelectContent searchable searchPlaceholder="Search notice periods..." onSearchChange={(value) => {}} side="bottom">
                         <SelectItem value="Immediate">Immediate</SelectItem>
                         <SelectItem value="1 week">1 week</SelectItem>
                         <SelectItem value="2 weeks">2 weeks</SelectItem>
@@ -2113,14 +2761,15 @@ export default function CandidateManagement() {
                       <SelectTrigger>
                         <SelectValue placeholder="Select location" />
                       </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="San Francisco, CA">San Francisco, CA</SelectItem>
-                        <SelectItem value="New York, NY">New York, NY</SelectItem>
-                        <SelectItem value="Austin, TX">Austin, TX</SelectItem>
-                        <SelectItem value="Toronto, ON">Toronto, ON</SelectItem>
-                        <SelectItem value="Berlin, Germany">Berlin, Germany</SelectItem>
-                        <SelectItem value="London, UK">London, UK</SelectItem>
+                      <SelectContent searchable searchPlaceholder="Search locations..." onSearchChange={(value) => {}} side="bottom">
                         <SelectItem value="Remote">Remote</SelectItem>
+                        {COUNTRIES.map((country) => 
+                          country.cities.map((city) => (
+                            <SelectItem key={`${country.code}-${city}`} value={`${city}, ${country.name}`}>
+                              {city}, {country.name}
+                            </SelectItem>
+                          ))
+                        )}
                       </SelectContent>
                     </Select>
                   </div>
@@ -2143,8 +2792,8 @@ export default function CandidateManagement() {
                       <SelectTrigger className="w-full">
                         <SelectValue />
                       </SelectTrigger>
-                      <SelectContent>
-                        {PIPELINE_STATUSES.map((status) => (
+                      <SelectContent searchable searchPlaceholder="Search status types..." onSearchChange={setStatusSearch} side="bottom">
+                        {getFilteredStatuses().map((status) => (
                           <SelectItem key={status.key} value={status.key}>
                             <div className="flex items-center space-x-2">
                               <div
@@ -2171,9 +2820,9 @@ export default function CandidateManagement() {
                     <Label>Current Salary</Label>
                     <input
                       type="number"
-                      value={editingCandidate.currentSalary}
+                      value={editingCandidate.salaryExpectation}
                       onChange={(e) =>
-                        setEditingCandidate({ ...editingCandidate, currentSalary: Number(e.target.value) })
+                        setEditingCandidate({ ...editingCandidate, salaryExpectation: Number(e.target.value) })
                       }
                       className="w-full px-3 py-2 border border-gray-300 rounded-md"
                     />
@@ -2182,9 +2831,9 @@ export default function CandidateManagement() {
                     <Label>Expected Salary</Label>
                     <input
                       type="number"
-                      value={editingCandidate.expectedSalary}
+                      value={editingCandidate.salaryExpectation}
                       onChange={(e) =>
-                        setEditingCandidate({ ...editingCandidate, expectedSalary: Number(e.target.value) })
+                        setEditingCandidate({ ...editingCandidate, salaryExpectation: Number(e.target.value) })
                       }
                       className="w-full px-3 py-2 border border-gray-300 rounded-md"
                     />
@@ -2192,76 +2841,9 @@ export default function CandidateManagement() {
                 </div>
               </div>
 
-              {/* Application Source Section */}
-              <div className="space-y-4">
-                <h3 className="text-lg font-semibold flex items-center space-x-2">
-                  <Globe className="w-5 h-5 text-indigo-600" />
-                  <span>Application Source</span>
-                </h3>
-                <div className="space-y-2">
-                  <Label>Source</Label>
-                  <Select
-                    value={editingCandidate.source}
-                    onValueChange={(value) =>
-                      setEditingCandidate({
-                        ...editingCandidate,
-                        source: value as "website" | "referral" | "linkedin" | "recruiter" | "other",
-                      })
-                    }
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select application source" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="website">
-                        <div className="flex items-center space-x-2">
-                          <Globe className="w-4 h-4" />
-                          <span>Company Website</span>
-                        </div>
-                      </SelectItem>
-                      <SelectItem value="linkedin">
-                        <div className="flex items-center space-x-2">
-                          <User className="w-4 h-4" />
-                          <span>LinkedIn</span>
-                        </div>
-                      </SelectItem>
-                      <SelectItem value="referral">
-                        <div className="flex items-center space-x-2">
-                          <User className="w-4 h-4" />
-                          <span>Employee Referral</span>
-                        </div>
-                      </SelectItem>
-                      <SelectItem value="recruiter">
-                        <div className="flex items-center space-x-2">
-                          <Briefcase className="w-4 h-4" />
-                          <span>Recruiter Sourced</span>
-                        </div>
-                      </SelectItem>
-                      <SelectItem value="other">
-                        <div className="flex items-center space-x-2">
-                          <MessageSquare className="w-4 h-4" />
-                          <span>Other</span>
-                        </div>
-                      </SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
 
-              {/* Comments Section */}
-              <div className="space-y-4">
-                <h3 className="text-lg font-semibold flex items-center space-x-2">
-                  <MessageSquare className="w-5 h-5 text-blue-600" />
-                  <span>Comments & Notes</span>
-                </h3>
-                <Textarea
-                  value={editingCandidate.comments}
-                  onChange={(e) => setEditingCandidate({ ...editingCandidate, comments: e.target.value })}
-                  placeholder="Add any additional notes or observations about the candidate..."
-                  rows={4}
-                  className="w-full"
-                />
-              </div>
+
+
             </div>
           )}
 
@@ -2276,7 +2858,391 @@ export default function CandidateManagement() {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* View Candidate Details Dialog */}
+      <Dialog open={isViewDialogOpen} onOpenChange={setIsViewDialogOpen}>
+        <DialogContent className="max-w-7xl max-h-[95vh] overflow-y-auto bg-gradient-to-br from-gray-50 to-white">
+          <DialogHeader className="pb-6 border-b border-gray-200">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center space-x-3">
+                <div className="p-2 bg-gradient-to-r from-green-500 to-emerald-500 rounded-lg">
+                  <User className="w-6 h-6 text-white" />
+                </div>
+                <div>
+                  <DialogTitle className="text-2xl font-bold text-gray-900">
+                    {viewingCandidate?.fullName}
+                  </DialogTitle>
+                  <DialogDescription className="text-gray-600 mt-1">
+                    {viewingCandidate?.email} • {viewingCandidate?.phone}
+                  </DialogDescription>
+                </div>
+              </div>
+              <div className="flex items-center space-x-2">
+                <Badge className={getStatusInfo(viewingCandidate?.status || '').color} variant="outline">
+                  {getStatusInfo(viewingCandidate?.status || '').label}
+                </Badge>
+                <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200">
+                  {viewingCandidate?.totalApplications} Applications
+                </Badge>
+              </div>
+            </div>
+          </DialogHeader>
+
+          {viewingCandidate && (
+            <div className="py-6 space-y-8">
+              {/* Header Stats */}
+              <div className="grid grid-cols-4 gap-6">
+                <div className="bg-white rounded-xl p-4 border border-gray-200 shadow-sm">
+                  <div className="flex items-center space-x-3">
+                    <div className="p-2 bg-blue-100 rounded-lg">
+                      <MapPin className="w-5 h-5 text-blue-600" />
+                    </div>
+                    <div>
+                      <p className="text-sm font-medium text-gray-600">Location</p>
+                      <p className="text-lg font-semibold text-gray-900">{viewingCandidate.currentLocation}</p>
+                    </div>
+                  </div>
+                </div>
+                <div className="bg-white rounded-xl p-4 border border-gray-200 shadow-sm">
+                  <div className="flex items-center space-x-3">
+                    <div className="p-2 bg-purple-100 rounded-lg">
+                      <Briefcase className="w-5 h-5 text-purple-600" />
+                    </div>
+                    <div>
+                      <p className="text-sm font-medium text-gray-600">Experience</p>
+                      <p className="text-lg font-semibold text-gray-900">{viewingCandidate.yearsOfExperience}</p>
+                    </div>
+                  </div>
+                </div>
+                <div className="bg-white rounded-xl p-4 border border-gray-200 shadow-sm">
+                  <div className="flex items-center space-x-3">
+                    <div className="p-2 bg-green-100 rounded-lg">
+                      <DollarSign className="w-5 h-5 text-green-600" />
+                    </div>
+                    <div>
+                      <p className="text-sm font-medium text-gray-600">Expected Salary</p>
+                      <p className="text-lg font-semibold text-gray-900">₹{viewingCandidate.salaryExpectation.toLocaleString()}</p>
+                    </div>
+                  </div>
+                </div>
+                <div className="bg-white rounded-xl p-4 border border-gray-200 shadow-sm">
+                  <div className="flex items-center space-x-3">
+                    <div className="p-2 bg-orange-100 rounded-lg">
+                      <Calendar className="w-5 h-5 text-orange-600" />
+                    </div>
+                    <div>
+                      <p className="text-sm font-medium text-gray-600">Notice Period</p>
+                      <p className="text-lg font-semibold text-gray-900">{viewingCandidate.noticePeriod}</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Main Content Grid */}
+              <div className="grid grid-cols-3 gap-8">
+                {/* Left Column - Personal Info & Skills */}
+                <div className="space-y-6">
+                  {/* Personal Information */}
+                  <Card className="border-0 shadow-lg bg-white">
+                    <CardContent className="p-6">
+                      <div className="flex items-center space-x-2 mb-4">
+                        <User className="w-5 h-5 text-blue-600" />
+                        <h3 className="text-lg font-semibold text-gray-900">Personal Information</h3>
+                      </div>
+                      <div className="space-y-4">
+                        <div className="flex justify-between items-center py-2 border-b border-gray-100">
+                          <span className="text-sm font-medium text-gray-600">Full Name</span>
+                          <span className="text-sm font-semibold text-gray-900">{viewingCandidate.fullName}</span>
+                        </div>
+                        <div className="flex justify-between items-center py-2 border-b border-gray-100">
+                          <span className="text-sm font-medium text-gray-600">Email</span>
+                          <span className="text-sm text-blue-600">{viewingCandidate.email}</span>
+                        </div>
+                        <div className="flex justify-between items-center py-2 border-b border-gray-100">
+                          <span className="text-sm font-medium text-gray-600">Phone</span>
+                          <span className="text-sm text-gray-900">{viewingCandidate.phone}</span>
+                        </div>
+                        <div className="flex justify-between items-center py-2 border-b border-gray-100">
+                          <span className="text-sm font-medium text-gray-600">Remote Work</span>
+                          <Badge variant="outline" className={viewingCandidate.remoteWork ? "bg-green-50 text-green-700 border-green-200" : "bg-gray-50 text-gray-700 border-gray-200"}>
+                            {viewingCandidate.remoteWork ? 'Yes' : 'No'}
+                          </Badge>
+                        </div>
+                        {viewingCandidate.portfolioUrl && (
+                          <div className="flex justify-between items-center py-2">
+                            <span className="text-sm font-medium text-gray-600">Portfolio</span>
+                            <span className="text-sm text-blue-600 hover:underline cursor-pointer" 
+                                   onClick={() => window.open(viewingCandidate.portfolioUrl, '_blank')}>
+                              View Portfolio
+                            </span>
+                          </div>
+                        )}
+                      </div>
+                    </CardContent>
+                  </Card>
+
+                  {/* Skills */}
+                  <Card className="border-0 shadow-lg bg-white">
+                    <CardContent className="p-6">
+                      <div className="flex items-center space-x-2 mb-4">
+                        <Brain className="w-5 h-5 text-purple-600" />
+                        <h3 className="text-lg font-semibold text-gray-900">Skills & Expertise</h3>
+                      </div>
+                      <div className="flex flex-wrap gap-2">
+                        {viewingCandidate.keySkills.split(',').map((skill, index) => (
+                          <Badge key={index} variant="outline" className="bg-purple-50 text-purple-700 border-purple-200">
+                            {skill.trim()}
+                          </Badge>
+                        ))}
+                      </div>
+                    </CardContent>
+                  </Card>
+
+                  {/* Resume */}
+                  {viewingCandidate.resumeDownloadUrl && (
+                    <Card className="border-0 shadow-lg bg-white">
+                      <CardContent className="p-6">
+                        <div className="flex items-center space-x-2 mb-4">
+                          <Upload className="w-5 h-5 text-blue-600" />
+                          <h3 className="text-lg font-semibold text-gray-900">Resume</h3>
+                        </div>
+                        <div className="flex items-center justify-between">
+                          <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
+                            Available
+                          </Badge>
+                          <Button
+                            variant="outline"
+                            onClick={() => {
+                              if (viewingCandidate.resumeDownloadUrl) {
+                                window.open(viewingCandidate.resumeDownloadUrl, '_blank')
+                              }
+                            }}
+                            className="text-blue-600 border-blue-200 hover:bg-blue-50"
+                          >
+                            <Upload className="w-4 h-4 mr-2" />
+                            Download
+                          </Button>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  )}
+                </div>
+
+                {/* Center Column - Application History */}
+                <div className="col-span-2">
+                  <Card className="border-0 shadow-lg bg-white">
+                    <CardContent className="p-6">
+                      <div className="flex items-center space-x-2 mb-6">
+                        <Briefcase className="w-5 h-5 text-indigo-600" />
+                        <h3 className="text-lg font-semibold text-gray-900">Application History</h3>
+                        <Badge variant="outline" className="bg-indigo-50 text-indigo-700 border-indigo-200">
+                          {viewingCandidate.totalApplications} applications
+                        </Badge>
+                      </div>
+                                             <div className="space-y-4">
+                         {viewingCandidate.appliedJobs
+                           .filter(appliedJob => !selectedJobId || appliedJob.applicationId.toString() === selectedJobId)
+                           .map((appliedJob, index) => (
+                           <div key={appliedJob.applicationId} className="border border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow">
+                            <div className="flex justify-between items-start mb-3">
+                              <div className="flex-1">
+                                <h4 className="font-semibold text-lg text-gray-900">{appliedJob.job.title}</h4>
+                                <p className="text-gray-600 font-medium">{appliedJob.job.company}</p>
+                                <p className="text-sm text-gray-500">{appliedJob.job.city}</p>
+                              </div>
+                              <div className="flex space-x-2">
+                                <Badge className={getJobTypeColor(appliedJob.job.jobType.toLowerCase())}>
+                                  {appliedJob.job.jobType}
+                                </Badge>
+                                <Badge 
+                                  variant="outline" 
+                                  className={`${
+                                    appliedJob.job.priority === 'high' ? 'bg-red-50 text-red-700 border-red-200' :
+                                    appliedJob.job.priority === 'medium' ? 'bg-yellow-50 text-yellow-700 border-yellow-200' :
+                                    'bg-green-50 text-green-700 border-green-200'
+                                  }`}
+                                >
+                                  {appliedJob.job.priority}
+                                </Badge>
+                              </div>
+                            </div>
+                            <div className="grid grid-cols-2 gap-4 text-sm mb-3">
+                              <div>
+                                <span className="font-medium text-gray-600">Salary Range:</span>
+                                <p className="text-gray-900">₹{appliedJob.job.salaryMin.toLocaleString()} - ₹{appliedJob.job.salaryMax.toLocaleString()}</p>
+                              </div>
+                              <div>
+                                <span className="font-medium text-gray-600">Experience Level:</span>
+                                <p className="text-gray-900">{appliedJob.job.experienceLevel}</p>
+                              </div>
+                              <div>
+                                <span className="font-medium text-gray-600">Work Type:</span>
+                                <p className="text-gray-900">{appliedJob.job.workType}</p>
+                              </div>
+                              <div>
+                                <span className="font-medium text-gray-600">Job Status:</span>
+                                <p className="text-gray-900">{appliedJob.job.jobStatus}</p>
+                              </div>
+                            </div>
+                            
+                            {/* Status Pipeline Section */}
+                            <div className="mb-3 p-4 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-lg border border-blue-200">
+                              <div className="flex items-center space-x-2 mb-3">
+                                <AlertCircle className="w-4 h-4 text-blue-600" />
+                                <h5 className="font-semibold text-blue-900">Application Status Pipeline</h5>
+                              </div>
+                              <div className="flex items-center justify-between">
+                                <div className="flex items-center space-x-2">
+                                  <Select
+                                    value={appliedJob.applicationStatus}
+                                    onValueChange={(value) => {
+                                      // Call the updateCandidateStatus function
+                                      updateCandidateStatus(viewingCandidate.id, appliedJob.job.id, value)
+                                    }}
+                                  >
+                                    <SelectTrigger className="w-[200px] h-8 border-blue-200 hover:border-blue-300 transition-colors bg-white shadow-sm">
+                                      <SelectValue>
+                                        <div className="flex items-center space-x-2">
+                                          <div
+                                            className={`w-2 h-2 rounded-full ${
+                                              getStatusInfo(appliedJob.applicationStatus).color.includes("blue")
+                                                ? "bg-blue-500"
+                                                : getStatusInfo(appliedJob.applicationStatus).color.includes("yellow")
+                                                  ? "bg-yellow-500"
+                                                  : getStatusInfo(appliedJob.applicationStatus).color.includes("orange")
+                                                    ? "bg-orange-500"
+                                                    : getStatusInfo(appliedJob.applicationStatus).color.includes("purple")
+                                                      ? "bg-purple-500"
+                                                      : getStatusInfo(appliedJob.applicationStatus).color.includes("indigo")
+                                                        ? "bg-indigo-500"
+                                                        : getStatusInfo(appliedJob.applicationStatus).color.includes("violet")
+                                                          ? "bg-violet-500"
+                                                          : getStatusInfo(appliedJob.applicationStatus).color.includes("pink")
+                                                            ? "bg-pink-500"
+                                                            : getStatusInfo(appliedJob.applicationStatus).color.includes("cyan")
+                                                              ? "bg-cyan-500"
+                                                              : getStatusInfo(appliedJob.applicationStatus).color.includes("emerald")
+                                                                ? "bg-emerald-500"
+                                                                : getStatusInfo(appliedJob.applicationStatus).color.includes("green")
+                                                                  ? "bg-green-500"
+                                                                  : getStatusInfo(appliedJob.applicationStatus).color.includes("lime")
+                                                                    ? "bg-lime-500"
+                                                                    : getStatusInfo(appliedJob.applicationStatus).color.includes("teal")
+                                                                      ? "bg-teal-500"
+                                                                      : getStatusInfo(appliedJob.applicationStatus).color.includes("sky")
+                                                                        ? "bg-sky-500"
+                                                                        : getStatusInfo(appliedJob.applicationStatus).color.includes("red")
+                                                                          ? "bg-red-500"
+                                                                          : getStatusInfo(appliedJob.applicationStatus).color.includes("gray")
+                                                                            ? "bg-gray-500"
+                                                                            : "bg-amber-500"
+                                            }`}
+                                          ></div>
+                                          <span className="text-sm font-medium">{getStatusInfo(appliedJob.applicationStatus).label}</span>
+                                        </div>
+                                      </SelectValue>
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                      {PIPELINE_STATUSES.map((status) => (
+                                        <SelectItem key={status.key} value={status.key}>
+                                          <div className="flex items-center space-x-2">
+                                            <div
+                                              className={`w-2 h-2 rounded-full ${
+                                                status.color.includes("blue")
+                                                  ? "bg-blue-500"
+                                                  : status.color.includes("yellow")
+                                                    ? "bg-yellow-500"
+                                                    : status.color.includes("orange")
+                                                      ? "bg-orange-500"
+                                                      : status.color.includes("purple")
+                                                        ? "bg-purple-500"
+                                                        : status.color.includes("indigo")
+                                                          ? "bg-indigo-500"
+                                                          : status.color.includes("violet")
+                                                            ? "bg-violet-500"
+                                                            : status.color.includes("pink")
+                                                              ? "bg-pink-500"
+                                                              : status.color.includes("cyan")
+                                                                ? "bg-cyan-500"
+                                                                : status.color.includes("emerald")
+                                                                  ? "bg-emerald-500"
+                                                                  : status.color.includes("green")
+                                                                    ? "bg-green-500"
+                                                                    : status.color.includes("lime")
+                                                                      ? "bg-lime-500"
+                                                                      : status.color.includes("teal")
+                                                                        ? "bg-teal-500"
+                                                                        : status.color.includes("sky")
+                                                                          ? "bg-sky-500"
+                                                                          : status.color.includes("red")
+                                                                            ? "bg-red-500"
+                                                                            : status.color.includes("gray")
+                                                                              ? "bg-gray-500"
+                                                                              : "bg-amber-500"
+                                                }`}
+                                              ></div>
+                                              <span>{status.label}</span>
+                                            </div>
+                                          </SelectItem>
+                                        ))}
+                                      </SelectContent>
+                                    </Select>
+                                </div>
+                                <Badge 
+                                  variant="outline" 
+                                  className={`${
+                                    appliedJob.applicationStatus === 'active' ? 'bg-green-50 text-green-700 border-green-200' :
+                                    appliedJob.applicationStatus === 'rejected' ? 'bg-red-50 text-red-700 border-red-200' :
+                                    appliedJob.applicationStatus === 'pending' ? 'bg-yellow-50 text-yellow-700 border-yellow-200' :
+                                    'bg-gray-50 text-gray-700 border-gray-200'
+                                  }`}
+                                >
+                                  {appliedJob.applicationStatus}
+                                </Badge>
+                              </div>
+                            </div>
+                            
+                            <div className="flex justify-between items-center pt-3 border-t border-gray-100">
+                              <div className="flex items-center space-x-2">
+                                <Calendar className="w-4 h-4 text-gray-400" />
+                                <span className="text-sm text-gray-600">Applied: {formatDateDDMMMYYYY(appliedJob.appliedAt)}</span>
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </CardContent>
+                  </Card>
+                </div>
+              </div>
+            </div>
+          )}
+
+          <div className="flex justify-end space-x-3 pt-6 border-t border-gray-200 bg-gray-50 -mx-6 -mb-6 px-6 py-4">
+            <Button variant="outline" onClick={() => setIsViewDialogOpen(false)}>
+              Close
+            </Button>
+            <Button 
+              onClick={() => {
+                setEditingCandidate(viewingCandidate)
+                setIsViewDialogOpen(false)
+                setIsEditDialogOpen(true)
+              }} 
+              className="bg-blue-600 hover:bg-blue-700"
+            >
+              <Edit className="w-4 h-4 mr-2" />
+              Edit Candidate
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   )
+}
+
+const getApplicationsBadgeText = (candidate: Candidate) => {
+  if (candidate.appliedJobs.length <= 1) return ""
+  
+  return `${candidate.appliedJobs.length - 1} more applications`
 }
 

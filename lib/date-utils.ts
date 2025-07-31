@@ -15,17 +15,64 @@ export const formatDate = (date: string | Date): string => {
   }
 }
 
-export const isDateInRange = (date: string | Date, startDate: string | Date, endDate: string | Date): boolean => {
+export const isDateInRange = (date: string | Date, dateFilter: string): boolean => {
   try {
     const dateObj = typeof date === "string" ? new Date(date) : date
-    const startObj = typeof startDate === "string" ? new Date(startDate) : startDate
-    const endObj = typeof endDate === "string" ? new Date(endDate) : endDate
 
-    return dateObj >= startObj && dateObj <= endObj
+    // Handle custom date range format: "custom:startDate:endDate"
+    if (dateFilter.startsWith('custom:')) {
+      const [, startDateStr, endDateStr] = dateFilter.split(':')
+      const startDate = new Date(startDateStr)
+      const endDate = new Date(endDateStr)
+      
+      return dateObj >= startDate && dateObj <= endDate
+    }
+
+    // Handle predefined date ranges
+    const today = new Date()
+    today.setHours(0, 0, 0, 0)
+
+    switch (dateFilter) {
+      case "all":
+        return true
+      case "today":
+        const tomorrow = new Date(today)
+        tomorrow.setDate(tomorrow.getDate() + 1)
+        return dateObj >= today && dateObj < tomorrow
+      case "week":
+        const weekRange = getWeekRange(today)
+        return dateObj >= weekRange.start && dateObj <= weekRange.end
+      case "month":
+        const monthStart = new Date(today.getFullYear(), today.getMonth(), 1)
+        const monthEnd = new Date(today.getFullYear(), today.getMonth() + 1, 0)
+        return dateObj >= monthStart && dateObj <= monthEnd
+      case "quarter":
+        const quarter = Math.floor(today.getMonth() / 3)
+        const quarterStart = new Date(today.getFullYear(), quarter * 3, 1)
+        const quarterEnd = new Date(today.getFullYear(), (quarter + 1) * 3, 0)
+        return dateObj >= quarterStart && dateObj <= quarterEnd
+      case "year":
+        const yearStart = new Date(today.getFullYear(), 0, 1)
+        const yearEnd = new Date(today.getFullYear(), 11, 31)
+        return dateObj >= yearStart && dateObj <= yearEnd
+      default:
+        return true
+    }
   } catch (error) {
     console.error("Error checking date range:", error)
     return false
   }
+}
+
+export const parseCustomDateRange = (dateFilter: string): { startDate: Date; endDate: Date } | null => {
+  if (dateFilter.startsWith('custom:')) {
+    const [, startDateStr, endDateStr] = dateFilter.split(':')
+    return {
+      startDate: new Date(startDateStr),
+      endDate: new Date(endDateStr)
+    }
+  }
+  return null
 }
 
 export const getWeekRange = (date: Date): { start: Date; end: Date } => {
