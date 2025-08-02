@@ -1,1150 +1,1051 @@
 "use client"
 
-import { useState, useMemo } from "react"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Badge } from "@/components/ui/badge"
-import { Avatar, AvatarFallback } from "@/components/ui/avatar"
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog"
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Textarea } from "@/components/ui/textarea"
-import {
-  Building2,
-  Plus,
-  Search,
+import React, { useState, useEffect } from 'react'
+import { 
+  Building2, 
+  Plus, 
+  Search, 
+  Filter, 
+  Edit, 
+  Trash2, 
+  Eye, 
+  MoreHorizontal,
+  MapPin,
+  Globe,
+  DollarSign,
+  Calendar,
+  Users,
+  TrendingUp,
+  AlertCircle,
+  CheckCircle,
+  Clock,
+  X,
+  Star,
+  Briefcase,
   Mail,
   Phone,
-  MapPin,
-  Users,
-  DollarSign,
-  Briefcase,
-  User,
-  AlertCircle,
-  CheckCircle2,
-  Edit,
-  Trash2,
-  Eye,
+  ExternalLink,
+  ChevronLeft,
+  ChevronRight,
   Download,
   Upload,
-  Globe,
-  Star,
-  TrendingUp,
-} from "lucide-react"
-import { formatDate } from "../../lib/date-utils"
-import { DateFilter } from "@/components/date-filter"
+  Settings,
+  BarChart3,
+  RefreshCw
+} from 'lucide-react'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Badge } from '@/components/ui/badge'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { toast } from '@/components/ui/use-toast'
+import BaseUrlApi from '../../BaseUrlApi'
 
 interface Customer {
-  id: string
+  id: number
   companyName: string
-  contactPerson: string
-  email: string
-  phone: string
-  address: string
-  city: string
+  industry: string
+  companySize?: string
+  website?: string
+  description?: string
+  status: 'ACTIVE' | 'INACTIVE' | 'PROSPECT' | 'SUSPENDED'
+  priority: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL'
   country: string
+  city: string
+  address?: string
+  annualRevenue?: string
+  contractValue?: number
+  billingCycle?: string
+  createdAt: string
+  updatedAt: string
+}
+
+interface CustomerFormData {
+  companyName: string
   industry: string
   companySize: string
   website: string
-  internalSPOC: string
-  status: "active" | "inactive" | "prospect" | "churned"
-  priority: "high" | "medium" | "low"
-  contractValue: number
-  startDate: string
-  lastActivity: string
-  notes: string
-  jobPostings: number
-  activeCandidates: number
-  hiredCandidates: number
-  tags: string[]
-}
-
-interface FormErrors {
-  companyName?: string
-  contactPerson?: string
-  email?: string
-  phone?: string
-  address?: string
-  internalSPOC?: string
-  website?: string
-  contractValue?: string
+  description: string
+  status: string
+  priority: string
+  country: string
+  city: string
+  address: string
+  annualRevenue: string
+  contractValue: string
+  billingCycle: string
 }
 
 export default function CustomerManagement() {
-  const [customers, setCustomers] = useState<Customer[]>([
-    {
-      id: "1",
-      companyName: "TechCorp Inc.",
-      contactPerson: "John Smith",
-      email: "john.smith@techcorp.com",
-      phone: "+1-555-0123",
-      address: "123 Tech Street",
-      city: "San Francisco",
-      country: "United States",
-      industry: "Technology",
-      companySize: "1000-5000",
-      website: "https://techcorp.com",
-      internalSPOC: "Sarah Wilson",
-      status: "active",
-      priority: "high",
-      contractValue: 250000,
-      startDate: "2024-01-15",
-      lastActivity: "2024-01-20T10:30:00Z",
-      notes: "Key client with multiple ongoing projects. Excellent relationship.",
-      jobPostings: 12,
-      activeCandidates: 45,
-      hiredCandidates: 8,
-      tags: ["Enterprise", "Long-term", "High-value"],
-    },
-    {
-      id: "2",
-      companyName: "StartupXYZ",
-      contactPerson: "Jane Doe",
-      email: "jane.doe@startupxyz.com",
-      phone: "+1-555-0124",
-      address: "456 Innovation Ave",
-      city: "Austin",
-      country: "United States",
-      industry: "Fintech",
-      companySize: "50-200",
-      website: "https://startupxyz.com",
-      internalSPOC: "Mike Johnson",
-      status: "active",
-      priority: "medium",
-      contractValue: 75000,
-      startDate: "2024-02-01",
-      lastActivity: "2024-01-19T14:15:00Z",
-      notes: "Fast-growing startup with aggressive hiring plans.",
-      jobPostings: 6,
-      activeCandidates: 23,
-      hiredCandidates: 3,
-      tags: ["Startup", "Growth", "Agile"],
-    },
-    {
-      id: "3",
-      companyName: "DataFlow Solutions",
-      contactPerson: "Mike Wilson",
-      email: "mike.wilson@dataflow.com",
-      phone: "+1-555-0125",
-      address: "789 Data Drive",
-      city: "Seattle",
-      country: "United States",
-      industry: "Analytics",
-      companySize: "200-1000",
-      website: "https://dataflow.com",
-      internalSPOC: "Emily Chen",
-      status: "prospect",
-      priority: "medium",
-      contractValue: 120000,
-      startDate: "2024-03-01",
-      lastActivity: "2024-01-18T09:45:00Z",
-      notes: "Potential client interested in data science roles.",
-      jobPostings: 4,
-      activeCandidates: 15,
-      hiredCandidates: 1,
-      tags: ["Data", "Analytics", "Potential"],
-    },
-    {
-      id: "4",
-      companyName: "Global Enterprises",
-      contactPerson: "Sarah Johnson",
-      email: "sarah.johnson@global.com",
-      phone: "+1-555-0126",
-      address: "321 Corporate Blvd",
-      city: "New York",
-      country: "United States",
-      industry: "Consulting",
-      companySize: "5000+",
-      website: "https://globalenterprises.com",
-      internalSPOC: "David Brown",
-      status: "active",
-      priority: "high",
-      contractValue: 500000,
-      startDate: "2023-12-01",
-      lastActivity: "2024-01-21T16:20:00Z",
-      notes: "Major enterprise client with global presence.",
-      jobPostings: 25,
-      activeCandidates: 78,
-      hiredCandidates: 15,
-      tags: ["Enterprise", "Global", "Strategic"],
-    },
-  ])
-
-  const [searchTerm, setSearchTerm] = useState("")
-  const [statusFilter, setStatusFilter] = useState("all")
-  const [priorityFilter, setPriorityFilter] = useState("all")
-  const [industryFilter, setIndustryFilter] = useState("all")
-  const [dateFilter, setDateFilter] = useState("all")
-  const [isAddDialogOpen, setIsAddDialogOpen] = useState(false)
-  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false)
+  const [customers, setCustomers] = useState<Customer[]>([])
+  const [loading, setLoading] = useState(true)
+  const [searchTerm, setSearchTerm] = useState('')
+  const [statusFilter, setStatusFilter] = useState('all')
+  const [priorityFilter, setPriorityFilter] = useState('all')
+  const [industryFilter, setIndustryFilter] = useState('all')
+  const [currentPage, setCurrentPage] = useState(1)
+  const [totalPages, setTotalPages] = useState(1)
+  const [showCreateDialog, setShowCreateDialog] = useState(false)
+  const [showEditDialog, setShowEditDialog] = useState(false)
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null)
-  const [isLoading, setIsLoading] = useState(false)
-  const [formErrors, setFormErrors] = useState<FormErrors>({})
-
-  // Debug state for troubleshooting
-  const [debugInfo, setDebugInfo] = useState<string[]>([])
-
-  const addDebugInfo = (info: string) => {
-    setDebugInfo((prev) => [...prev.slice(-4), `${new Date().toLocaleTimeString()}: ${info}`])
-  }
-
-  const [newCustomer, setNewCustomer] = useState<Omit<Customer, "id">>({
-    companyName: "",
-    contactPerson: "",
-    email: "",
-    phone: "",
-    address: "",
-    city: "",
-    country: "",
-    industry: "",
-    companySize: "",
-    website: "",
-    internalSPOC: "",
-    status: "prospect",
-    priority: "medium",
-    contractValue: 0,
-    startDate: new Date().toISOString().split("T")[0],
-    lastActivity: new Date().toISOString(),
-    notes: "",
-    jobPostings: 0,
-    activeCandidates: 0,
-    hiredCandidates: 0,
-    tags: [],
+  const [formData, setFormData] = useState<CustomerFormData>({
+    companyName: '',
+    industry: '',
+    companySize: '',
+    website: '',
+    description: '',
+    status: 'ACTIVE',
+    priority: 'MEDIUM',
+    country: '',
+    city: '',
+    address: '',
+    annualRevenue: '',
+    contractValue: '',
+    billingCycle: ''
   })
 
-  // Get unique values for filters
-  const industries = [...new Set(customers.map((c) => c.industry))].filter(Boolean)
-  const statuses = ["active", "inactive", "prospect", "churned"]
-  const priorities = ["high", "medium", "low"]
-
-  // Filtered customers
-  const filteredCustomers = useMemo(() => {
-    return customers.filter((customer) => {
-      const matchesSearch =
-        !searchTerm ||
-        customer.companyName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        customer.contactPerson.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        customer.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        customer.internalSPOC.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        customer.industry.toLowerCase().includes(searchTerm.toLowerCase())
-
-      const matchesStatus = statusFilter === "all" || customer.status === statusFilter
-      const matchesPriority = priorityFilter === "all" || customer.priority === priorityFilter
-      const matchesIndustry = industryFilter === "all" || customer.industry === industryFilter
-
-      return matchesSearch && matchesStatus && matchesPriority && matchesIndustry
-    })
-  }, [customers, searchTerm, statusFilter, priorityFilter, industryFilter])
-
-  // Form validation
-  const validateForm = (): boolean => {
-    const errors: FormErrors = {}
-
-    if (!newCustomer.companyName.trim()) {
-      errors.companyName = "Company name is required"
-    }
-
-    if (!newCustomer.contactPerson.trim()) {
-      errors.contactPerson = "Contact person is required"
-    }
-
-    if (!newCustomer.email.trim()) {
-      errors.email = "Email is required"
-    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(newCustomer.email)) {
-      errors.email = "Please enter a valid email address"
-    }
-
-    if (!newCustomer.phone.trim()) {
-      errors.phone = "Phone number is required"
-    }
-
-    if (!newCustomer.address.trim()) {
-      errors.address = "Address is required"
-    }
-
-    if (!newCustomer.internalSPOC.trim()) {
-      errors.internalSPOC = "Internal SPOC is required"
-    } else if (newCustomer.internalSPOC.length < 2) {
-      errors.internalSPOC = "Internal SPOC must be at least 2 characters"
-    } else if (!/^[a-zA-Z\s.'-]+$/.test(newCustomer.internalSPOC)) {
-      errors.internalSPOC = "Internal SPOC can only contain letters, spaces, periods, apostrophes, and hyphens"
-    }
-
-    if (newCustomer.website && !/^https?:\/\/.+/.test(newCustomer.website)) {
-      errors.website = "Please enter a valid website URL (starting with http:// or https://)"
-    }
-
-    if (newCustomer.contractValue < 0) {
-      errors.contractValue = "Contract value cannot be negative"
-    }
-
-    setFormErrors(errors)
-    return Object.keys(errors).length === 0
-  }
-
-  // Dialog handlers with comprehensive error handling
-  const handleDialogOpen = () => {
+  // Fetch customers
+  const fetchCustomers = async () => {
     try {
-      addDebugInfo("Attempting to open dialog")
-      setFormErrors({})
-      setIsAddDialogOpen(true)
-      addDebugInfo("Dialog open state set to true")
-    } catch (error) {
-      addDebugInfo(`Error opening dialog: ${error}`)
-      console.error("Error opening dialog:", error)
-    }
-  }
-
-  const handleDialogClose = () => {
-    try {
-      addDebugInfo("Closing dialog")
-      setIsAddDialogOpen(false)
-      setFormErrors({})
-      setNewCustomer({
-        companyName: "",
-        contactPerson: "",
-        email: "",
-        phone: "",
-        address: "",
-        city: "",
-        country: "",
-        industry: "",
-        companySize: "",
-        website: "",
-        internalSPOC: "",
-        status: "prospect",
-        priority: "medium",
-        contractValue: 0,
-        startDate: new Date().toISOString().split("T")[0],
-        lastActivity: new Date().toISOString(),
-        notes: "",
-        jobPostings: 0,
-        activeCandidates: 0,
-        hiredCandidates: 0,
-        tags: [],
+      setLoading(true)
+      const params = new URLSearchParams({
+        page: currentPage.toString(),
+        limit: '10',
+        ...(searchTerm && { search: searchTerm }),
+        ...(statusFilter !== 'all' && { status: statusFilter }),
+        ...(priorityFilter !== 'all' && { priority: priorityFilter }),
+        ...(industryFilter !== 'all' && { industry: industryFilter })
       })
-      addDebugInfo("Dialog closed and form reset")
-    } catch (error) {
-      addDebugInfo(`Error closing dialog: ${error}`)
-      console.error("Error closing dialog:", error)
-    }
-  }
 
-  const handleSubmit = async () => {
-    try {
-      addDebugInfo("Starting form submission")
+      const response = await fetch(`${BaseUrlApi}/customers?${params}`)
+      const data = await response.json()
 
-      if (!validateForm()) {
-        addDebugInfo("Form validation failed")
-        return
+      if (data.success) {
+        setCustomers(data.data.customers)
+        setTotalPages(data.data.pagination.totalPages)
+      } else {
+        toast({
+          title: "Error",
+          description: "Failed to fetch customers",
+          variant: "destructive"
+        })
       }
-
-      setIsLoading(true)
-      addDebugInfo("Form validation passed, creating customer")
-
-      // Simulate API call
-      await new Promise((resolve) => setTimeout(resolve, 1000))
-
-      const customer: Customer = {
-        ...newCustomer,
-        id: Date.now().toString(),
-        lastActivity: new Date().toISOString(),
-      }
-
-      setCustomers((prev) => [...prev, customer])
-      addDebugInfo("Customer added successfully")
-      handleDialogClose()
     } catch (error) {
-      addDebugInfo(`Error submitting form: ${error}`)
-      console.error("Error adding customer:", error)
+      console.error('Error fetching customers:', error)
+      toast({
+        title: "Error",
+        description: "Failed to fetch customers",
+        variant: "destructive"
+      })
     } finally {
-      setIsLoading(false)
+      setLoading(false)
     }
   }
 
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case "active":
-        return "bg-green-100 text-green-800 border-green-200"
-      case "inactive":
-        return "bg-gray-100 text-gray-800 border-gray-200"
-      case "prospect":
-        return "bg-blue-100 text-blue-800 border-blue-200"
-      case "churned":
-        return "bg-red-100 text-red-800 border-red-200"
-      default:
-        return "bg-gray-100 text-gray-800 border-gray-200"
+  // Create customer
+  const createCustomer = async () => {
+    try {
+      const response = await fetch(`${BaseUrlApi}/customers`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          ...formData,
+          contractValue: formData.contractValue ? parseFloat(formData.contractValue) : null
+        })
+      })
+
+      const data = await response.json()
+
+      if (data.success) {
+        toast({
+          title: "Success",
+          description: "Customer created successfully"
+        })
+        setShowCreateDialog(false)
+        resetForm()
+        fetchCustomers()
+      } else {
+        toast({
+          title: "Error",
+          description: data.message || "Failed to create customer",
+          variant: "destructive"
+        })
+      }
+    } catch (error) {
+      console.error('Error creating customer:', error)
+      toast({
+        title: "Error",
+        description: "Failed to create customer",
+        variant: "destructive"
+      })
     }
   }
 
-  const getPriorityColor = (priority: string) => {
-    switch (priority) {
-      case "high":
-        return "bg-red-100 text-red-800 border-red-200"
-      case "medium":
-        return "bg-yellow-100 text-yellow-800 border-yellow-200"
-      case "low":
-        return "bg-green-100 text-green-800 border-green-200"
-      default:
-        return "bg-gray-100 text-gray-800 border-gray-200"
+  // Update customer
+  const updateCustomer = async () => {
+    if (!selectedCustomer) return
+
+    try {
+      const response = await fetch(`${BaseUrlApi}/customers/${selectedCustomer.id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          ...formData,
+          contractValue: formData.contractValue ? parseFloat(formData.contractValue) : null
+        })
+      })
+
+      const data = await response.json()
+
+      if (data.success) {
+        toast({
+          title: "Success",
+          description: "Customer updated successfully"
+        })
+        setShowEditDialog(false)
+        resetForm()
+        fetchCustomers()
+      } else {
+        toast({
+          title: "Error",
+          description: data.message || "Failed to update customer",
+          variant: "destructive"
+        })
+      }
+    } catch (error) {
+      console.error('Error updating customer:', error)
+      toast({
+        title: "Error",
+        description: "Failed to update customer",
+        variant: "destructive"
+      })
     }
   }
 
-  const getInitials = (name: string) => {
-    return name
-      .split(" ")
-      .map((n) => n[0])
-      .join("")
-      .toUpperCase()
+  // Delete customer
+  const deleteCustomer = async (id: number) => {
+    if (!confirm('Are you sure you want to delete this customer?')) return
+
+    try {
+      const response = await fetch(`${BaseUrlApi}/customers/${id}`, {
+        method: 'DELETE'
+      })
+
+      const data = await response.json()
+
+      if (data.success) {
+        toast({
+          title: "Success",
+          description: "Customer deleted successfully"
+        })
+        fetchCustomers()
+      } else {
+        toast({
+          title: "Error",
+          description: data.message || "Failed to delete customer",
+          variant: "destructive"
+        })
+      }
+    } catch (error) {
+      console.error('Error deleting customer:', error)
+      toast({
+        title: "Error",
+        description: "Failed to delete customer",
+        variant: "destructive"
+      })
+    }
   }
 
-  const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat("en-US", {
-      style: "currency",
-      currency: "USD",
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 0,
-    }).format(amount)
+  // Reset form
+  const resetForm = () => {
+    setFormData({
+      companyName: '',
+      industry: '',
+      companySize: '',
+      website: '',
+      description: '',
+      status: 'ACTIVE',
+      priority: 'MEDIUM',
+      country: '',
+      city: '',
+      address: '',
+      annualRevenue: '',
+      contractValue: '',
+      billingCycle: ''
+    })
   }
 
-  const getActivityStatus = (lastActivity: string) => {
-    const now = new Date()
-    const activity = new Date(lastActivity)
-    const diffInHours = (now.getTime() - activity.getTime()) / (1000 * 60 * 60)
-
-    if (diffInHours < 24) return { text: "Active today", color: "text-green-600" }
-    if (diffInHours < 168) return { text: "Active this week", color: "text-blue-600" }
-    if (diffInHours < 720) return { text: "Active this month", color: "text-yellow-600" }
-    return { text: "Inactive", color: "text-red-600" }
+  // Edit customer
+  const handleEdit = (customer: Customer) => {
+    setSelectedCustomer(customer)
+    setFormData({
+      companyName: customer.companyName,
+      industry: customer.industry,
+      companySize: customer.companySize || '',
+      website: customer.website || '',
+      description: customer.description || '',
+      status: customer.status,
+      priority: customer.priority,
+      country: customer.country,
+      city: customer.city,
+      address: customer.address || '',
+      annualRevenue: customer.annualRevenue || '',
+      contractValue: customer.contractValue?.toString() || '',
+      billingCycle: customer.billingCycle || ''
+    })
+    setShowEditDialog(true)
   }
+
+  // Get status badge
+  const getStatusBadge = (status: string) => {
+    const variants = {
+      ACTIVE: { variant: 'default' as const, icon: CheckCircle, className: 'bg-green-50 text-green-700 border-green-200' },
+      INACTIVE: { variant: 'secondary' as const, icon: Clock, className: 'bg-gray-50 text-gray-700 border-gray-200' },
+      PROSPECT: { variant: 'outline' as const, icon: TrendingUp, className: 'bg-blue-50 text-blue-700 border-blue-200' },
+      SUSPENDED: { variant: 'destructive' as const, icon: AlertCircle, className: 'bg-red-50 text-red-700 border-red-200' }
+    }
+    const { variant, icon: Icon, className } = variants[status as keyof typeof variants] || variants.ACTIVE
+    return (
+      <Badge variant={variant} className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium ${className}`}>
+        <Icon className="w-3.5 h-3.5" />
+        {status}
+      </Badge>
+    )
+  }
+
+  // Get priority badge
+  const getPriorityBadge = (priority: string) => {
+    const variants = {
+      LOW: { className: 'bg-gray-50 text-gray-700 border-gray-200' },
+      MEDIUM: { className: 'bg-blue-50 text-blue-700 border-blue-200' },
+      HIGH: { className: 'bg-orange-50 text-orange-700 border-orange-200' },
+      CRITICAL: { className: 'bg-red-50 text-red-700 border-red-200' }
+    }
+    const { className } = variants[priority as keyof typeof variants] || variants.MEDIUM
+    return (
+      <Badge variant="outline" className={`px-3 py-1.5 text-xs font-medium ${className}`}>
+        {priority}
+      </Badge>
+    )
+  }
+
+  // Stats state
+  const [stats, setStats] = useState({
+    total: 0,
+    active: 0,
+    prospects: 0,
+    critical: 0
+  })
+
+  // Fetch stats separately (always show total counts, not filtered)
+  const fetchStats = async () => {
+    try {
+      const response = await fetch(`${BaseUrlApi}/customers?limit=1000`)
+      const data = await response.json()
+
+      if (data.success) {
+        const allCustomers = data.data.customers
+        setStats({
+          total: allCustomers.length,
+          active: allCustomers.filter((c: Customer) => c.status === 'ACTIVE').length,
+          prospects: allCustomers.filter((c: Customer) => c.status === 'PROSPECT').length,
+          critical: allCustomers.filter((c: Customer) => c.priority === 'CRITICAL').length
+        })
+      }
+    } catch (error) {
+      console.error('Error fetching stats:', error)
+    }
+  }
+
+  // Refresh data function (clears filters and refreshes data)
+  const refreshData = async () => {
+    try {
+      // Clear all filters and search
+      setSearchTerm('')
+      setStatusFilter('all')
+      setPriorityFilter('all')
+      setIndustryFilter('all')
+      setCurrentPage(1)
+      
+      // Wait a bit for state to update, then fetch fresh data
+      setTimeout(async () => {
+        await fetchCustomers()
+        toast({
+          title: "Success",
+          description: "Filters cleared and data refreshed successfully"
+        })
+      }, 100)
+    } catch (error) {
+      console.error('Error refreshing data:', error)
+      toast({
+        title: "Error",
+        description: "Failed to refresh data",
+        variant: "destructive"
+      })
+    }
+  }
+
+  // Export to Excel function
+  const exportToExcel = () => {
+    try {
+      // Create CSV content
+      const headers = [
+        'Company Name',
+        'Industry', 
+        'Company Size',
+        'Website',
+        'Status',
+        'Priority',
+        'Country',
+        'City',
+        'Address',
+        'Annual Revenue',
+        'Contract Value',
+        'Billing Cycle',
+        'Created At'
+      ]
+
+      const csvContent = [
+        headers.join(','),
+        ...customers.map(customer => [
+          `"${customer.companyName}"`,
+          `"${customer.industry}"`,
+          `"${customer.companySize || ''}"`,
+          `"${customer.website || ''}"`,
+          `"${customer.status}"`,
+          `"${customer.priority}"`,
+          `"${customer.country}"`,
+          `"${customer.city}"`,
+          `"${customer.address || ''}"`,
+          `"${customer.annualRevenue || ''}"`,
+          `"${customer.contractValue || ''}"`,
+          `"${customer.billingCycle || ''}"`,
+          `"${new Date(customer.createdAt).toLocaleDateString()}"`
+        ].join(','))
+      ].join('\n')
+
+      // Create and download file
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
+      const link = document.createElement('a')
+      const url = URL.createObjectURL(blob)
+      link.setAttribute('href', url)
+      link.setAttribute('download', `customers_${new Date().toISOString().split('T')[0]}.csv`)
+      link.style.visibility = 'hidden'
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
+
+      toast({
+        title: "Success",
+        description: "Customer data exported to Excel successfully"
+      })
+    } catch (error) {
+      console.error('Error exporting to Excel:', error)
+      toast({
+        title: "Error",
+        description: "Failed to export customer data",
+        variant: "destructive"
+      })
+    }
+  }
+
+  useEffect(() => {
+    fetchCustomers()
+  }, [searchTerm, statusFilter, priorityFilter, industryFilter, currentPage])
+
+  useEffect(() => {
+    fetchStats()
+  }, [])
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex justify-between items-center">
-        <div>
-          <h2 className="text-3xl font-bold text-gray-900">Customer Management</h2>
-          <p className="text-gray-600">Manage your client relationships and track business opportunities</p>
-        </div>
-        <div className="flex items-center space-x-2">
-          <Button variant="outline" size="sm">
-            <Download className="w-4 h-4 mr-2" />
-            Export
-          </Button>
-          <Button variant="outline" size="sm">
-            <Upload className="w-4 h-4 mr-2" />
-            Import
-          </Button>
-
-          {/* Primary Add Customer Button */}
-          <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
-            <DialogTrigger asChild>
-              <Button onClick={handleDialogOpen}>
-                <Plus className="w-4 h-4 mr-2" />
-                Add Customer
-              </Button>
-            </DialogTrigger>
-            <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-              <DialogHeader>
-                <DialogTitle>Add New Customer</DialogTitle>
-                <DialogDescription>
-                  Create a new customer profile with complete business information and internal contact details.
-                </DialogDescription>
-              </DialogHeader>
-
-              <div className="space-y-6 py-4">
-                {/* Company Information */}
-                <div className="space-y-4">
-                  <h3 className="text-lg font-semibold text-gray-900">Company Information</h3>
-
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <label className="text-sm font-medium text-gray-700">
-                        Company Name <span className="text-red-500">*</span>
-                      </label>
-                      <Input
-                        placeholder="Enter company name"
-                        value={newCustomer.companyName}
-                        onChange={(e) => {
-                          setNewCustomer((prev) => ({ ...prev, companyName: e.target.value }))
-                          if (formErrors.companyName) {
-                            setFormErrors((prev) => ({ ...prev, companyName: undefined }))
-                          }
-                        }}
-                        className={formErrors.companyName ? "border-red-500" : ""}
-                      />
-                      {formErrors.companyName && (
-                        <div className="flex items-center space-x-1 text-red-600 text-sm">
-                          <AlertCircle className="w-4 h-4" />
-                          <span>{formErrors.companyName}</span>
-                        </div>
-                      )}
-                    </div>
-
-                    <div className="space-y-2">
-                      <label className="text-sm font-medium text-gray-700">
-                        Contact Person <span className="text-red-500">*</span>
-                      </label>
-                      <Input
-                        placeholder="Enter contact person name"
-                        value={newCustomer.contactPerson}
-                        onChange={(e) => {
-                          setNewCustomer((prev) => ({ ...prev, contactPerson: e.target.value }))
-                          if (formErrors.contactPerson) {
-                            setFormErrors((prev) => ({ ...prev, contactPerson: undefined }))
-                          }
-                        }}
-                        className={formErrors.contactPerson ? "border-red-500" : ""}
-                      />
-                      {formErrors.contactPerson && (
-                        <div className="flex items-center space-x-1 text-red-600 text-sm">
-                          <AlertCircle className="w-4 h-4" />
-                          <span>{formErrors.contactPerson}</span>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-
-                  <div className="space-y-2">
-                    <label className="text-sm font-medium text-gray-700">
-                      Internal SPOC <span className="text-red-500">*</span>
-                    </label>
-                    <Input
-                      placeholder="Enter internal Single Point of Contact"
-                      value={newCustomer.internalSPOC}
-                      onChange={(e) => {
-                        setNewCustomer((prev) => ({ ...prev, internalSPOC: e.target.value }))
-                        if (formErrors.internalSPOC) {
-                          setFormErrors((prev) => ({ ...prev, internalSPOC: undefined }))
-                        }
-                      }}
-                      className={formErrors.internalSPOC ? "border-red-500" : ""}
-                    />
-                    <p className="text-xs text-gray-500">
-                      The internal team member responsible for this customer relationship
-                    </p>
-                    {formErrors.internalSPOC && (
-                      <div className="flex items-center space-x-1 text-red-600 text-sm">
-                        <AlertCircle className="w-4 h-4" />
-                        <span>{formErrors.internalSPOC}</span>
-                      </div>
-                    )}
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <label className="text-sm font-medium text-gray-700">
-                        Email <span className="text-red-500">*</span>
-                      </label>
-                      <Input
-                        type="email"
-                        placeholder="Enter email address"
-                        value={newCustomer.email}
-                        onChange={(e) => {
-                          setNewCustomer((prev) => ({ ...prev, email: e.target.value }))
-                          if (formErrors.email) {
-                            setFormErrors((prev) => ({ ...prev, email: undefined }))
-                          }
-                        }}
-                        className={formErrors.email ? "border-red-500" : ""}
-                      />
-                      {formErrors.email && (
-                        <div className="flex items-center space-x-1 text-red-600 text-sm">
-                          <AlertCircle className="w-4 h-4" />
-                          <span>{formErrors.email}</span>
-                        </div>
-                      )}
-                    </div>
-
-                    <div className="space-y-2">
-                      <label className="text-sm font-medium text-gray-700">
-                        Phone <span className="text-red-500">*</span>
-                      </label>
-                      <Input
-                        placeholder="Enter phone number"
-                        value={newCustomer.phone}
-                        onChange={(e) => {
-                          setNewCustomer((prev) => ({ ...prev, phone: e.target.value }))
-                          if (formErrors.phone) {
-                            setFormErrors((prev) => ({ ...prev, phone: undefined }))
-                          }
-                        }}
-                        className={formErrors.phone ? "border-red-500" : ""}
-                      />
-                      {formErrors.phone && (
-                        <div className="flex items-center space-x-1 text-red-600 text-sm">
-                          <AlertCircle className="w-4 h-4" />
-                          <span>{formErrors.phone}</span>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-
-                  <div className="space-y-2">
-                    <label className="text-sm font-medium text-gray-700">
-                      Address <span className="text-red-500">*</span>
-                    </label>
-                    <Input
-                      placeholder="Enter company address"
-                      value={newCustomer.address}
-                      onChange={(e) => {
-                        setNewCustomer((prev) => ({ ...prev, address: e.target.value }))
-                        if (formErrors.address) {
-                          setFormErrors((prev) => ({ ...prev, address: undefined }))
-                        }
-                      }}
-                      className={formErrors.address ? "border-red-500" : ""}
-                    />
-                    {formErrors.address && (
-                      <div className="flex items-center space-x-1 text-red-600 text-sm">
-                        <AlertCircle className="w-4 h-4" />
-                        <span>{formErrors.address}</span>
-                      </div>
-                    )}
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <label className="text-sm font-medium text-gray-700">City</label>
-                      <Input
-                        placeholder="Enter city"
-                        value={newCustomer.city}
-                        onChange={(e) => setNewCustomer((prev) => ({ ...prev, city: e.target.value }))}
-                      />
-                    </div>
-
-                    <div className="space-y-2">
-                      <label className="text-sm font-medium text-gray-700">Country</label>
-                      <Input
-                        placeholder="Enter country"
-                        value={newCustomer.country}
-                        onChange={(e) => setNewCustomer((prev) => ({ ...prev, country: e.target.value }))}
-                      />
-                    </div>
-                  </div>
-
-                  <div className="space-y-2">
-                    <label className="text-sm font-medium text-gray-700">Website</label>
-                    <Input
-                      placeholder="https://company.com"
-                      value={newCustomer.website}
-                      onChange={(e) => {
-                        setNewCustomer((prev) => ({ ...prev, website: e.target.value }))
-                        if (formErrors.website) {
-                          setFormErrors((prev) => ({ ...prev, website: undefined }))
-                        }
-                      }}
-                      className={formErrors.website ? "border-red-500" : ""}
-                    />
-                    {formErrors.website && (
-                      <div className="flex items-center space-x-1 text-red-600 text-sm">
-                        <AlertCircle className="w-4 h-4" />
-                        <span>{formErrors.website}</span>
-                      </div>
-                    )}
-                  </div>
-                </div>
-
-                {/* Business Information */}
-                <div className="space-y-4">
-                  <h3 className="text-lg font-semibold text-gray-900">Business Information</h3>
-
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <label className="text-sm font-medium text-gray-700">Industry</label>
-                      <Select
-                        value={newCustomer.industry}
-                        onValueChange={(value) => setNewCustomer((prev) => ({ ...prev, industry: value }))}
-                      >
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select industry" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="Technology">Technology</SelectItem>
-                          <SelectItem value="Healthcare">Healthcare</SelectItem>
-                          <SelectItem value="Finance">Finance</SelectItem>
-                          <SelectItem value="Education">Education</SelectItem>
-                          <SelectItem value="Manufacturing">Manufacturing</SelectItem>
-                          <SelectItem value="Retail">Retail</SelectItem>
-                          <SelectItem value="Consulting">Consulting</SelectItem>
-                          <SelectItem value="Other">Other</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-
-                    <div className="space-y-2">
-                      <label className="text-sm font-medium text-gray-700">Company Size</label>
-                      <Select
-                        value={newCustomer.companySize}
-                        onValueChange={(value) => setNewCustomer((prev) => ({ ...prev, companySize: value }))}
-                      >
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select company size" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="1-10">1-10 employees</SelectItem>
-                          <SelectItem value="11-50">11-50 employees</SelectItem>
-                          <SelectItem value="51-200">51-200 employees</SelectItem>
-                          <SelectItem value="201-1000">201-1000 employees</SelectItem>
-                          <SelectItem value="1001-5000">1001-5000 employees</SelectItem>
-                          <SelectItem value="5000+">5000+ employees</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-3 gap-4">
-                    <div className="space-y-2">
-                      <label className="text-sm font-medium text-gray-700">Status</label>
-                      <Select
-                        value={newCustomer.status}
-                        onValueChange={(value: any) => setNewCustomer((prev) => ({ ...prev, status: value }))}
-                      >
-                        <SelectTrigger>
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="prospect">Prospect</SelectItem>
-                          <SelectItem value="active">Active</SelectItem>
-                          <SelectItem value="inactive">Inactive</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-
-                    <div className="space-y-2">
-                      <label className="text-sm font-medium text-gray-700">Priority</label>
-                      <Select
-                        value={newCustomer.priority}
-                        onValueChange={(value: any) => setNewCustomer((prev) => ({ ...prev, priority: value }))}
-                      >
-                        <SelectTrigger>
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="high">High</SelectItem>
-                          <SelectItem value="medium">Medium</SelectItem>
-                          <SelectItem value="low">Low</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-
-                    <div className="space-y-2">
-                      <label className="text-sm font-medium text-gray-700">Contract Value ($)</label>
-                      <Input
-                        type="number"
-                        placeholder="0"
-                        value={newCustomer.contractValue}
-                        onChange={(e) => {
-                          setNewCustomer((prev) => ({ ...prev, contractValue: Number.parseFloat(e.target.value) || 0 }))
-                          if (formErrors.contractValue) {
-                            setFormErrors((prev) => ({ ...prev, contractValue: undefined }))
-                          }
-                        }}
-                        className={formErrors.contractValue ? "border-red-500" : ""}
-                      />
-                      {formErrors.contractValue && (
-                        <div className="flex items-center space-x-1 text-red-600 text-sm">
-                          <AlertCircle className="w-4 h-4" />
-                          <span>{formErrors.contractValue}</span>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-
-                  <div className="space-y-2">
-                    <label className="text-sm font-medium text-gray-700">Notes</label>
-                    <Textarea
-                      placeholder="Add any additional notes about this customer..."
-                      value={newCustomer.notes}
-                      onChange={(e) => setNewCustomer((prev) => ({ ...prev, notes: e.target.value }))}
-                      rows={3}
-                    />
-                  </div>
-                </div>
-              </div>
-
-              <div className="flex justify-between items-center pt-4 border-t">
-                <div className="flex items-center space-x-2">
-                  {/* Fallback button for testing */}
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => {
-                      addDebugInfo("Fallback button clicked")
-                      setIsAddDialogOpen(true)
-                    }}
-                  >
-                    🔧 Fallback Open
-                  </Button>
-
-                  {/* Debug info (only show in development) */}
-                  {process.env.NODE_ENV === "development" && (
-                    <div className="text-xs text-gray-500">
-                      <div>Dialog: {isAddDialogOpen ? "OPEN" : "CLOSED"}</div>
-                      <div>Loading: {isLoading ? "YES" : "NO"}</div>
-                      <div>Errors: {Object.keys(formErrors).length}</div>
-                      {debugInfo.length > 0 && (
-                        <div className="mt-1 space-y-1">
-                          {debugInfo.map((info, i) => (
-                            <div key={i} className="text-xs">
-                              {info}
-                            </div>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  )}
-                </div>
-
-                <div className="flex space-x-2">
-                  <Button variant="outline" onClick={handleDialogClose} disabled={isLoading}>
-                    Cancel
-                  </Button>
-                  <Button onClick={handleSubmit} disabled={isLoading}>
-                    {isLoading ? (
-                      <>
-                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                        Adding...
-                      </>
-                    ) : (
-                      <>
-                        <CheckCircle2 className="w-4 h-4 mr-2" />
-                        Add Customer
-                      </>
-                    )}
-                  </Button>
-                </div>
-              </div>
-            </DialogContent>
-          </Dialog>
-
-          {/* Alternative button for empty state */}
-          {customers.length === 0 && (
-            <Button variant="outline" onClick={handleDialogOpen}>
-              <Plus className="w-4 h-4 mr-2" />
-              Add First Customer
-            </Button>
-          )}
-        </div>
-      </div>
-
-      {/* Filters and Search */}
-      <Card className="p-4">
-        <div className="space-y-4">
-          <div className="flex items-center justify-between">
-            <h3 className="text-lg font-semibold">Search & Filter</h3>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => {
-                setSearchTerm("")
-                setStatusFilter("all")
-                setPriorityFilter("all")
-                setIndustryFilter("all")
-                setDateFilter("all")
-              }}
-            >
-              Clear All
-            </Button>
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50 p-6">
+      <div className="max-w-7xl mx-auto space-y-8">
+        {/* Header */}
+        <div className="flex items-center justify-between">
+          <div className="space-y-2">
+            <h1 className="text-4xl font-bold tracking-tight bg-gradient-to-r from-slate-900 via-blue-900 to-indigo-900 bg-clip-text text-transparent">
+              Customer Management
+            </h1>
+            <p className="text-lg text-slate-600 max-w-2xl">
+              Manage your customer relationships and company information with our comprehensive CRM system
+            </p>
           </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
-              <Input
-                placeholder="Search customers, contacts, SPOC..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-10"
-              />
-            </div>
-
-            <Select value={statusFilter} onValueChange={setStatusFilter}>
-              <SelectTrigger>
-                <SelectValue placeholder="All Statuses" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Statuses</SelectItem>
-                {statuses.map((status) => (
-                  <SelectItem key={status} value={status}>
-                    {status.charAt(0).toUpperCase() + status.slice(1)}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-
-            <Select value={priorityFilter} onValueChange={setPriorityFilter}>
-              <SelectTrigger>
-                <SelectValue placeholder="All Priorities" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Priorities</SelectItem>
-                {priorities.map((priority) => (
-                  <SelectItem key={priority} value={priority}>
-                    {priority.charAt(0).toUpperCase() + priority.slice(1)}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-
-            <Select value={industryFilter} onValueChange={setIndustryFilter}>
-              <SelectTrigger>
-                <SelectValue placeholder="All Industries" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Industries</SelectItem>
-                {industries.map((industry) => (
-                  <SelectItem key={industry} value={industry}>
-                    {industry}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-
-            <DateFilter value={dateFilter} onValueChange={setDateFilter} />
-          </div>
-        </div>
-      </Card>
-
-      {/* Summary Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <Card className="p-4">
-          <div className="flex items-center space-x-3">
-            <div className="p-2 bg-blue-100 rounded-lg">
-              <Building2 className="w-6 h-6 text-blue-600" />
-            </div>
-            <div>
-              <p className="text-2xl font-bold text-gray-900">{filteredCustomers.length}</p>
-              <p className="text-sm text-gray-600">Total Customers</p>
-            </div>
-          </div>
-        </Card>
-
-        <Card className="p-4">
-          <div className="flex items-center space-x-3">
-            <div className="p-2 bg-green-100 rounded-lg">
-              <CheckCircle2 className="w-6 h-6 text-green-600" />
-            </div>
-            <div>
-              <p className="text-2xl font-bold text-gray-900">
-                {filteredCustomers.filter((c) => c.status === "active").length}
-              </p>
-              <p className="text-sm text-gray-600">Active Customers</p>
-            </div>
-          </div>
-        </Card>
-
-        <Card className="p-4">
-          <div className="flex items-center space-x-3">
-            <div className="p-2 bg-purple-100 rounded-lg">
-              <TrendingUp className="w-6 h-6 text-purple-600" />
-            </div>
-            <div>
-              <p className="text-2xl font-bold text-gray-900">
-                {filteredCustomers.filter((c) => c.status === "prospect").length}
-              </p>
-              <p className="text-sm text-gray-600">Prospects</p>
-            </div>
-          </div>
-        </Card>
-
-        <Card className="p-4">
-          <div className="flex items-center space-x-3">
-            <div className="p-2 bg-orange-100 rounded-lg">
-              <DollarSign className="w-6 h-6 text-orange-600" />
-            </div>
-            <div>
-              <p className="text-2xl font-bold text-gray-900">
-                {formatCurrency(filteredCustomers.reduce((sum, c) => sum + c.contractValue, 0))}
-              </p>
-              <p className="text-sm text-gray-600">Total Contract Value</p>
-            </div>
-          </div>
-        </Card>
-      </div>
-
-      {/* Customer Table */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center justify-between">
-            <span>Customer Directory</span>
-            <Badge variant="outline">{filteredCustomers.length} customers</Badge>
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="overflow-x-auto">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Company</TableHead>
-                  <TableHead>Contact Person</TableHead>
-                  <TableHead>Internal SPOC</TableHead>
-                  <TableHead>Industry</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Priority</TableHead>
-                  <TableHead>Contract Value</TableHead>
-                  <TableHead>Activity</TableHead>
-                  <TableHead>Performance</TableHead>
-                  <TableHead>Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filteredCustomers.map((customer) => {
-                  const activityStatus = getActivityStatus(customer.lastActivity)
-                  return (
-                    <TableRow key={customer.id} className="hover:bg-gray-50">
-                      <TableCell>
-                        <div className="flex items-center space-x-3">
-                          <Avatar className="w-10 h-10">
-                            <AvatarFallback className="bg-blue-100 text-blue-700">
-                              {getInitials(customer.companyName)}
-                            </AvatarFallback>
-                          </Avatar>
-                          <div>
-                            <p className="font-medium text-gray-900">{customer.companyName}</p>
-                            <div className="flex items-center space-x-2 text-sm text-gray-500">
-                              <Mail className="w-3 h-3" />
-                              <span>{customer.email}</span>
-                            </div>
-                            {customer.website && (
-                              <div className="flex items-center space-x-2 text-sm text-gray-500">
-                                <Globe className="w-3 h-3" />
-                                <a
-                                  href={customer.website}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  className="hover:text-blue-600"
-                                >
-                                  Website
-                                </a>
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                      </TableCell>
-
-                      <TableCell>
-                        <div>
-                          <p className="font-medium text-gray-900">{customer.contactPerson}</p>
-                          <div className="flex items-center space-x-2 text-sm text-gray-500">
-                            <Phone className="w-3 h-3" />
-                            <span>{customer.phone}</span>
-                          </div>
-                          <div className="flex items-center space-x-2 text-sm text-gray-500">
-                            <MapPin className="w-3 h-3" />
-                            <span>
-                              {customer.city}, {customer.country}
-                            </span>
-                          </div>
-                        </div>
-                      </TableCell>
-
-                      <TableCell>
-                        <div className="flex items-center space-x-2">
-                          <div className="p-1 bg-purple-100 rounded">
-                            <User className="w-3 h-3 text-purple-600" />
-                          </div>
-                          <span className="font-medium text-purple-700">{customer.internalSPOC}</span>
-                        </div>
-                      </TableCell>
-
-                      <TableCell>
-                        <div>
-                          <p className="font-medium">{customer.industry}</p>
-                          <p className="text-sm text-gray-500">{customer.companySize} employees</p>
-                        </div>
-                      </TableCell>
-
-                      <TableCell>
-                        <Badge variant="outline" className={getStatusColor(customer.status)}>
-                          {customer.status}
-                        </Badge>
-                      </TableCell>
-
-                      <TableCell>
-                        <Badge variant="outline" className={getPriorityColor(customer.priority)}>
-                          {customer.priority}
-                        </Badge>
-                      </TableCell>
-
-                      <TableCell>
-                        <div>
-                          <p className="font-medium">{formatCurrency(customer.contractValue)}</p>
-                          <p className="text-sm text-gray-500">Since {formatDate(customer.startDate)}</p>
-                        </div>
-                      </TableCell>
-
-                      <TableCell>
-                        <div>
-                          <p className={`text-sm font-medium ${activityStatus.color}`}>{activityStatus.text}</p>
-                          <p className="text-xs text-gray-500">{formatDate(customer.lastActivity.split("T")[0])}</p>
-                        </div>
-                      </TableCell>
-
-                      <TableCell>
-                        <div className="space-y-1">
-                          <div className="flex items-center space-x-2 text-sm">
-                            <Briefcase className="w-3 h-3 text-gray-400" />
-                            <span>{customer.jobPostings} jobs</span>
-                          </div>
-                          <div className="flex items-center space-x-2 text-sm">
-                            <Users className="w-3 h-3 text-blue-500" />
-                            <span>{customer.activeCandidates} active</span>
-                          </div>
-                          <div className="flex items-center space-x-2 text-sm">
-                            <Star className="w-3 h-3 text-green-500" />
-                            <span>{customer.hiredCandidates} hired</span>
-                          </div>
-                        </div>
-                      </TableCell>
-
-                      <TableCell>
-                        <div className="flex items-center space-x-1">
-                          <Button variant="ghost" size="sm">
-                            <Eye className="w-4 h-4" />
-                          </Button>
-                          <Button variant="ghost" size="sm">
-                            <Edit className="w-4 h-4" />
-                          </Button>
-                          <Button variant="ghost" size="sm" className="text-red-600 hover:text-red-700">
-                            <Trash2 className="w-4 h-4" />
-                          </Button>
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  )
-                })}
-              </TableBody>
-            </Table>
-          </div>
-
-          {filteredCustomers.length === 0 && (
-            <div className="text-center py-12">
-              <Building2 className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-              <h3 className="text-lg font-medium text-gray-900 mb-2">No customers found</h3>
-              <p className="text-gray-600 mb-4">
-                {customers.length === 0
-                  ? "Get started by adding your first customer."
-                  : "Try adjusting your search or filter criteria."}
-              </p>
-              {customers.length === 0 && (
-                <Button onClick={handleDialogOpen}>
-                  <Plus className="w-4 h-4 mr-2" />
-                  Add Your First Customer
+                     <div className="flex items-center gap-3">
+             <Button 
+               variant="outline" 
+               size="sm" 
+               className="gap-2"
+               onClick={exportToExcel}
+             >
+               <Download className="w-4 h-4" />
+               Export to Excel
+             </Button>
+            <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>
+              <DialogTrigger asChild>
+                <Button className="gap-2 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 shadow-lg">
+                  <Plus className="w-4 h-4" />
+                  Add Customer
                 </Button>
-              )}
+              </DialogTrigger>
+              <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+                <DialogHeader className="space-y-3">
+                  <DialogTitle className="text-2xl font-bold text-slate-900">
+                    Create New Customer
+                  </DialogTitle>
+                  <DialogDescription className="text-slate-600">
+                    Add a new customer to your database with comprehensive company information
+                  </DialogDescription>
+                </DialogHeader>
+                <CustomerForm 
+                  formData={formData} 
+                  setFormData={setFormData} 
+                  onSubmit={createCustomer}
+                  submitText="Create Customer"
+                  onCancel={() => setShowCreateDialog(false)}
+                />
+              </DialogContent>
+            </Dialog>
+          </div>
+        </div>
+
+        {/* Stats Cards */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+          <Card className="bg-white/80 backdrop-blur-sm border-0 shadow-xl hover:shadow-2xl transition-all duration-300">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-3">
+              <CardTitle className="text-sm font-semibold text-slate-700">Total Customers</CardTitle>
+              <div className="p-2 bg-blue-100 rounded-lg">
+                <Building2 className="h-5 w-5 text-blue-600" />
+              </div>
+            </CardHeader>
+            <CardContent>
+              <div className="text-3xl font-bold text-slate-900">{stats.total}</div>
+              <p className="text-xs text-slate-500 mt-1">
+                All registered customers
+              </p>
+            </CardContent>
+          </Card>
+          <Card className="bg-white/80 backdrop-blur-sm border-0 shadow-xl hover:shadow-2xl transition-all duration-300">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-3">
+              <CardTitle className="text-sm font-semibold text-slate-700">Active Customers</CardTitle>
+              <div className="p-2 bg-green-100 rounded-lg">
+                <CheckCircle className="h-5 w-5 text-green-600" />
+              </div>
+            </CardHeader>
+            <CardContent>
+              <div className="text-3xl font-bold text-green-600">{stats.active}</div>
+              <p className="text-xs text-slate-500 mt-1">
+                Currently active
+              </p>
+            </CardContent>
+          </Card>
+          <Card className="bg-white/80 backdrop-blur-sm border-0 shadow-xl hover:shadow-2xl transition-all duration-300">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-3">
+              <CardTitle className="text-sm font-semibold text-slate-700">Prospects</CardTitle>
+              <div className="p-2 bg-blue-100 rounded-lg">
+                <TrendingUp className="h-5 w-5 text-blue-600" />
+              </div>
+            </CardHeader>
+            <CardContent>
+              <div className="text-3xl font-bold text-blue-600">{stats.prospects}</div>
+              <p className="text-xs text-slate-500 mt-1">
+                Potential customers
+              </p>
+            </CardContent>
+          </Card>
+          <Card className="bg-white/80 backdrop-blur-sm border-0 shadow-xl hover:shadow-2xl transition-all duration-300">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-3">
+              <CardTitle className="text-sm font-semibold text-slate-700">Critical Priority</CardTitle>
+              <div className="p-2 bg-red-100 rounded-lg">
+                <AlertCircle className="h-5 w-5 text-red-600" />
+              </div>
+            </CardHeader>
+            <CardContent>
+              <div className="text-3xl font-bold text-red-600">{stats.critical}</div>
+              <p className="text-xs text-slate-500 mt-1">
+                High priority customers
+              </p>
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Filters and Search */}
+                 <Card className="bg-white/80 backdrop-blur-sm border-0 shadow-xl">
+           <CardHeader className="pb-4">
+             <div className="flex items-center justify-between">
+               <div>
+                 <CardTitle className="text-xl font-bold text-slate-900">Customer Directory</CardTitle>
+                 <CardDescription className="text-slate-600">
+                   Search and filter your customer database with advanced options
+                 </CardDescription>
+               </div>
+               <Button 
+                 variant="outline" 
+                 size="sm" 
+                 className="gap-2"
+                 onClick={refreshData}
+               >
+                 <RefreshCw className="w-4 h-4" />
+                 Refresh
+               </Button>
+             </div>
+           </CardHeader>
+          <CardContent className="space-y-6">
+            <div className="flex flex-col lg:flex-row gap-4">
+              <div className="flex-1">
+                <div className="relative">
+                  <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 text-slate-400 w-5 h-5" />
+                  <Input
+                    placeholder="Search customers by name, industry, or location..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className="pl-12 h-12 text-base border-slate-200 focus:border-blue-500 focus:ring-blue-500"
+                  />
+                </div>
+              </div>
+              <div className="flex gap-3">
+                <Select value={statusFilter} onValueChange={setStatusFilter}>
+                  <SelectTrigger className="w-40 h-12 border-slate-200">
+                    <SelectValue placeholder="Status" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Status</SelectItem>
+                    <SelectItem value="ACTIVE">Active</SelectItem>
+                    <SelectItem value="INACTIVE">Inactive</SelectItem>
+                    <SelectItem value="PROSPECT">Prospect</SelectItem>
+                    <SelectItem value="SUSPENDED">Suspended</SelectItem>
+                  </SelectContent>
+                </Select>
+                <Select value={priorityFilter} onValueChange={setPriorityFilter}>
+                  <SelectTrigger className="w-40 h-12 border-slate-200">
+                    <SelectValue placeholder="Priority" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Priority</SelectItem>
+                    <SelectItem value="LOW">Low</SelectItem>
+                    <SelectItem value="MEDIUM">Medium</SelectItem>
+                    <SelectItem value="HIGH">High</SelectItem>
+                    <SelectItem value="CRITICAL">Critical</SelectItem>
+                  </SelectContent>
+                </Select>
+                <Select value={industryFilter} onValueChange={setIndustryFilter}>
+                  <SelectTrigger className="w-48 h-12 border-slate-200">
+                    <SelectValue placeholder="Industry" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Industries</SelectItem>
+                    <SelectItem value="Technology">Technology</SelectItem>
+                    <SelectItem value="Healthcare">Healthcare</SelectItem>
+                    <SelectItem value="Finance">Finance</SelectItem>
+                    <SelectItem value="Manufacturing">Manufacturing</SelectItem>
+                    <SelectItem value="Retail">Retail</SelectItem>
+                    <SelectItem value="Education">Education</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
-          )}
-        </CardContent>
-      </Card>
+
+            {/* Customer Table */}
+            {loading ? (
+              <div className="flex items-center justify-center py-12">
+                <div className="flex items-center gap-3">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+                  <span className="text-slate-600">Loading customers...</span>
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                <div className="rounded-lg border border-slate-200 overflow-hidden">
+                  <Table>
+                    <TableHeader>
+                      <TableRow className="bg-slate-50/50">
+                        <TableHead className="font-semibold text-slate-700">Company</TableHead>
+                        <TableHead className="font-semibold text-slate-700">Industry</TableHead>
+                        <TableHead className="font-semibold text-slate-700">Location</TableHead>
+                        <TableHead className="font-semibold text-slate-700">Status</TableHead>
+                        <TableHead className="font-semibold text-slate-700">Priority</TableHead>
+                        <TableHead className="font-semibold text-slate-700">Revenue</TableHead>
+                        <TableHead className="font-semibold text-slate-700">Actions</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                                         <TableBody>
+                       {customers.map((customer) => (
+                         <TableRow key={customer.id} className="hover:bg-slate-50/50 transition-colors">
+                           <TableCell className="whitespace-nowrap">
+                             <div className="flex items-center gap-2">
+                               <div className="min-w-0 flex-1">
+                                 <div className="font-semibold text-slate-900 truncate">{customer.companyName}</div>
+                                 {customer.website && (
+                                   <div className="flex items-center gap-1.5 text-sm text-slate-600 truncate">
+                                     <Globe className="w-3.5 h-3.5 flex-shrink-0" />
+                                     <a 
+                                       href={customer.website.startsWith('http') ? customer.website : `https://${customer.website}`}
+                                       target="_blank"
+                                       rel="noopener noreferrer"
+                                       className="hover:text-blue-600 transition-colors flex items-center gap-1 truncate"
+                                     >
+                                       <span className="truncate">{customer.website}</span>
+                                       <ExternalLink className="w-3 h-3 flex-shrink-0" />
+                                     </a>
+                                   </div>
+                                 )}
+                               </div>
+                             </div>
+                           </TableCell>
+                           <TableCell className="whitespace-nowrap">
+                             <Badge variant="outline" className="bg-slate-50 text-slate-700 border-slate-200">
+                               {customer.industry}
+                             </Badge>
+                           </TableCell>
+                           <TableCell className="whitespace-nowrap">
+                             <div className="flex items-center gap-1.5 text-sm text-slate-600">
+                               <MapPin className="w-3.5 h-3.5 flex-shrink-0" />
+                               <span className="truncate">{customer.city}, {customer.country}</span>
+                             </div>
+                           </TableCell>
+                           <TableCell className="whitespace-nowrap">
+                             {getStatusBadge(customer.status)}
+                           </TableCell>
+                           <TableCell className="whitespace-nowrap">
+                             {getPriorityBadge(customer.priority)}
+                           </TableCell>
+                           <TableCell className="whitespace-nowrap">
+                             {customer.annualRevenue ? (
+                               <div className="flex items-center gap-1.5 text-slate-700">
+                                 <DollarSign className="w-3.5 h-3.5 flex-shrink-0" />
+                                 <span className="font-medium truncate">{customer.annualRevenue}</span>
+                               </div>
+                             ) : (
+                               <span className="text-slate-400">-</span>
+                             )}
+                           </TableCell>
+                           <TableCell className="whitespace-nowrap">
+                             <div className="flex items-center gap-2">
+                               <Button
+                                 variant="ghost"
+                                 size="sm"
+                                 onClick={() => handleEdit(customer)}
+                                 className="h-8 w-8 p-0 hover:bg-blue-50 hover:text-blue-600"
+                               >
+                                 <Edit className="w-4 h-4" />
+                               </Button>
+                               <Button
+                                 variant="ghost"
+                                 size="sm"
+                                 onClick={() => deleteCustomer(customer.id)}
+                                 className="h-8 w-8 p-0 hover:bg-red-50 hover:text-red-600"
+                               >
+                                 <Trash2 className="w-4 h-4" />
+                               </Button>
+                             </div>
+                           </TableCell>
+                         </TableRow>
+                       ))}
+                     </TableBody>
+                  </Table>
+                </div>
+
+                {/* Pagination */}
+                {totalPages > 1 && (
+                  <div className="flex items-center justify-between bg-white/50 backdrop-blur-sm rounded-lg p-4 border border-slate-200">
+                    <p className="text-sm text-slate-600">
+                      Page {currentPage} of {totalPages}
+                    </p>
+                    <div className="flex gap-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
+                        disabled={currentPage === 1}
+                        className="gap-2"
+                      >
+                        <ChevronLeft className="w-4 h-4" />
+                        Previous
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setCurrentPage(Math.min(totalPages, currentPage + 1))}
+                        disabled={currentPage === totalPages}
+                        className="gap-2"
+                      >
+                        Next
+                        <ChevronRight className="w-4 h-4" />
+                      </Button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Edit Dialog */}
+        <Dialog open={showEditDialog} onOpenChange={setShowEditDialog}>
+          <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+            <DialogHeader className="space-y-3">
+              <DialogTitle className="text-2xl font-bold text-slate-900">
+                Edit Customer
+              </DialogTitle>
+              <DialogDescription className="text-slate-600">
+                Update customer information and preferences
+              </DialogDescription>
+            </DialogHeader>
+            <CustomerForm 
+              formData={formData} 
+              setFormData={setFormData} 
+              onSubmit={updateCustomer}
+              submitText="Update Customer"
+              onCancel={() => setShowEditDialog(false)}
+            />
+          </DialogContent>
+        </Dialog>
+      </div>
+    </div>
+  )
+}
+
+// Customer Form Component
+function CustomerForm({ 
+  formData, 
+  setFormData, 
+  onSubmit, 
+  submitText,
+  onCancel
+}: { 
+  formData: CustomerFormData
+  setFormData: (data: CustomerFormData) => void
+  onSubmit: () => void
+  submitText: string
+  onCancel: () => void
+}) {
+  return (
+    <div className="space-y-8">
+      {/* Basic Information */}
+      <div className="space-y-6">
+        <div className="flex items-center gap-3">
+          <div className="p-2 bg-blue-100 rounded-lg">
+            <Building2 className="w-5 h-5 text-blue-600" />
+          </div>
+          <h3 className="text-lg font-semibold text-slate-900">Basic Information</h3>
+        </div>
+        
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div className="space-y-2">
+            <label className="text-sm font-medium text-slate-700">Company Name *</label>
+            <Input
+              value={formData.companyName}
+              onChange={(e) => setFormData({ ...formData, companyName: e.target.value })}
+              placeholder="Enter company name"
+              className="h-12 border-slate-200 focus:border-blue-500 focus:ring-blue-500"
+            />
+          </div>
+          <div className="space-y-2">
+            <label className="text-sm font-medium text-slate-700">Industry *</label>
+            <Select value={formData.industry} onValueChange={(value) => setFormData({ ...formData, industry: value })}>
+              <SelectTrigger className="h-12 border-slate-200 focus:border-blue-500 focus:ring-blue-500">
+                <SelectValue placeholder="Select industry" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="Technology">Technology</SelectItem>
+                <SelectItem value="Healthcare">Healthcare</SelectItem>
+                <SelectItem value="Finance">Finance</SelectItem>
+                <SelectItem value="Manufacturing">Manufacturing</SelectItem>
+                <SelectItem value="Retail">Retail</SelectItem>
+                <SelectItem value="Education">Education</SelectItem>
+                <SelectItem value="Other">Other</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div className="space-y-2">
+            <label className="text-sm font-medium text-slate-700">Company Size</label>
+            <Select value={formData.companySize} onValueChange={(value) => setFormData({ ...formData, companySize: value })}>
+              <SelectTrigger className="h-12 border-slate-200 focus:border-blue-500 focus:ring-blue-500">
+                <SelectValue placeholder="Select size" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="Small">Small (1-50)</SelectItem>
+                <SelectItem value="Medium">Medium (51-200)</SelectItem>
+                <SelectItem value="Large">Large (201-1000)</SelectItem>
+                <SelectItem value="Enterprise">Enterprise (1000+)</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-2">
+            <label className="text-sm font-medium text-slate-700">Website</label>
+            <Input
+              value={formData.website}
+              onChange={(e) => setFormData({ ...formData, website: e.target.value })}
+              placeholder="https://example.com"
+              className="h-12 border-slate-200 focus:border-blue-500 focus:ring-blue-500"
+            />
+          </div>
+        </div>
+
+        <div className="space-y-2">
+          <label className="text-sm font-medium text-slate-700">Description</label>
+          <textarea
+            value={formData.description}
+            onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+            placeholder="Enter company description"
+            className="w-full p-4 border border-slate-200 rounded-lg resize-none focus:border-blue-500 focus:ring-blue-500"
+            rows={4}
+          />
+        </div>
+      </div>
+
+      {/* Status & Priority */}
+      <div className="space-y-6">
+        <div className="flex items-center gap-3">
+          <div className="p-2 bg-green-100 rounded-lg">
+            <CheckCircle className="w-5 h-5 text-green-600" />
+          </div>
+          <h3 className="text-lg font-semibold text-slate-900">Status & Priority</h3>
+        </div>
+        
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div className="space-y-2">
+            <label className="text-sm font-medium text-slate-700">Status</label>
+            <Select value={formData.status} onValueChange={(value) => setFormData({ ...formData, status: value })}>
+              <SelectTrigger className="h-12 border-slate-200 focus:border-blue-500 focus:ring-blue-500">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="ACTIVE">Active</SelectItem>
+                <SelectItem value="INACTIVE">Inactive</SelectItem>
+                <SelectItem value="PROSPECT">Prospect</SelectItem>
+                <SelectItem value="SUSPENDED">Suspended</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-2">
+            <label className="text-sm font-medium text-slate-700">Priority</label>
+            <Select value={formData.priority} onValueChange={(value) => setFormData({ ...formData, priority: value })}>
+              <SelectTrigger className="h-12 border-slate-200 focus:border-blue-500 focus:ring-blue-500">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="LOW">Low</SelectItem>
+                <SelectItem value="MEDIUM">Medium</SelectItem>
+                <SelectItem value="HIGH">High</SelectItem>
+                <SelectItem value="CRITICAL">Critical</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+      </div>
+
+      {/* Location */}
+      <div className="space-y-6">
+        <div className="flex items-center gap-3">
+          <div className="p-2 bg-purple-100 rounded-lg">
+            <MapPin className="w-5 h-5 text-purple-600" />
+          </div>
+          <h3 className="text-lg font-semibold text-slate-900">Location</h3>
+        </div>
+        
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div className="space-y-2">
+            <label className="text-sm font-medium text-slate-700">Country *</label>
+            <Input
+              value={formData.country}
+              onChange={(e) => setFormData({ ...formData, country: e.target.value })}
+              placeholder="Enter country"
+              className="h-12 border-slate-200 focus:border-blue-500 focus:ring-blue-500"
+            />
+          </div>
+          <div className="space-y-2">
+            <label className="text-sm font-medium text-slate-700">City *</label>
+            <Input
+              value={formData.city}
+              onChange={(e) => setFormData({ ...formData, city: e.target.value })}
+              placeholder="Enter city"
+              className="h-12 border-slate-200 focus:border-blue-500 focus:ring-blue-500"
+            />
+          </div>
+        </div>
+
+        <div className="space-y-2">
+          <label className="text-sm font-medium text-slate-700">Address</label>
+          <Input
+            value={formData.address}
+            onChange={(e) => setFormData({ ...formData, address: e.target.value })}
+            placeholder="Enter full address"
+            className="h-12 border-slate-200 focus:border-blue-500 focus:ring-blue-500"
+          />
+        </div>
+      </div>
+
+      {/* Financial Information */}
+      <div className="space-y-6">
+        <div className="flex items-center gap-3">
+          <div className="p-2 bg-green-100 rounded-lg">
+            <DollarSign className="w-5 h-5 text-green-600" />
+          </div>
+          <h3 className="text-lg font-semibold text-slate-900">Financial Information</h3>
+        </div>
+        
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <div className="space-y-2">
+            <label className="text-sm font-medium text-slate-700">Annual Revenue</label>
+            <Input
+              value={formData.annualRevenue}
+              onChange={(e) => setFormData({ ...formData, annualRevenue: e.target.value })}
+              placeholder="e.g., $1M-$10M"
+              className="h-12 border-slate-200 focus:border-blue-500 focus:ring-blue-500"
+            />
+          </div>
+          <div className="space-y-2">
+            <label className="text-sm font-medium text-slate-700">Contract Value</label>
+            <Input
+              type="number"
+              value={formData.contractValue}
+              onChange={(e) => setFormData({ ...formData, contractValue: e.target.value })}
+              placeholder="0.00"
+              className="h-12 border-slate-200 focus:border-blue-500 focus:ring-blue-500"
+            />
+          </div>
+          <div className="space-y-2">
+            <label className="text-sm font-medium text-slate-700">Billing Cycle</label>
+            <Select value={formData.billingCycle} onValueChange={(value) => setFormData({ ...formData, billingCycle: value })}>
+              <SelectTrigger className="h-12 border-slate-200 focus:border-blue-500 focus:ring-blue-500">
+                <SelectValue placeholder="Select cycle" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="Monthly">Monthly</SelectItem>
+                <SelectItem value="Quarterly">Quarterly</SelectItem>
+                <SelectItem value="Annual">Annual</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+      </div>
+
+      {/* Action Buttons */}
+      <div className="flex justify-end gap-4 pt-6 border-t border-slate-200">
+        <Button 
+          variant="outline" 
+          onClick={onCancel}
+          className="h-12 px-6 border-slate-200 hover:bg-slate-50"
+        >
+          Cancel
+        </Button>
+        <Button 
+          onClick={onSubmit}
+          className="h-12 px-6 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 shadow-lg"
+        >
+          {submitText}
+        </Button>
+      </div>
     </div>
   )
 }

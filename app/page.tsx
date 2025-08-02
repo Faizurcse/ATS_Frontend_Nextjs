@@ -48,15 +48,11 @@ import PipelineAPI from "./components/pipeline-api"
 import AnalyticsDashboard from "./components/analytics-dashboard"
 import CustomerManagement from "./components/customer-management"
 import Reports from "./components/reports"
-import AdminPanel from "./components/admin-panel"
 import RecruiterJobs from "./components/recruiter-jobs"
 import MyJobs from "./components/my-jobs"
-import RecruiterPerformance from "./components/recruiter-performance"
 import RecruiterTimesheet from "./components/recruiter-timesheet"
-import PostedCandidates from "./components/posted-candidates"
 import BulkImport from "./components/bulk-import"
 import AICandidateAnalysis from "./components/ai-candidate-analysis"
-import CustomerProfiles from "./components/customer-profiles"
 import EmailAnalytics from "./components/email-analytics"
 import { useRouter } from "next/navigation"
 
@@ -136,7 +132,6 @@ export default function Dashboard() {
       label: "Management",
       items: [
         { id: "customers", label: "Customers", icon: Building2, component: CustomerManagement, badge: "45" },
-        { id: "customer-profiles", label: "Customer Profiles", icon: UserCheck, component: CustomerProfiles },
         { id: "email-analytics", label: "Email Analytics", icon: Mail, component: EmailAnalytics },
         { id: "bulk-import", label: "Bulk Import", icon: Upload, component: BulkImport },
       ],
@@ -146,20 +141,18 @@ export default function Dashboard() {
       label: "Recruiter Tools",
       items: [
         { id: "recruiter-jobs", label: "My Jobs", icon: Briefcase, component: MyJobs, badge: "8" },
-        { id: "performance", label: "Performance", icon: TrendingUp, component: RecruiterPerformance },
         { id: "timesheet", label: "Timesheet", icon: Clock, component: RecruiterTimesheet },
-        { id: "posted-candidates", label: "Posted Candidates", icon: Users, component: PostedCandidates },
       ],
     },
     {
       id: "administration",
       label: "Administration",
       items: [
-        { id: "admin", label: "Admin Panel", icon: Settings, component: AdminPanel },
-        { id: "user-management", label: "User Management", icon: Shield, component: AdminPanel },
-        { id: "system-settings", label: "System Settings", icon: Database, component: AdminPanel },
+        { id: "user-management", label: "User Management", icon: Shield, component: () => <div>User Management - Coming Soon</div> },
+        { id: "system-settings", label: "System Settings", icon: Database, component: () => <div>System Settings - Coming Soon</div> },
       ],
     },
+
 
   ]
 
