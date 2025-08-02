@@ -44,11 +44,13 @@ import CandidateManagement from "./components/candidate-management"
 import JobPostings from "./components/job-postings"
 import InterviewManagement from "./components/interview-management"
 import Pipeline from "./components/pipeline"
+import PipelineAPI from "./components/pipeline-api"
 import AnalyticsDashboard from "./components/analytics-dashboard"
 import CustomerManagement from "./components/customer-management"
 import Reports from "./components/reports"
 import AdminPanel from "./components/admin-panel"
 import RecruiterJobs from "./components/recruiter-jobs"
+import MyJobs from "./components/my-jobs"
 import RecruiterPerformance from "./components/recruiter-performance"
 import RecruiterTimesheet from "./components/recruiter-timesheet"
 import PostedCandidates from "./components/posted-candidates"
@@ -125,7 +127,7 @@ export default function Dashboard() {
         { id: "candidates", label: "Candidates", icon: Users, component: CandidateManagement, badge: "156" },
         { id: "jobs", label: "Job Postings", icon: Briefcase, component: JobPostings, badge: "23" },
         { id: "interviews", label: "Interviews", icon: Calendar, component: InterviewManagement, badge: "12" },
-        { id: "pipeline", label: "Pipeline", icon: Target, component: Pipeline },
+        { id: "pipeline", label: "Pipeline", icon: Target, component: PipelineAPI },
         { id: "ai-analysis", label: "AI Analysis", icon: Brain, component: AICandidateAnalysis, badge: "New" },
       ],
     },
@@ -143,7 +145,7 @@ export default function Dashboard() {
       id: "recruiter",
       label: "Recruiter Tools",
       items: [
-        { id: "recruiter-jobs", label: "My Jobs", icon: Briefcase, component: RecruiterJobs, badge: "8" },
+        { id: "recruiter-jobs", label: "My Jobs", icon: Briefcase, component: MyJobs, badge: "8" },
         { id: "performance", label: "Performance", icon: TrendingUp, component: RecruiterPerformance },
         { id: "timesheet", label: "Timesheet", icon: Clock, component: RecruiterTimesheet },
         { id: "posted-candidates", label: "Posted Candidates", icon: Users, component: PostedCandidates },
