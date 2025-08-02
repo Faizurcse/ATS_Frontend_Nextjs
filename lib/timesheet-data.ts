@@ -17,7 +17,6 @@ export interface TimesheetWeek {
   weekEnd: string
   status: "draft" | "submitted" | "approved" | "rejected"
   entries: TimesheetEntry[]
-  submittedAt?: string
   approvedAt?: string
   approvedBy?: string
   rejectedAt?: string
@@ -141,7 +140,6 @@ export const submitTimesheet = (timesheet: TimesheetWeek): Promise<TimesheetWeek
   return Promise.resolve({
     ...timesheet,
     status: "submitted",
-    submittedAt: new Date().toISOString(),
   })
 }
 

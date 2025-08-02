@@ -51,6 +51,7 @@ import Reports from "./components/reports"
 import RecruiterJobs from "./components/recruiter-jobs"
 import MyJobs from "./components/my-jobs"
 import RecruiterTimesheet from "./components/recruiter-timesheet"
+// import RequirementTimesheet from "./components/requirement-timesheet"
 import BulkImport from "./components/bulk-import"
 import AICandidateAnalysis from "./components/ai-candidate-analysis"
 import EmailAnalytics from "./components/email-analytics"
@@ -142,6 +143,7 @@ export default function Dashboard() {
       items: [
         { id: "recruiter-jobs", label: "My Jobs", icon: Briefcase, component: MyJobs, badge: "8" },
         { id: "timesheet", label: "Timesheet", icon: Clock, component: RecruiterTimesheet },
+
       ],
     },
     {
