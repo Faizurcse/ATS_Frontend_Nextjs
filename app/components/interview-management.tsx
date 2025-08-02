@@ -1,27 +1,18 @@
 "use client"
 
-import { useState } from "react"
-import { Button } from "@/components/ui/button"
+import { useState, useEffect } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Badge } from "@/components/ui/badge"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Input } from "@/components/ui/input"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Button } from "@/components/ui/button"
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Switch } from "@/components/ui/switch"
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog"
-import { Calendar } from "@/components/ui/calendar"
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
+import { Checkbox } from "@/components/ui/checkbox"
+import { toast } from "@/components/ui/use-toast"
 import {
   CalendarIcon,
   Clock,
@@ -29,7 +20,6 @@ import {
   Video,
   Phone,
   MapPin,
-  Plus,
   Search,
   Filter,
   Star,
@@ -51,1092 +41,448 @@ import {
   Download,
   RefreshCw,
   Mail,
+  Calendar,
+  User,
+  Building,
+  DollarSign,
+  Globe,
+  Briefcase,
+  GraduationCap,
+  MapPin as MapPinIcon,
+  Mail as MailIcon,
+  Phone as PhoneIcon,
+  ExternalLink as ExternalLinkIcon,
+  AlertCircle,
+  Plus,
+  CalendarDays,
+  Clock as ClockIcon,
+  Video as VideoIcon,
+  Phone as PhoneIcon2,
+  MapPin as MapPinIcon2,
+  User as UserIcon,
+  MessageSquare as MessageSquareIcon,
+  Brain as BrainIcon,
+  Users as UsersIcon,
+  CheckCircle,
+  XCircle,
 } from "lucide-react"
-import { format, addDays, startOfWeek, endOfWeek, eachDayOfInterval, isSameDay, parseISO } from "date-fns"
+import { format, parseISO } from "date-fns"
+import BASE_API_URL from "@/BaseUrlApi"
 
-// Import existing interview components
-import AddedInterviews from "./added-interviews"
-import InterviewIntegration from "./interview-integration"
-import AIInterviewScheduler from "./ai-interview-scheduler"
-
-interface VideoMeeting {
-  id: string
-  platform: "zoom" | "teams" | "webex" | "meet"
-  meetingId: string
-  meetingUrl: string
-  password?: string
-  hostKey?: string
-  waitingRoom: boolean
-  recording: boolean
-  transcription: boolean
-  createdAt: string
-  status: "active" | "ended" | "scheduled"
-}
-
-interface Interview {
-  id: string
-  candidateName: string
-  candidateEmail: string
-  candidatePhone: string
-  candidateAvatar?: string
-  position: string
-  company: string
-  interviewType: "phone" | "video" | "in-person" | "panel" | "technical" | "behavioral"
-  status: "scheduled" | "in-progress" | "completed" | "cancelled" | "rescheduled" | "no-show"
-  priority: "low" | "medium" | "high" | "urgent"
-  date: string
-  time: string
-  duration: number
-  timezone: string
-  location?: string
-  videoMeeting?: VideoMeeting
-  interviewers: Array<{
-    id: string
+// Types for Selected Interviews API
+interface SelectedInterviewsData {
+  success: boolean
+  totalCandidates: number
+  candidates: Array<{
+    id: number
     name: string
     email: string
-    role: string
-    avatar?: string
-    isLead?: boolean
-  }>
-  notes?: string
-  feedback?: Array<{
-    id: string
-    interviewer: string
-    rating: number
-    comments: string
-    timestamp: string
-    categories: {
-      technical: number
-      communication: number
-      cultural: number
-      experience: number
+    phone: string
+    skills: string
+    experience: string
+    expectedSalary: number
+    interviewStage: string
+    job: {
+      title: string
+      company: string
+      location: string
     }
   }>
-  documents?: Array<{
-    id: string
-    name: string
-    type: string
-    url: string
-    uploadedBy: string
-    uploadedAt: string
-  }>
-  recordingUrl?: string
-  transcriptUrl?: string
-  aiInsights?: {
-    overallScore: number
-    strengths: string[]
-    concerns: string[]
-    recommendation: "strong-hire" | "hire" | "no-hire" | "borderline"
-    keyMoments: Array<{
-      timestamp: string
-      description: string
-      importance: "high" | "medium" | "low"
-    }>
+  stageCounts: {
+    "First Interview": number
+    "Second Interview": number
+    "Final Interview": number
   }
-  followUpTasks?: Array<{
-    id: string
-    task: string
-    assignee: string
-    dueDate: string
-    completed: boolean
-  }>
-  createdAt: string
-  updatedAt: string
-  createdBy: string
 }
 
-interface VideoPlatformConfig {
-  name: "zoom" | "teams" | "webex" | "meet"
-  displayName: string
-  apiKey?: string
-  apiSecret?: string
-  enabled: boolean
-  features: string[]
-  webhookUrl?: string
-  settings: {
-    autoRecord: boolean
-    autoTranscribe: boolean
-    waitingRoom: boolean
-    muteOnEntry: boolean
-    allowScreenShare: boolean
-    chatEnabled: boolean
+// Types for Scheduled Interviews API
+interface ScheduledInterviewsData {
+  success: boolean
+  message: string
+  data: {
+    totalScheduled: number
+    upcomingInterviews: number
+    completedInterviews: number
+    statistics: {
+      interviewTypeStats: Record<string, number>
+      interviewModeStats: Record<string, number>
+    }
+    candidates: Array<{
+      interviewId: number
+      interviewDate: string
+      interviewTime: string
+      interviewType: string
+      interviewMode: string
+      platform: string
+      meetingLink: string
+      interviewer: string
+      notes: string
+      interviewStatus: string
+      interviewCreatedAt: string
+      interviewUpdatedAt: string
+      candidateId: number
+      candidateName: string
+      firstName: string
+      lastName: string
+      email: string
+      phone: string
+      currentLocation: string
+      keySkills: string
+      salaryExpectation: number
+      noticePeriod: string
+      yearsOfExperience: string
+      remoteWork: boolean
+      startDate: string
+      portfolioUrl: string
+      candidateStatus: string
+      appliedAt: string
+      updatedAt: string
+      resumeDownloadUrl: string
+      job: {
+        id: number
+        title: string
+        company: string
+        city: string
+        jobType: string
+        experienceLevel: string
+        workType: string
+        jobStatus: string
+        salaryMin: number
+        salaryMax: number
+        priority: string
+        createdAt: string
+      }
+    }>
   }
+  timestamp: string
 }
 
 export default function InterviewManagement() {
   const [activeTab, setActiveTab] = useState("overview")
-  const [selectedDate, setSelectedDate] = useState<Date>(new Date())
-  const [viewMode, setViewMode] = useState<"calendar" | "list" | "kanban">("calendar")
-  const [searchTerm, setSearchTerm] = useState("")
-  const [filterStatus, setFilterStatus] = useState<string>("all")
-  const [filterType, setFilterType] = useState<string>("all")
-  const [selectedInterview, setSelectedInterview] = useState<Interview | null>(null)
-  const [showNewInterviewDialog, setShowNewInterviewDialog] = useState(false)
-  const [showVideoSettingsDialog, setShowVideoSettingsDialog] = useState(false)
-  const [showLiveInterviewDialog, setShowLiveInterviewDialog] = useState(false)
-  const [selectedInterviews, setSelectedInterviews] = useState<string[]>([])
-  const [isRecording, setIsRecording] = useState(false)
-  const [recordingTime, setRecordingTime] = useState(0)
-  const [isMuted, setIsMuted] = useState(false)
-  const [isCameraOn, setIsCameraOn] = useState(true)
-  const [isScreenSharing, setIsScreenSharing] = useState(false)
-  const [currentMeeting, setCurrentMeeting] = useState<VideoMeeting | null>(null)
+  const [selectedData, setSelectedData] = useState<SelectedInterviewsData | null>(null)
+  const [scheduledData, setScheduledData] = useState<ScheduledInterviewsData | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
 
-  // Video platform configurations
-  const [videoPlatforms, setVideoPlatforms] = useState<VideoPlatformConfig[]>([
-    {
-      name: "zoom",
-      displayName: "Zoom",
-      apiKey: process.env.ZOOM_API_KEY || "",
-      enabled: true,
-      features: ["Screen Share", "Recording", "Breakout Rooms", "Waiting Room", "Chat", "Polls"],
-      settings: {
-        autoRecord: true,
-        autoTranscribe: true,
-        waitingRoom: true,
-        muteOnEntry: true,
-        allowScreenShare: true,
-        chatEnabled: true,
-      },
-    },
-    {
-      name: "teams",
-      displayName: "Microsoft Teams",
-      apiKey: process.env.TEAMS_API_KEY || "",
-      enabled: true,
-      features: ["Screen Share", "Recording", "Chat", "File Sharing", "Whiteboard", "Live Captions"],
-      settings: {
-        autoRecord: true,
-        autoTranscribe: true,
-        waitingRoom: false,
-        muteOnEntry: true,
-        allowScreenShare: true,
-        chatEnabled: true,
-      },
-    },
-    {
-      name: "webex",
-      displayName: "Cisco Webex",
-      apiKey: process.env.WEBEX_API_KEY || "",
-      enabled: true,
-      features: ["Screen Share", "Recording", "Whiteboard", "Breakout Sessions", "Polls", "Q&A"],
-      settings: {
-        autoRecord: true,
-        autoTranscribe: true,
-        waitingRoom: true,
-        muteOnEntry: true,
-        allowScreenShare: true,
-        chatEnabled: true,
-      },
-    },
-    {
-      name: "meet",
-      displayName: "Google Meet",
-      apiKey: process.env.GOOGLE_MEET_API_KEY || "",
-      enabled: true,
-      features: ["Screen Share", "Recording", "Live Captions", "Polls", "Q&A", "Jamboard"],
-      settings: {
-        autoRecord: false,
-        autoTranscribe: true,
-        waitingRoom: false,
-        muteOnEntry: false,
-        allowScreenShare: true,
-        chatEnabled: true,
-      },
-    },
-  ])
+  // Search and filter states for Overview tab
+  const [overviewSearchTerm, setOverviewSearchTerm] = useState("")
+  const [overviewFilterStage, setOverviewFilterStage] = useState("all")
 
-  // Mock data with video meetings
-  const mockInterviews: Interview[] = [
-    {
-      id: "1",
-      candidateName: "Sarah Johnson",
-      candidateEmail: "sarah.johnson@email.com",
-      candidatePhone: "+1 (555) 123-4567",
-      candidateAvatar: "/placeholder-user.jpg",
-      position: "Senior Frontend Developer",
-      company: "TechCorp Inc.",
-      interviewType: "video",
-      status: "scheduled",
-      priority: "high",
-      date: format(addDays(new Date(), 1), "yyyy-MM-dd"),
-      time: "10:00",
-      duration: 60,
-      timezone: "EST",
-      videoMeeting: {
-        id: "zoom-1",
-        platform: "zoom",
-        meetingId: "123-456-789",
-        meetingUrl: "https://zoom.us/j/123456789?pwd=abc123",
-        password: "interview123",
-        waitingRoom: true,
-        recording: true,
-        transcription: true,
-        createdAt: "2024-01-15T09:00:00Z",
-        status: "scheduled",
-      },
-      interviewers: [
-        {
-          id: "1",
-          name: "John Smith",
-          email: "john.smith@company.com",
-          role: "Engineering Manager",
-          avatar: "/placeholder-user.jpg",
-          isLead: true,
-        },
-        {
-          id: "2",
-          name: "Emily Davis",
-          email: "emily.davis@company.com",
-          role: "Senior Developer",
-          avatar: "/placeholder-user.jpg",
-        },
-      ],
-      notes: "Technical interview focusing on React and TypeScript. Screen sharing enabled for coding exercise.",
-      createdAt: "2024-01-15T10:00:00Z",
-      updatedAt: "2024-01-15T10:00:00Z",
-      createdBy: "recruiter1",
-    },
-    {
-      id: "2",
-      candidateName: "Michael Chen",
-      candidateEmail: "michael.chen@email.com",
-      candidatePhone: "+1 (555) 987-6543",
-      position: "Product Manager",
-      company: "StartupXYZ",
-      interviewType: "video",
-      status: "in-progress",
-      priority: "medium",
-      date: format(new Date(), "yyyy-MM-dd"),
-      time: "14:00",
-      duration: 90,
-      timezone: "PST",
-      videoMeeting: {
-        id: "teams-1",
-        platform: "teams",
-        meetingId: "teams-meeting-123",
-        meetingUrl: "https://teams.microsoft.com/l/meetup-join/19%3ameeting_abc123",
-        waitingRoom: false,
-        recording: true,
-        transcription: true,
-        createdAt: "2024-01-15T13:00:00Z",
-        status: "active",
-      },
-      interviewers: [
-        {
-          id: "3",
-          name: "Lisa Wang",
-          email: "lisa.wang@company.com",
-          role: "VP Product",
-          isLead: true,
-        },
-        {
-          id: "4",
-          name: "David Brown",
-          email: "david.brown@company.com",
-          role: "UX Director",
-        },
-      ],
-      feedback: [
-        {
-          id: "1",
-          interviewer: "Lisa Wang",
-          rating: 4,
-          comments: "Strong product sense and communication skills. Good strategic thinking.",
-          timestamp: "2024-01-15T15:30:00Z",
-          categories: {
-            technical: 4,
-            communication: 5,
-            cultural: 4,
-            experience: 4,
-          },
-        },
-      ],
-      aiInsights: {
-        overallScore: 85,
-        strengths: ["Strategic thinking", "Communication", "Product vision"],
-        concerns: ["Limited technical background", "Needs more data analysis experience"],
-        recommendation: "hire",
-        keyMoments: [
-          {
-            timestamp: "00:15:30",
-            description: "Excellent explanation of product strategy framework",
-            importance: "high",
-          },
-          {
-            timestamp: "00:45:20",
-            description: "Struggled with technical implementation details",
-            importance: "medium",
-          },
-        ],
-      },
-      createdAt: "2024-01-14T09:00:00Z",
-      updatedAt: "2024-01-15T15:30:00Z",
-      createdBy: "recruiter2",
-    },
-    {
-      id: "3",
-      candidateName: "Alex Rodriguez",
-      candidateEmail: "alex.rodriguez@email.com",
-      candidatePhone: "+1 (555) 456-7890",
-      position: "Data Scientist",
-      company: "DataTech Solutions",
-      interviewType: "video",
-      status: "completed",
-      priority: "urgent",
-      date: format(addDays(new Date(), -1), "yyyy-MM-dd"),
-      time: "16:00",
-      duration: 120,
-      timezone: "EST",
-      videoMeeting: {
-        id: "webex-1",
-        platform: "webex",
-        meetingId: "webex-123-456-789",
-        meetingUrl: "https://company.webex.com/meet/interview123",
-        password: "DataSci2024",
-        waitingRoom: true,
-        recording: true,
-        transcription: true,
-        createdAt: "2024-01-14T15:00:00Z",
-        status: "ended",
-      },
-      recordingUrl: "https://recordings.webex.com/interview-alex-rodriguez-20240114",
-      transcriptUrl: "https://transcripts.webex.com/interview-alex-rodriguez-20240114.txt",
-      interviewers: [
-        {
-          id: "5",
-          name: "Dr. Jennifer Lee",
-          email: "jennifer.lee@company.com",
-          role: "Lead Data Scientist",
-          isLead: true,
-        },
-      ],
-      notes: "Technical deep-dive on machine learning algorithms and Python. Whiteboard session included.",
-      createdAt: "2024-01-15T08:00:00Z",
-      updatedAt: "2024-01-15T16:00:00Z",
-      createdBy: "recruiter1",
-    },
-  ]
+  // Search and filter states for Scheduled tab
+  const [scheduledSearchTerm, setScheduledSearchTerm] = useState("")
+  const [scheduledFilterType, setScheduledFilterType] = useState("all")
+  const [scheduledFilterMode, setScheduledFilterMode] = useState("all")
 
-  // Statistics
-  const interviewStats = {
-    total: mockInterviews.length,
-    scheduled: mockInterviews.filter((i) => i.status === "scheduled").length,
-    completed: mockInterviews.filter((i) => i.status === "completed").length,
-    inProgress: mockInterviews.filter((i) => i.status === "in-progress").length,
-    cancelled: mockInterviews.filter((i) => i.status === "cancelled").length,
-    averageRating: 4.2,
-    completionRate: 85,
-    noShowRate: 5,
-    videoInterviews: mockInterviews.filter((i) => i.interviewType === "video").length,
-    recordedInterviews: mockInterviews.filter((i) => i.recordingUrl).length,
-  }
+  // Interview scheduling states
+  const [singleScheduleOpen, setSingleScheduleOpen] = useState(false)
+  const [bulkScheduleOpen, setBulkScheduleOpen] = useState(false)
+  const [selectedCandidate, setSelectedCandidate] = useState<any>(null)
+  const [selectedCandidates, setSelectedCandidates] = useState<number[]>([])
+  const [schedulingLoading, setSchedulingLoading] = useState(false)
 
-  // Filter interviews
-  const filteredInterviews = mockInterviews.filter((interview) => {
-    const matchesSearch =
-      interview.candidateName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      interview.position.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      interview.company.toLowerCase().includes(searchTerm.toLowerCase())
-    const matchesStatus = filterStatus === "all" || interview.status === filterStatus
-    const matchesType = filterType === "all" || interview.interviewType === filterType
-    return matchesSearch && matchesStatus && matchesType
+  // Single interview form state
+  const [singleInterviewForm, setSingleInterviewForm] = useState({
+    candidateId: "",
+    candidateName: "",
+    interviewDate: "",
+    interviewTime: "",
+    interviewType: "",
+    interviewMode: "",
+    platform: "Zoom",
+    meetingLink: "",
+    interviewer: "",
+    notes: ""
   })
 
-  // Get interviews for selected date
-  const selectedDateInterviews = filteredInterviews.filter((interview) =>
-    isSameDay(parseISO(interview.date), selectedDate),
-  )
+  // Bulk interview form state
+  const [bulkInterviewForm, setBulkInterviewForm] = useState({
+    candidateIds: [] as number[],
+    interviewDate: "",
+    interviewTime: "",
+    interviewType: "",
+    interviewMode: "",
+    platform: "Zoom",
+    meetingLink: "",
+    interviewer: "",
+    notes: ""
+  })
 
-  // Calendar view helpers
-  const weekStart = startOfWeek(selectedDate)
-  const weekEnd = endOfWeek(selectedDate)
-  const weekDays = eachDayOfInterval({ start: weekStart, end: weekEnd })
+  useEffect(() => {
+    fetchData()
+  }, [])
 
-  const getInterviewsForDate = (date: Date) => {
-    return filteredInterviews.filter((interview) => isSameDay(parseISO(interview.date), date))
-  }
+  const fetchData = async () => {
+    setLoading(true)
+    setError(null)
 
-  // Video meeting functions
-  const createVideoMeeting = async (platform: string, interviewData: any): Promise<VideoMeeting> => {
-    const platformConfig = videoPlatforms.find((p) => p.name === platform)
-    if (!platformConfig) throw new Error("Platform not configured")
+    try {
+      // Fetch selected interviews data
+      const selectedResponse = await fetch(`${BASE_API_URL}/interviews/selected`)
+      const selectedResult = await selectedResponse.json()
 
-    // Simulate API call to create meeting
-    await new Promise((resolve) => setTimeout(resolve, 2000))
+      // Fetch scheduled interviews data
+      const scheduledResponse = await fetch(`${BASE_API_URL}/interviews/scheduled`)
+      const scheduledResult = await scheduledResponse.json()
 
-    const meetingUrls = {
-      zoom: `https://zoom.us/j/${Math.random().toString().substr(2, 10)}?pwd=${Math.random().toString(36).substr(2, 8)}`,
-      teams: `https://teams.microsoft.com/l/meetup-join/19%3ameeting_${Math.random().toString(36).substr(2, 20)}`,
-      webex: `https://company.webex.com/meet/${Math.random().toString(36).substr(2, 15)}`,
-      meet: `https://meet.google.com/${Math.random().toString(36).substr(2, 10)}-${Math.random().toString(36).substr(2, 4)}-${Math.random().toString(36).substr(2, 3)}`,
+      if (selectedResult.success) {
+        setSelectedData(selectedResult)
+      }
+
+      if (scheduledResult.success) {
+        setScheduledData(scheduledResult)
+      }
+
+      setLoading(false)
+    } catch (err) {
+      setError("Failed to fetch data")
+      setLoading(false)
     }
+  }
 
-    return {
-      id: `${platform}-${Date.now()}`,
-      platform: platform as any,
-      meetingId: Math.random().toString().substr(2, 10),
-      meetingUrl: meetingUrls[platform as keyof typeof meetingUrls],
-      password: platform === "zoom" || platform === "webex" ? Math.random().toString(36).substr(2, 8) : undefined,
-      waitingRoom: platformConfig.settings.waitingRoom,
-      recording: platformConfig.settings.autoRecord,
-      transcription: platformConfig.settings.autoTranscribe,
-      createdAt: new Date().toISOString(),
-      status: "scheduled",
+  // Schedule single interview
+  const handleSingleSchedule = async () => {
+    setSchedulingLoading(true)
+    try {
+      const response = await fetch(`${BASE_API_URL}/interviews/schedule`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(singleInterviewForm),
+      })
+
+      const result = await response.json()
+
+      if (result.success) {
+        toast({
+          title: "Success",
+          description: "Interview scheduled successfully!",
+        })
+        setSingleScheduleOpen(false)
+        setSingleInterviewForm({
+          candidateId: "",
+          candidateName: "",
+          interviewDate: "",
+          interviewTime: "",
+          interviewType: "",
+          interviewMode: "",
+          platform: "Zoom",
+          meetingLink: "",
+          interviewer: "",
+          notes: ""
+        })
+        fetchData() // Refresh data
+      } else {
+        toast({
+          title: "Error",
+          description: result.message || "Failed to schedule interview",
+          variant: "destructive",
+        })
+      }
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to schedule interview",
+        variant: "destructive",
+      })
+    } finally {
+      setSchedulingLoading(false)
     }
   }
 
-  const joinVideoMeeting = (meeting: VideoMeeting) => {
-    window.open(meeting.meetingUrl, "_blank")
-    setCurrentMeeting(meeting)
-    setShowLiveInterviewDialog(true)
+  // Schedule bulk interviews
+  const handleBulkSchedule = async () => {
+    setSchedulingLoading(true)
+    try {
+      const response = await fetch(`${BASE_API_URL}/interviews/bulk-schedule`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(bulkInterviewForm),
+      })
+
+      const result = await response.json()
+
+      if (result.success) {
+        toast({
+          title: "Success",
+          description: `Successfully scheduled ${result.data.totalScheduled} interviews!`,
+        })
+        setBulkScheduleOpen(false)
+        setBulkInterviewForm({
+          candidateIds: [],
+          interviewDate: "",
+          interviewTime: "",
+          interviewType: "",
+          interviewMode: "",
+          platform: "Zoom",
+          meetingLink: "",
+          interviewer: "",
+          notes: ""
+        })
+        setSelectedCandidates([])
+        fetchData() // Refresh data
+      } else {
+        toast({
+          title: "Error",
+          description: result.message || "Failed to schedule interviews",
+          variant: "destructive",
+        })
+      }
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to schedule interviews",
+        variant: "destructive",
+      })
+    } finally {
+      setSchedulingLoading(false)
+    }
   }
 
-  const startRecording = () => {
-    setIsRecording(true)
-    setRecordingTime(0)
-    // Start recording timer
-    const timer = setInterval(() => {
-      setRecordingTime((prev) => prev + 1)
-    }, 1000)
-    return () => clearInterval(timer)
+  // Handle candidate selection for single scheduling
+  const handleSingleScheduleClick = (candidate: any) => {
+    setSelectedCandidate(candidate)
+    setSingleInterviewForm({
+      candidateId: candidate.id.toString(),
+      candidateName: candidate.name,
+      interviewDate: "",
+      interviewTime: "",
+      interviewType: "",
+      interviewMode: "",
+      platform: "Zoom",
+      meetingLink: "",
+      interviewer: "",
+      notes: ""
+    })
+    setSingleScheduleOpen(true)
   }
 
-  const stopRecording = () => {
-    setIsRecording(false)
-    setRecordingTime(0)
+  // Handle candidate selection for bulk scheduling
+  const handleCandidateSelection = (candidateId: number, checked: boolean) => {
+    if (checked) {
+      setSelectedCandidates([...selectedCandidates, candidateId])
+    } else {
+      setSelectedCandidates(selectedCandidates.filter(id => id !== candidateId))
+    }
   }
 
-  const toggleMute = () => {
-    setIsMuted(!isMuted)
+  // Handle select all candidates
+  const handleSelectAll = () => {
+    if (selectedCandidates.length === filteredOverviewCandidates.length) {
+      // If all are selected, deselect all
+      setSelectedCandidates([])
+    } else {
+      // Select all filtered candidates
+      const allCandidateIds = filteredOverviewCandidates.map(candidate => candidate.id)
+      setSelectedCandidates(allCandidateIds)
+    }
   }
 
-  const toggleCamera = () => {
-    setIsCameraOn(!isCameraOn)
+  // Handle bulk schedule button click
+  const handleBulkScheduleClick = () => {
+    if (selectedCandidates.length === 0) {
+      toast({
+        title: "No candidates selected",
+        description: "Please select at least one candidate to schedule interviews",
+        variant: "destructive",
+      })
+      return
+    }
+    setBulkInterviewForm({
+      ...bulkInterviewForm,
+      candidateIds: selectedCandidates
+    })
+    setBulkScheduleOpen(true)
   }
 
-  const toggleScreenShare = () => {
-    setIsScreenSharing(!isScreenSharing)
-  }
+  // Filter functions for Overview tab
+  const filteredOverviewCandidates = selectedData?.candidates.filter((candidate) => {
+    const matchesSearch = candidate.name.toLowerCase().includes(overviewSearchTerm.toLowerCase()) ||
+                         candidate.email.toLowerCase().includes(overviewSearchTerm.toLowerCase())
+    const matchesStage = overviewFilterStage === "all" || candidate.interviewStage === overviewFilterStage
+    return matchesSearch && matchesStage
+  }) || []
 
-  const formatRecordingTime = (seconds: number) => {
-    const mins = Math.floor(seconds / 60)
-    const secs = seconds % 60
-    return `${mins.toString().padStart(2, "0")}:${secs.toString().padStart(2, "0")}`
-  }
+  // Filter functions for Scheduled tab
+  const filteredScheduledCandidates = scheduledData?.data.candidates.filter((candidate) => {
+    const matchesSearch = candidate.candidateName.toLowerCase().includes(scheduledSearchTerm.toLowerCase()) ||
+                         candidate.email.toLowerCase().includes(scheduledSearchTerm.toLowerCase())
+    const matchesType = scheduledFilterType === "all" || candidate.interviewType === scheduledFilterType
+    const matchesMode = scheduledFilterMode === "all" || candidate.interviewMode === scheduledFilterMode
+    return matchesSearch && matchesType && matchesMode
+  }) || []
 
   const getStatusColor = (status: string) => {
     switch (status) {
-      case "scheduled":
+      case "SCHEDULED":
         return "bg-blue-100 text-blue-800"
-      case "in-progress":
-        return "bg-yellow-100 text-yellow-800"
-      case "completed":
+      case "COMPLETED":
         return "bg-green-100 text-green-800"
-      case "cancelled":
+      case "CANCELLED":
         return "bg-red-100 text-red-800"
-      case "rescheduled":
-        return "bg-purple-100 text-purple-800"
-      case "no-show":
-        return "bg-gray-100 text-gray-800"
       default:
         return "bg-gray-100 text-gray-800"
     }
   }
 
-  const getPriorityColor = (priority: string) => {
-    switch (priority) {
-      case "urgent":
-        return "text-red-600"
-      case "high":
-        return "text-orange-600"
-      case "medium":
-        return "text-yellow-600"
-      case "low":
-        return "text-green-600"
-      default:
-        return "text-gray-600"
-    }
-  }
-
-  const getTypeIcon = (type: string) => {
+  const getInterviewTypeIcon = (type: string) => {
     switch (type) {
-      case "video":
-        return <Video className="w-4 h-4" />
-      case "phone":
-        return <Phone className="w-4 h-4" />
-      case "in-person":
-        return <MapPin className="w-4 h-4" />
-      case "panel":
-        return <Users className="w-4 h-4" />
-      case "technical":
+      case "HR":
+        return <User className="w-4 h-4" />
+      case "Technical":
         return <Brain className="w-4 h-4" />
-      case "behavioral":
+      case "Behavioral":
         return <MessageSquare className="w-4 h-4" />
       default:
         return <CalendarIcon className="w-4 h-4" />
     }
   }
 
-  const getPlatformIcon = (platform: string) => {
-    switch (platform) {
-      case "zoom":
-        return <Video className="w-4 h-4 text-blue-600" />
-      case "teams":
-        return <Video className="w-4 h-4 text-purple-600" />
-      case "webex":
-        return <Video className="w-4 h-4 text-green-600" />
-      case "meet":
-        return <Video className="w-4 h-4 text-red-600" />
-      default:
+  const getInterviewModeIcon = (mode: string) => {
+    switch (mode) {
+      case "Phone":
+        return <Phone className="w-4 h-4" />
+      case "Video":
         return <Video className="w-4 h-4" />
+      case "In-Person":
+        return <MapPin className="w-4 h-4" />
+      default:
+        return <CalendarIcon className="w-4 h-4" />
     }
   }
 
-  const renderOverviewTab = () => (
-    <div className="space-y-6">
-      {/* Enhanced Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
-        <Card>
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-gray-600">Total Interviews</p>
-                <p className="text-2xl font-bold text-gray-900">{interviewStats.total}</p>
-              </div>
-              <CalendarIcon className="w-8 h-8 text-blue-600" />
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-gray-600">Video Interviews</p>
-                <p className="text-2xl font-bold text-purple-600">{interviewStats.videoInterviews}</p>
-              </div>
-              <Video className="w-8 h-8 text-purple-600" />
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-gray-600">Recorded</p>
-                <p className="text-2xl font-bold text-red-600">{interviewStats.recordedInterviews}</p>
-              </div>
-              <Play className="w-8 h-8 text-red-600" />
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-gray-600">In Progress</p>
-                <p className="text-2xl font-bold text-yellow-600">{interviewStats.inProgress}</p>
-              </div>
-              <Clock className="w-8 h-8 text-yellow-600" />
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-gray-600">Avg Rating</p>
-                <p className="text-2xl font-bold text-green-600">{interviewStats.averageRating}</p>
-              </div>
-              <Star className="w-8 h-8 text-green-600" />
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Video Platform Status */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center space-x-2">
-            <Video className="w-5 h-5" />
-            <span>Video Platform Status</span>
-          </CardTitle>
-          <CardDescription>Current status of integrated video platforms</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-            {videoPlatforms.map((platform) => (
-              <div
-                key={platform.name}
-                className={`p-4 rounded-lg border-2 ${
-                  platform.enabled ? "border-green-200 bg-green-50" : "border-gray-200 bg-gray-50"
-                }`}
-              >
-                <div className="flex items-center justify-between mb-2">
-                  <div className="flex items-center space-x-2">
-                    {getPlatformIcon(platform.name)}
-                    <span className="font-medium">{platform.displayName}</span>
-                  </div>
-                  <Badge variant={platform.enabled ? "default" : "secondary"}>
-                    {platform.enabled ? "Active" : "Inactive"}
-                  </Badge>
-                </div>
-                <div className="text-xs text-gray-600 space-y-1">
-                  <div>API: {platform.apiKey ? "✓ Configured" : "✗ Not configured"}</div>
-                  <div>Features: {platform.features.length} available</div>
-                </div>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="w-full mt-2 bg-transparent"
-                  onClick={() => setShowVideoSettingsDialog(true)}
-                >
-                  <Settings className="w-3 h-3 mr-1" />
-                  Configure
-                </Button>
-              </div>
-            ))}
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Quick Actions */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Quick Actions</CardTitle>
-          <CardDescription>Common interview management tasks</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-            <Button
-              onClick={() => setShowNewInterviewDialog(true)}
-              className="h-20 flex flex-col items-center justify-center space-y-2"
-            >
-              <Plus className="w-6 h-6" />
-              <span>Schedule Interview</span>
-            </Button>
-
-            <Button
-              variant="outline"
-              onClick={() => setActiveTab("live")}
-              className="h-20 flex flex-col items-center justify-center space-y-2"
-            >
-              <Video className="w-6 h-6" />
-              <span>Join Live Interview</span>
-            </Button>
-
-            <Button
-              variant="outline"
-              onClick={() => setActiveTab("recordings")}
-              className="h-20 flex flex-col items-center justify-center space-y-2"
-            >
-              <Play className="w-6 h-6" />
-              <span>View Recordings</span>
-            </Button>
-
-            <Button
-              variant="outline"
-              onClick={() => setShowVideoSettingsDialog(true)}
-              className="h-20 flex flex-col items-center justify-center space-y-2"
-            >
-              <Settings className="w-6 h-6" />
-              <span>Platform Settings</span>
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Active Interviews */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center space-x-2">
-            <Clock className="w-5 h-5 text-yellow-600" />
-            <span>Active Interviews</span>
-          </CardTitle>
-          <CardDescription>Currently in progress</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-4">
-            {mockInterviews
-              .filter((i) => i.status === "in-progress")
-              .map((interview) => (
-                <div
-                  key={interview.id}
-                  className="flex items-center justify-between p-4 border rounded-lg bg-yellow-50"
-                >
-                  <div className="flex items-center space-x-4">
-                    <Avatar>
-                      <AvatarImage src={interview.candidateAvatar || "/placeholder.svg"} />
-                      <AvatarFallback>
-                        {interview.candidateName
-                          .split(" ")
-                          .map((n) => n[0])
-                          .join("")}
-                      </AvatarFallback>
-                    </Avatar>
-                    <div>
-                      <p className="font-medium">{interview.candidateName}</p>
-                      <p className="text-sm text-gray-600">
-                        {interview.position} • {interview.videoMeeting?.platform.toUpperCase()}
-                      </p>
-                      <div className="flex items-center space-x-2 mt-1">
-                        <Badge className="bg-yellow-100 text-yellow-800">Live</Badge>
-                        {interview.videoMeeting?.recording && (
-                          <Badge variant="outline" className="text-red-600">
-                            Recording
-                          </Badge>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                  <div className="flex items-center space-x-2">
-                    <Button
-                      size="sm"
-                      onClick={() => interview.videoMeeting && joinVideoMeeting(interview.videoMeeting)}
-                    >
-                      <Video className="w-4 h-4 mr-2" />
-                      Join
-                    </Button>
-                    <Button variant="outline" size="sm" onClick={() => setSelectedInterview(interview)}>
-                      <Eye className="w-4 h-4" />
-                    </Button>
-                  </div>
-                </div>
-              ))}
-            {mockInterviews.filter((i) => i.status === "in-progress").length === 0 && (
-              <div className="text-center py-8 text-gray-500">
-                <Clock className="w-12 h-12 mx-auto mb-4 text-gray-300" />
-                <p>No active interviews</p>
-              </div>
-            )}
-          </div>
-        </CardContent>
-      </Card>
-    </div>
-  )
-
-  const renderLiveInterviewTab = () => (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <h3 className="text-xl font-semibold">Live Interview Controls</h3>
-        <div className="flex items-center space-x-2">
-          <Badge className="bg-green-100 text-green-800">
-            <div className="w-2 h-2 bg-green-600 rounded-full mr-2 animate-pulse" />
-            Live
-          </Badge>
-          {isRecording && (
-            <Badge className="bg-red-100 text-red-800">
-              <div className="w-2 h-2 bg-red-600 rounded-full mr-2 animate-pulse" />
-              Recording {formatRecordingTime(recordingTime)}
-            </Badge>
-          )}
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <p className="text-gray-600">Loading interview data...</p>
         </div>
       </div>
+    )
+  }
 
-      {/* Live Interview Controls */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Interview Controls</CardTitle>
-          <CardDescription>Manage your live interview session</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <Button
-              variant={isMuted ? "destructive" : "outline"}
-              onClick={toggleMute}
-              className="h-16 flex flex-col items-center justify-center space-y-2"
-            >
-              {isMuted ? <MicOff className="w-6 h-6" /> : <Mic className="w-6 h-6" />}
-              <span className="text-xs">{isMuted ? "Unmute" : "Mute"}</span>
-            </Button>
-
-            <Button
-              variant={!isCameraOn ? "destructive" : "outline"}
-              onClick={toggleCamera}
-              className="h-16 flex flex-col items-center justify-center space-y-2"
-            >
-              {isCameraOn ? <Camera className="w-6 h-6" /> : <CameraOff className="w-6 h-6" />}
-              <span className="text-xs">{isCameraOn ? "Stop Video" : "Start Video"}</span>
-            </Button>
-
-            <Button
-              variant={isScreenSharing ? "default" : "outline"}
-              onClick={toggleScreenShare}
-              className="h-16 flex flex-col items-center justify-center space-y-2"
-            >
-              <Monitor className="w-6 h-6" />
-              <span className="text-xs">{isScreenSharing ? "Stop Share" : "Share Screen"}</span>
-            </Button>
-
-            <Button
-              variant={isRecording ? "destructive" : "outline"}
-              onClick={isRecording ? stopRecording : startRecording}
-              className="h-16 flex flex-col items-center justify-center space-y-2"
-            >
-              {isRecording ? <Square className="w-6 h-6" /> : <Play className="w-6 h-6" />}
-              <span className="text-xs">{isRecording ? "Stop Recording" : "Start Recording"}</span>
-            </Button>
+  if (error) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <div className="text-center">
+          <div className="p-4 bg-red-100 rounded-full mb-4 mx-auto w-16 h-16 flex items-center justify-center">
+            <AlertCircle className="w-8 h-8 text-red-600" />
           </div>
-        </CardContent>
-      </Card>
-
-      {/* Active Interviews for Live Control */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Active Sessions</CardTitle>
-          <CardDescription>Currently running interview sessions</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-4">
-            {mockInterviews
-              .filter((i) => i.status === "in-progress")
-              .map((interview) => (
-                <div key={interview.id} className="p-4 border rounded-lg bg-blue-50">
-                  <div className="flex items-center justify-between mb-4">
-                    <div className="flex items-center space-x-4">
-                      <Avatar className="w-12 h-12">
-                        <AvatarImage src={interview.candidateAvatar || "/placeholder.svg"} />
-                        <AvatarFallback>
-                          {interview.candidateName
-                            .split(" ")
-                            .map((n) => n[0])
-                            .join("")}
-                        </AvatarFallback>
-                      </Avatar>
-                      <div>
-                        <h4 className="font-semibold text-lg">{interview.candidateName}</h4>
-                        <p className="text-gray-600">{interview.position}</p>
-                        <div className="flex items-center space-x-2 mt-1">
-                          {getPlatformIcon(interview.videoMeeting?.platform || "zoom")}
-                          <span className="text-sm text-gray-500">
-                            {interview.videoMeeting?.platform.toUpperCase()}
-                          </span>
-                          <Badge variant="outline" className="text-xs">
-                            {interview.duration} min
-                          </Badge>
-                        </div>
-                      </div>
-                    </div>
-                    <div className="flex items-center space-x-2">
-                      <Button
-                        size="sm"
-                        onClick={() => interview.videoMeeting && joinVideoMeeting(interview.videoMeeting)}
-                      >
-                        <ExternalLink className="w-4 h-4 mr-2" />
-                        Join Meeting
-                      </Button>
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button variant="outline" size="sm">
-                            <Settings className="w-4 h-4" />
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent>
-                          <DropdownMenuItem>
-                            <Copy className="w-4 h-4 mr-2" />
-                            Copy Meeting Link
-                          </DropdownMenuItem>
-                          <DropdownMenuItem>
-                            <Mail className="w-4 h-4 mr-2" />
-                            Send Reminder
-                          </DropdownMenuItem>
-                          <DropdownMenuItem>
-                            <FileText className="w-4 h-4 mr-2" />
-                            View Notes
-                          </DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                    </div>
-                  </div>
-
-                  {/* Meeting Details */}
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-                    <div>
-                      <span className="text-gray-600">Meeting ID:</span>
-                      <p className="font-mono">{interview.videoMeeting?.meetingId}</p>
-                    </div>
-                    <div>
-                      <span className="text-gray-600">Password:</span>
-                      <p className="font-mono">{interview.videoMeeting?.password || "None"}</p>
-                    </div>
-                    <div>
-                      <span className="text-gray-600">Recording:</span>
-                      <p>{interview.videoMeeting?.recording ? "Enabled" : "Disabled"}</p>
-                    </div>
-                    <div>
-                      <span className="text-gray-600">Transcription:</span>
-                      <p>{interview.videoMeeting?.transcription ? "Enabled" : "Disabled"}</p>
-                    </div>
-                  </div>
-
-                  {/* Interviewers */}
-                  <div className="mt-4">
-                    <span className="text-sm text-gray-600 mb-2 block">Interviewers:</span>
-                    <div className="flex items-center space-x-2">
-                      {interview.interviewers.map((interviewer) => (
-                        <div
-                          key={interviewer.id}
-                          className="flex items-center space-x-2 bg-white px-3 py-1 rounded-full"
-                        >
-                          <Avatar className="w-6 h-6">
-                            <AvatarFallback className="text-xs">
-                              {interviewer.name
-                                .split(" ")
-                                .map((n) => n[0])
-                                .join("")}
-                            </AvatarFallback>
-                          </Avatar>
-                          <span className="text-sm">{interviewer.name}</span>
-                          {interviewer.isLead && (
-                            <Badge variant="secondary" className="text-xs">
-                              Lead
-                            </Badge>
-                          )}
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-              ))}
-          </div>
-        </CardContent>
-      </Card>
-    </div>
-  )
-
-  const renderRecordingsTab = () => (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <h3 className="text-xl font-semibold">Interview Recordings</h3>
-        <div className="flex items-center space-x-2">
-          <Button variant="outline" size="sm">
-            <Filter className="w-4 h-4 mr-2" />
-            Filter
-          </Button>
-          <Button variant="outline" size="sm">
-            <Download className="w-4 h-4 mr-2" />
-            Export All
-          </Button>
+          <h3 className="text-lg font-semibold text-gray-900 mb-2">Error Loading Data</h3>
+          <p className="text-gray-600 mb-4">{error}</p>
+          <button
+            onClick={fetchData}
+            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+          >
+            Try Again
+          </button>
         </div>
       </div>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>Recorded Interviews</CardTitle>
-          <CardDescription>Access recordings and transcripts from completed interviews</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-4">
-            {mockInterviews
-              .filter((i) => i.recordingUrl)
-              .map((interview) => (
-                <div key={interview.id} className="p-4 border rounded-lg">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center space-x-4">
-                      <div className="w-16 h-16 bg-gray-100 rounded-lg flex items-center justify-center">
-                        <Play className="w-6 h-6 text-gray-600" />
-                      </div>
-                      <div>
-                        <h4 className="font-semibold">{interview.candidateName}</h4>
-                        <p className="text-sm text-gray-600">
-                          {interview.position} • {format(parseISO(interview.date), "MMM dd, yyyy")}
-                        </p>
-                        <div className="flex items-center space-x-2 mt-1">
-                          {getPlatformIcon(interview.videoMeeting?.platform || "zoom")}
-                          <span className="text-xs text-gray-500">
-                            {interview.videoMeeting?.platform.toUpperCase()}
-                          </span>
-                          <Badge variant="outline" className="text-xs">
-                            {interview.duration} min
-                          </Badge>
-                          <Badge className="bg-green-100 text-green-800 text-xs">Completed</Badge>
-                        </div>
-                      </div>
-                    </div>
-                    <div className="flex items-center space-x-2">
-                      <Button variant="outline" size="sm">
-                        <Play className="w-4 h-4 mr-2" />
-                        Play
-                      </Button>
-                      {interview.transcriptUrl && (
-                        <Button variant="outline" size="sm">
-                          <FileText className="w-4 h-4 mr-2" />
-                          Transcript
-                        </Button>
-                      )}
-                      <Button variant="outline" size="sm">
-                        <Download className="w-4 h-4 mr-2" />
-                        Download
-                      </Button>
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button variant="outline" size="sm">
-                            <Settings className="w-4 h-4" />
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent>
-                          <DropdownMenuItem>
-                            <Copy className="w-4 h-4 mr-2" />
-                            Copy Link
-                          </DropdownMenuItem>
-                          <DropdownMenuItem>
-                            <Mail className="w-4 h-4 mr-2" />
-                            Share Recording
-                          </DropdownMenuItem>
-                          <DropdownMenuItem>
-                            <Brain className="w-4 h-4 mr-2" />
-                            AI Analysis
-                          </DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                    </div>
-                  </div>
-
-                  {/* AI Insights Preview */}
-                  {interview.aiInsights && (
-                    <div className="mt-4 p-3 bg-blue-50 rounded-lg">
-                      <div className="flex items-center justify-between mb-2">
-                        <div className="flex items-center space-x-2">
-                          <Brain className="w-4 h-4 text-blue-600" />
-                          <span className="text-sm font-medium text-blue-700">AI Analysis</span>
-                        </div>
-                        <Badge
-                          className={
-                            interview.aiInsights.recommendation === "strong-hire"
-                              ? "bg-green-100 text-green-800"
-                              : interview.aiInsights.recommendation === "hire"
-                                ? "bg-blue-100 text-blue-800"
-                                : interview.aiInsights.recommendation === "borderline"
-                                  ? "bg-yellow-100 text-yellow-800"
-                                  : "bg-red-100 text-red-800"
-                          }
-                        >
-                          {interview.aiInsights.recommendation.replace("-", " ")}
-                        </Badge>
-                      </div>
-                      <div className="flex items-center space-x-4 text-sm">
-                        <div>
-                          <span className="text-gray-600">Overall Score:</span>
-                          <span className="font-semibold ml-1">{interview.aiInsights.overallScore}%</span>
-                        </div>
-                        <div>
-                          <span className="text-gray-600">Key Moments:</span>
-                          <span className="font-semibold ml-1">{interview.aiInsights.keyMoments.length}</span>
-                        </div>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              ))}
-          </div>
-        </CardContent>
-      </Card>
-    </div>
-  )
+    )
+  }
 
   return (
     <div className="space-y-6">
@@ -1144,677 +490,973 @@ export default function InterviewManagement() {
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-2xl font-bold text-gray-900">Interview Management</h2>
-          <p className="text-gray-600">Complete video interview platform with Zoom, Teams, and Webex integration</p>
+          <p className="text-gray-600">Manage selected and scheduled interviews</p>
         </div>
         <div className="flex items-center space-x-3">
-          <Button variant="outline" onClick={() => setShowVideoSettingsDialog(true)}>
-            <Settings className="w-4 h-4 mr-2" />
-            Platform Settings
-          </Button>
-          <Button onClick={() => setShowNewInterviewDialog(true)}>
-            <Plus className="w-4 h-4 mr-2" />
-            Schedule Interview
+          <Button
+            onClick={handleBulkScheduleClick}
+            disabled={selectedCandidates.length === 0}
+            className="bg-blue-600 hover:bg-blue-700 text-white"
+          >
+            <UsersIcon className="w-4 h-4 mr-2" />
+            Bulk Schedule ({selectedCandidates.length})
           </Button>
         </div>
       </div>
 
-      {/* Search and Filters */}
-      <Card>
-        <CardContent className="p-4">
-          <div className="flex flex-col md:flex-row gap-4">
-            <div className="flex-1">
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
-                <Input
-                  placeholder="Search interviews, candidates, positions..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="pl-10"
-                />
-              </div>
-            </div>
-            <div className="flex items-center space-x-2">
-              <Select value={filterStatus} onValueChange={setFilterStatus}>
-                <SelectTrigger className="w-32">
-                  <SelectValue placeholder="Status" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Status</SelectItem>
-                  <SelectItem value="scheduled">Scheduled</SelectItem>
-                  <SelectItem value="in-progress">In Progress</SelectItem>
-                  <SelectItem value="completed">Completed</SelectItem>
-                  <SelectItem value="cancelled">Cancelled</SelectItem>
-                </SelectContent>
-              </Select>
-
-              <Select value={filterType} onValueChange={setFilterType}>
-                <SelectTrigger className="w-32">
-                  <SelectValue placeholder="Type" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Types</SelectItem>
-                  <SelectItem value="video">Video</SelectItem>
-                  <SelectItem value="phone">Phone</SelectItem>
-                  <SelectItem value="in-person">In Person</SelectItem>
-                  <SelectItem value="panel">Panel</SelectItem>
-                  <SelectItem value="technical">Technical</SelectItem>
-                  <SelectItem value="behavioral">Behavioral</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
       {/* Main Tabs */}
       <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="grid w-full grid-cols-7">
+        <TabsList className="grid w-full grid-cols-2">
           <TabsTrigger value="overview">Overview</TabsTrigger>
-          <TabsTrigger value="live">Live Control</TabsTrigger>
-          <TabsTrigger value="recordings">Recordings</TabsTrigger>
-          <TabsTrigger value="legacy">Legacy Views</TabsTrigger>
-          <TabsTrigger value="integration">Integration</TabsTrigger>
-          <TabsTrigger value="ai-scheduler">AI Scheduler</TabsTrigger>
-          <TabsTrigger value="settings">Settings</TabsTrigger>
+          <TabsTrigger value="scheduled">Scheduled Interviews</TabsTrigger>
         </TabsList>
 
+        {/* Overview Tab */}
         <TabsContent value="overview" className="mt-6">
-          {renderOverviewTab()}
-        </TabsContent>
-
-        <TabsContent value="live" className="mt-6">
-          {renderLiveInterviewTab()}
-        </TabsContent>
-
-        <TabsContent value="recordings" className="mt-6">
-          {renderRecordingsTab()}
-        </TabsContent>
-
-        <TabsContent value="legacy" className="mt-6">
-          <AddedInterviews />
-        </TabsContent>
-
-        <TabsContent value="integration" className="mt-6">
-          <InterviewIntegration
-            candidates={mockInterviews.map((i) => ({
-              id: i.id,
-              name: i.candidateName,
-              position: i.position,
-              stage: i.status,
-              aiScore: i.aiInsights?.overallScore || 75,
-              aiVerdict:
-                i.aiInsights?.recommendation === "strong-hire" || i.aiInsights?.recommendation === "hire"
-                  ? "recommended"
-                  : i.aiInsights?.recommendation === "borderline"
-                    ? "maybe"
-                    : "not-recommended",
-              skills: ["React", "TypeScript", "Node.js"],
-              experience: 5,
-            }))}
-            onScheduleInterview={(candidateId) => {
-              console.log("Schedule interview for candidate:", candidateId)
-              setShowNewInterviewDialog(true)
-            }}
-          />
-        </TabsContent>
-
-        <TabsContent value="ai-scheduler" className="mt-6">
-          <AIInterviewScheduler />
-        </TabsContent>
-
-        <TabsContent value="settings" className="mt-6">
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <div className="space-y-6">
+            {/* Search and Filters for Overview */}
             <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center space-x-2">
-                  <Video className="w-5 h-5 text-blue-600" />
-                  <span>Video Platform Configuration</span>
-                </CardTitle>
-                <CardDescription>Configure video meeting platforms and their settings</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-6">
-                {videoPlatforms.map((platform) => (
-                  <div key={platform.name} className="p-4 border rounded-lg">
-                    <div className="flex items-center justify-between mb-4">
-                      <div className="flex items-center space-x-3">
-                        {getPlatformIcon(platform.name)}
-                        <div>
-                          <h4 className="font-semibold">{platform.displayName}</h4>
-                          <p className="text-sm text-gray-600">{platform.features.length} features available</p>
-                        </div>
-                      </div>
-                      <Switch
-                        checked={platform.enabled}
-                        onCheckedChange={(enabled) => {
-                          setVideoPlatforms(
-                            videoPlatforms.map((p) => (p.name === platform.name ? { ...p, enabled } : p)),
-                          )
-                        }}
+              <CardContent className="p-4">
+                <div className="flex flex-col md:flex-row gap-4">
+                  <div className="flex-1">
+                    <div className="relative">
+                      <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+                      <Input
+                        placeholder="Search by name or email..."
+                        value={overviewSearchTerm}
+                        onChange={(e) => setOverviewSearchTerm(e.target.value)}
+                        className="pl-10"
                       />
                     </div>
-
-                    {platform.enabled && (
-                      <div className="space-y-4">
-                        <div>
-                          <Label className="text-sm">API Configuration</Label>
-                          <div className="flex items-center space-x-2 mt-1">
-                            <Input
-                              type="password"
-                              placeholder="API Key"
-                              value={platform.apiKey}
-                              onChange={(e) => {
-                                setVideoPlatforms(
-                                  videoPlatforms.map((p) =>
-                                    p.name === platform.name ? { ...p, apiKey: e.target.value } : p,
-                                  ),
-                                )
-                              }}
-                            />
-                            <Badge variant={platform.apiKey ? "default" : "secondary"}>
-                              {platform.apiKey ? "Configured" : "Not Set"}
-                            </Badge>
-                          </div>
-                        </div>
-
-                        <div className="grid grid-cols-2 gap-4">
-                          <div className="flex items-center justify-between">
-                            <Label className="text-sm">Auto Record</Label>
-                            <Switch
-                              checked={platform.settings.autoRecord}
-                              onCheckedChange={(autoRecord) => {
-                                setVideoPlatforms(
-                                  videoPlatforms.map((p) =>
-                                    p.name === platform.name ? { ...p, settings: { ...p.settings, autoRecord } } : p,
-                                  ),
-                                )
-                              }}
-                            />
-                          </div>
-                          <div className="flex items-center justify-between">
-                            <Label className="text-sm">Auto Transcribe</Label>
-                            <Switch
-                              checked={platform.settings.autoTranscribe}
-                              onCheckedChange={(autoTranscribe) => {
-                                setVideoPlatforms(
-                                  videoPlatforms.map((p) =>
-                                    p.name === platform.name
-                                      ? { ...p, settings: { ...p.settings, autoTranscribe } }
-                                      : p,
-                                  ),
-                                )
-                              }}
-                            />
-                          </div>
-                          <div className="flex items-center justify-between">
-                            <Label className="text-sm">Waiting Room</Label>
-                            <Switch
-                              checked={platform.settings.waitingRoom}
-                              onCheckedChange={(waitingRoom) => {
-                                setVideoPlatforms(
-                                  videoPlatforms.map((p) =>
-                                    p.name === platform.name ? { ...p, settings: { ...p.settings, waitingRoom } } : p,
-                                  ),
-                                )
-                              }}
-                            />
-                          </div>
-                          <div className="flex items-center justify-between">
-                            <Label className="text-sm">Mute on Entry</Label>
-                            <Switch
-                              checked={platform.settings.muteOnEntry}
-                              onCheckedChange={(muteOnEntry) => {
-                                setVideoPlatforms(
-                                  videoPlatforms.map((p) =>
-                                    p.name === platform.name ? { ...p, settings: { ...p.settings, muteOnEntry } } : p,
-                                  ),
-                                )
-                              }}
-                            />
-                          </div>
-                        </div>
-
-                        <div>
-                          <Label className="text-sm mb-2 block">Available Features</Label>
-                          <div className="flex flex-wrap gap-1">
-                            {platform.features.map((feature) => (
-                              <Badge key={feature} variant="outline" className="text-xs">
-                                {feature}
-                              </Badge>
-                            ))}
-                          </div>
-                        </div>
-                      </div>
-                    )}
                   </div>
-                ))}
+                  <div className="flex items-center space-x-2">
+                    <Select value={overviewFilterStage} onValueChange={setOverviewFilterStage}>
+                      <SelectTrigger className="w-40">
+                        <SelectValue placeholder="Filter by stage" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">All Stages</SelectItem>
+                        <SelectItem value="First Interview">First Interview</SelectItem>
+                        <SelectItem value="Second Interview">Second Interview</SelectItem>
+                        <SelectItem value="Final Interview">Final Interview</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <Button
+                      onClick={handleSelectAll}
+                      variant="outline"
+                      size="sm"
+                      className="flex items-center space-x-1"
+                    >
+                      <CheckCircle className="w-4 h-4" />
+                      <span>
+                        {selectedCandidates.length === filteredOverviewCandidates.length && filteredOverviewCandidates.length > 0
+                          ? "Deselect All"
+                          : "Select All"}
+                      </span>
+                    </Button>
+                  </div>
+                </div>
               </CardContent>
             </Card>
 
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center space-x-2">
-                  <Settings className="w-5 h-5 text-gray-600" />
-                  <span>General Settings</span>
-                </CardTitle>
-                <CardDescription>Configure general interview management settings</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-6">
-                <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
-                  <div>
-                    <Label className="font-medium">Email Notifications</Label>
-                    <p className="text-sm text-gray-600 mt-1">Send email reminders for upcoming interviews</p>
-                  </div>
-                  <Switch defaultChecked />
-                </div>
-
-                <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
-                  <div>
-                    <Label className="font-medium">Calendar Integration</Label>
-                    <p className="text-sm text-gray-600 mt-1">Sync interviews with external calendars</p>
-                  </div>
-                  <Switch defaultChecked />
-                </div>
-
-                <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
-                  <div>
-                    <Label className="font-medium">AI Analysis</Label>
-                    <p className="text-sm text-gray-600 mt-1">Enable AI-powered interview analysis</p>
-                  </div>
-                  <Switch defaultChecked />
-                </div>
-
-                <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
-                  <div>
-                    <Label className="font-medium">Auto-Archive Recordings</Label>
-                    <p className="text-sm text-gray-600 mt-1">Automatically archive recordings after 90 days</p>
-                  </div>
-                  <Switch />
-                </div>
-
-                <div className="space-y-2">
-                  <Label>Default Interview Duration</Label>
-                  <Select defaultValue="60">
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="30">30 minutes</SelectItem>
-                      <SelectItem value="45">45 minutes</SelectItem>
-                      <SelectItem value="60">60 minutes</SelectItem>
-                      <SelectItem value="90">90 minutes</SelectItem>
-                      <SelectItem value="120">120 minutes</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <div className="space-y-2">
-                  <Label>Preferred Video Platform</Label>
-                  <Select defaultValue="zoom">
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="zoom">Zoom</SelectItem>
-                      <SelectItem value="teams">Microsoft Teams</SelectItem>
-                      <SelectItem value="webex">Cisco Webex</SelectItem>
-                      <SelectItem value="meet">Google Meet</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-        </TabsContent>
-      </Tabs>
-
-      {/* Video Settings Dialog */}
-      <Dialog open={showVideoSettingsDialog} onOpenChange={setShowVideoSettingsDialog}>
-        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>Video Platform Settings</DialogTitle>
-            <DialogDescription>Configure your video meeting platforms and their settings</DialogDescription>
-          </DialogHeader>
-
-          <div className="space-y-6">
-            {videoPlatforms.map((platform) => (
-              <Card key={platform.name}>
-                <CardHeader>
-                  <CardTitle className="flex items-center justify-between">
-                    <div className="flex items-center space-x-2">
-                      {getPlatformIcon(platform.name)}
-                      <span>{platform.displayName}</span>
-                    </div>
-                    <Switch
-                      checked={platform.enabled}
-                      onCheckedChange={(enabled) => {
-                        setVideoPlatforms(videoPlatforms.map((p) => (p.name === platform.name ? { ...p, enabled } : p)))
-                      }}
-                    />
-                  </CardTitle>
-                </CardHeader>
-                {platform.enabled && (
-                  <CardContent className="space-y-4">
-                    <div className="grid grid-cols-2 gap-4">
+            {/* Statistics Cards */}
+            {selectedData && (
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                <Card>
+                  <CardContent className="p-6">
+                    <div className="flex items-center justify-between">
                       <div>
-                        <Label>API Key</Label>
-                        <Input
-                          type="password"
-                          placeholder="Enter API key"
-                          value={platform.apiKey}
-                          onChange={(e) => {
-                            setVideoPlatforms(
-                              videoPlatforms.map((p) =>
-                                p.name === platform.name ? { ...p, apiKey: e.target.value } : p,
-                              ),
-                            )
-                          }}
-                        />
+                        <p className="text-sm font-medium text-gray-600">Total Candidates</p>
+                        <p className="text-2xl font-bold text-gray-900">{selectedData.totalCandidates}</p>
                       </div>
+                      <Users className="w-8 h-8 text-blue-600" />
+                    </div>
+                  </CardContent>
+                </Card>
+
+                <Card>
+                  <CardContent className="p-6">
+                    <div className="flex items-center justify-between">
                       <div>
-                        <Label>Status</Label>
-                        <div className="flex items-center space-x-2 mt-2">
-                          <Badge variant={platform.apiKey ? "default" : "secondary"}>
-                            {platform.apiKey ? "Configured" : "Not Configured"}
-                          </Badge>
-                          {platform.apiKey && (
-                            <Button variant="outline" size="sm">
-                              <RefreshCw className="w-3 h-3 mr-1" />
-                              Test
-                            </Button>
-                          )}
-                        </div>
+                        <p className="text-sm font-medium text-gray-600">First Interview</p>
+                        <p className="text-2xl font-bold text-purple-600">{selectedData.stageCounts["First Interview"]}</p>
+                      </div>
+                      <CalendarIcon className="w-8 h-8 text-purple-600" />
+                    </div>
+                  </CardContent>
+                </Card>
+
+                <Card>
+                  <CardContent className="p-6">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-sm font-medium text-gray-600">Second Interview</p>
+                        <p className="text-2xl font-bold text-green-600">{selectedData.stageCounts["Second Interview"]}</p>
+                      </div>
+                      <Clock className="w-8 h-8 text-green-600" />
+                    </div>
+                  </CardContent>
+                </Card>
+
+                <Card>
+                  <CardContent className="p-6">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-sm font-medium text-gray-600">Final Interview</p>
+                        <p className="text-2xl font-bold text-orange-600">{selectedData.stageCounts["Final Interview"]}</p>
+                      </div>
+                      <Star className="w-8 h-8 text-orange-600" />
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
+            )}
+
+            {/* Candidates Grid */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {filteredOverviewCandidates.map((candidate) => (
+                <Card key={candidate.id} className="hover:shadow-xl transition-all duration-300 hover:scale-105 bg-gradient-to-br from-white to-gray-50 border-gray-200">
+                  <CardHeader className="pb-4">
+                    <div className="flex items-center space-x-3">
+                      <Avatar className="w-12 h-12">
+                        <AvatarFallback className="bg-gradient-to-r from-blue-500 to-purple-600 text-white font-semibold">
+                          {candidate.name.split(" ").map((n) => n[0]).join("")}
+                        </AvatarFallback>
+                      </Avatar>
+                      <div className="flex-1">
+                        <h3 className="font-semibold text-lg text-gray-900">{candidate.name}</h3>
+                        <Badge className={`mt-1 ${
+                          candidate.interviewStage === "First Interview" ? "bg-blue-100 text-blue-800" :
+                          candidate.interviewStage === "Second Interview" ? "bg-green-100 text-green-800" :
+                          "bg-orange-100 text-orange-800"
+                        }`}>
+                          {candidate.interviewStage}
+                        </Badge>
+                      </div>
+                    </div>
+                  </CardHeader>
+                  <CardContent className="space-y-5">
+                    {/* Contact Info */}
+                    <div className="space-y-2">
+                      <div className="flex items-center space-x-2 text-sm text-gray-600">
+                        <MailIcon className="w-4 h-4" />
+                        <span>{candidate.email}</span>
+                      </div>
+                      <div className="flex items-center space-x-2 text-sm text-gray-600">
+                        <PhoneIcon className="w-4 h-4" />
+                        <span>{candidate.phone}</span>
                       </div>
                     </div>
 
-                    <div className="grid grid-cols-2 gap-4">
-                      <div className="flex items-center justify-between">
-                        <Label>Auto Record</Label>
-                        <Switch
-                          checked={platform.settings.autoRecord}
-                          onCheckedChange={(autoRecord) => {
-                            setVideoPlatforms(
-                              videoPlatforms.map((p) =>
-                                p.name === platform.name ? { ...p, settings: { ...p.settings, autoRecord } } : p,
-                              ),
-                            )
-                          }}
-                        />
+                    {/* Job Info */}
+                    <div className="space-y-2">
+                      <div className="flex items-center space-x-2 text-sm">
+                        <Briefcase className="w-4 h-4 text-gray-500" />
+                        <span className="font-medium">{candidate.job.title}</span>
                       </div>
-                      <div className="flex items-center justify-between">
-                        <Label>Auto Transcribe</Label>
-                        <Switch
-                          checked={platform.settings.autoTranscribe}
-                          onCheckedChange={(autoTranscribe) => {
-                            setVideoPlatforms(
-                              videoPlatforms.map((p) =>
-                                p.name === platform.name ? { ...p, settings: { ...p.settings, autoTranscribe } } : p,
-                              ),
-                            )
-                          }}
-                        />
+                      <div className="flex items-center space-x-2 text-sm text-gray-600">
+                        <Building className="w-4 h-4" />
+                        <span>{candidate.job.company}</span>
                       </div>
-                      <div className="flex items-center justify-between">
-                        <Label>Waiting Room</Label>
-                        <Switch
-                          checked={platform.settings.waitingRoom}
-                          onCheckedChange={(waitingRoom) => {
-                            setVideoPlatforms(
-                              videoPlatforms.map((p) =>
-                                p.name === platform.name ? { ...p, settings: { ...p.settings, waitingRoom } } : p,
-                              ),
-                            )
-                          }}
-                        />
-                      </div>
-                      <div className="flex items-center justify-between">
-                        <Label>Mute on Entry</Label>
-                        <Switch
-                          checked={platform.settings.muteOnEntry}
-                          onCheckedChange={(muteOnEntry) => {
-                            setVideoPlatforms(
-                              videoPlatforms.map((p) =>
-                                p.name === platform.name ? { ...p, settings: { ...p.settings, muteOnEntry } } : p,
-                              ),
-                            )
-                          }}
-                        />
+                      <div className="flex items-center space-x-2 text-sm text-gray-600">
+                        <MapPinIcon className="w-4 h-4" />
+                        <span>{candidate.job.location}</span>
                       </div>
                     </div>
 
-                    <div>
-                      <Label className="mb-2 block">Available Features</Label>
+                    {/* Skills */}
+                    <div className="space-y-2">
+                      <div className="flex items-center space-x-2 text-sm">
+                        <GraduationCap className="w-4 h-4 text-gray-500" />
+                        <span className="font-medium">Skills</span>
+                      </div>
                       <div className="flex flex-wrap gap-1">
-                        {platform.features.map((feature) => (
-                          <Badge key={feature} variant="outline" className="text-xs">
-                            {feature}
+                        {candidate.skills.split(" ").map((skill, index) => (
+                          <Badge key={index} variant="outline" className="text-xs">
+                            {skill}
                           </Badge>
                         ))}
                       </div>
                     </div>
+
+                    {/* Experience & Salary */}
+                    <div className="flex items-center justify-between text-sm">
+                      <div className="flex items-center space-x-2">
+                        <Clock className="w-4 h-4 text-gray-500" />
+                        <span>{candidate.experience}</span>
+                      </div>
+                      <div className="flex items-center space-x-2">
+                        <DollarSign className="w-4 h-4 text-gray-500" />
+                        <span>₹{candidate.expectedSalary.toLocaleString()}</span>
+                      </div>
+                    </div>
+
+                    {/* Action Buttons */}
+                    <div className="flex items-center justify-between pt-4 border-t">
+                      <div className="flex items-center space-x-2">
+                        <Checkbox
+                          checked={selectedCandidates.includes(candidate.id)}
+                          onCheckedChange={(checked) => 
+                            handleCandidateSelection(candidate.id, checked as boolean)
+                          }
+                        />
+                        <span className="text-xs text-gray-600">Select for bulk</span>
+                      </div>
+                      <Button
+                        onClick={() => handleSingleScheduleClick(candidate)}
+                        size="sm"
+                        className="bg-green-600 hover:bg-green-700 text-white"
+                      >
+                        <CalendarDays className="w-4 h-4 mr-1" />
+                        Schedule
+                      </Button>
+                    </div>
                   </CardContent>
-                )}
+                </Card>
+              ))}
+            </div>
+
+            {filteredOverviewCandidates.length === 0 && (
+              <Card className="bg-gradient-to-r from-gray-50 to-gray-100 border-gray-200">
+                <CardContent className="flex flex-col items-center justify-center py-16">
+                  <div className="p-4 bg-blue-100 rounded-full mb-4">
+                    <Users className="w-12 h-12 text-blue-600" />
+                  </div>
+                  <h3 className="text-xl font-semibold text-gray-900 mb-2">No candidates found</h3>
+                  <p className="text-gray-600 text-center max-w-md">
+                    No candidates match your current search and filter criteria.
+                  </p>
+                </CardContent>
               </Card>
-            ))}
+            )}
           </div>
+        </TabsContent>
 
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setShowVideoSettingsDialog(false)}>
-              Cancel
-            </Button>
-            <Button onClick={() => setShowVideoSettingsDialog(false)}>Save Settings</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* New Interview Dialog */}
-      <Dialog open={showNewInterviewDialog} onOpenChange={setShowNewInterviewDialog}>
-        <DialogContent className="max-w-2xl">
-          <DialogHeader>
-            <DialogTitle>Schedule New Video Interview</DialogTitle>
-            <DialogDescription>Create a new video interview with integrated platform support</DialogDescription>
-          </DialogHeader>
-
-          <div className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <Label htmlFor="candidate-name">Candidate Name</Label>
-                <Input id="candidate-name" placeholder="Enter candidate name" />
-              </div>
-              <div>
-                <Label htmlFor="position">Position</Label>
-                <Input id="position" placeholder="Enter position" />
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <Label htmlFor="interview-date">Date</Label>
-                <Popover>
-                  <PopoverTrigger asChild>
-                    <Button variant="outline" className="w-full justify-start text-left font-normal bg-transparent">
-                      <CalendarIcon className="mr-2 h-4 w-4" />
-                      {selectedDate ? format(selectedDate, "PPP") : "Pick a date"}
-                    </Button>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-auto p-0">
-                    <Calendar
-                      mode="single"
-                      selected={selectedDate}
-                      onSelect={(date) => date && setSelectedDate(date)}
-                      initialFocus
-                    />
-                  </PopoverContent>
-                </Popover>
-              </div>
-              <div>
-                <Label htmlFor="interview-time">Time</Label>
-                <Input id="interview-time" type="time" />
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <Label htmlFor="interview-type">Interview Type</Label>
-                <Select>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select type" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="video">Video Call</SelectItem>
-                    <SelectItem value="phone">Phone Call</SelectItem>
-                    <SelectItem value="in-person">In Person</SelectItem>
-                    <SelectItem value="panel">Panel Interview</SelectItem>
-                    <SelectItem value="technical">Technical Interview</SelectItem>
-                    <SelectItem value="behavioral">Behavioral Interview</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div>
-                <Label htmlFor="duration">Duration (minutes)</Label>
-                <Select>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select duration" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="30">30 minutes</SelectItem>
-                    <SelectItem value="45">45 minutes</SelectItem>
-                    <SelectItem value="60">60 minutes</SelectItem>
-                    <SelectItem value="90">90 minutes</SelectItem>
-                    <SelectItem value="120">120 minutes</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-
-            <div>
-              <Label htmlFor="video-platform">Video Platform</Label>
-              <Select>
-                <SelectTrigger>
-                  <SelectValue placeholder="Select platform" />
-                </SelectTrigger>
-                <SelectContent>
-                  {videoPlatforms
-                    .filter((p) => p.enabled)
-                    .map((platform) => (
-                      <SelectItem key={platform.name} value={platform.name}>
-                        <div className="flex items-center space-x-2">
-                          {getPlatformIcon(platform.name)}
-                          <span>{platform.displayName}</span>
-                        </div>
-                      </SelectItem>
-                    ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
-              <div className="flex items-center space-x-2">
-                <Switch id="auto-record" />
-                <Label htmlFor="auto-record">Auto Record</Label>
-              </div>
-              <div className="flex items-center space-x-2">
-                <Switch id="auto-transcribe" />
-                <Label htmlFor="auto-transcribe">Auto Transcribe</Label>
-              </div>
-            </div>
-
-            <div>
-              <Label htmlFor="notes">Notes</Label>
-              <Textarea id="notes" placeholder="Add any additional notes..." />
-            </div>
-          </div>
-
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setShowNewInterviewDialog(false)}>
-              Cancel
-            </Button>
-            <Button onClick={() => setShowNewInterviewDialog(false)}>
-              <Video className="w-4 h-4 mr-2" />
-              Schedule Video Interview
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* Live Interview Dialog */}
-      <Dialog open={showLiveInterviewDialog} onOpenChange={setShowLiveInterviewDialog}>
-        <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle>Live Interview Controls</DialogTitle>
-            <DialogDescription>Control your active interview session</DialogDescription>
-          </DialogHeader>
-
-          <div className="space-y-4">
-            {currentMeeting && (
-              <div className="p-4 bg-blue-50 rounded-lg">
-                <div className="flex items-center space-x-2 mb-2">
-                  {getPlatformIcon(currentMeeting.platform)}
-                  <span className="font-medium">{currentMeeting.platform.toUpperCase()}</span>
-                  <Badge className="bg-green-100 text-green-800">Live</Badge>
+        {/* Scheduled Interviews Tab */}
+        <TabsContent value="scheduled" className="mt-6">
+          <div className="space-y-6">
+            {/* Search and Filters for Scheduled */}
+            <Card>
+              <CardContent className="p-4">
+                <div className="flex flex-col md:flex-row gap-4">
+                  <div className="flex-1">
+                    <div className="relative">
+                      <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+                      <Input
+                        placeholder="Search by name or email..."
+                        value={scheduledSearchTerm}
+                        onChange={(e) => setScheduledSearchTerm(e.target.value)}
+                        className="pl-10"
+                      />
+                    </div>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <Select value={scheduledFilterType} onValueChange={setScheduledFilterType}>
+                      <SelectTrigger className="w-32">
+                        <SelectValue placeholder="Type" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">All Types</SelectItem>
+                        <SelectItem value="HR">HR</SelectItem>
+                        <SelectItem value="Technical">Technical</SelectItem>
+                        <SelectItem value="Behavioral">Behavioral</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <Select value={scheduledFilterMode} onValueChange={setScheduledFilterMode}>
+                      <SelectTrigger className="w-32">
+                        <SelectValue placeholder="Mode" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">All Modes</SelectItem>
+                        <SelectItem value="Phone">Phone</SelectItem>
+                        <SelectItem value="Video">Video</SelectItem>
+                        <SelectItem value="In-Person">In-Person</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
                 </div>
-                <p className="text-sm text-gray-600">Meeting ID: {currentMeeting.meetingId}</p>
-                {currentMeeting.password && (
-                  <p className="text-sm text-gray-600">Password: {currentMeeting.password}</p>
-                )}
+              </CardContent>
+            </Card>
+
+            {/* Statistics Cards */}
+            {scheduledData && (
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                <Card>
+                  <CardContent className="p-6">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-sm font-medium text-gray-600">Total Scheduled</p>
+                        <p className="text-2xl font-bold text-gray-900">{scheduledData.data.totalScheduled}</p>
+                      </div>
+                      <Calendar className="w-8 h-8 text-blue-600" />
+                    </div>
+                  </CardContent>
+                </Card>
+
+                <Card>
+                  <CardContent className="p-6">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-sm font-medium text-gray-600">Upcoming</p>
+                        <p className="text-2xl font-bold text-green-600">{scheduledData.data.upcomingInterviews}</p>
+                      </div>
+                      <Clock className="w-8 h-8 text-green-600" />
+                    </div>
+                  </CardContent>
+                </Card>
+
+                <Card>
+                  <CardContent className="p-6">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-sm font-medium text-gray-600">Completed</p>
+                        <p className="text-2xl font-bold text-purple-600">{scheduledData.data.completedInterviews}</p>
+                      </div>
+                      <Star className="w-8 h-8 text-purple-600" />
+                    </div>
+                  </CardContent>
+                </Card>
+
+                <Card>
+                  <CardContent className="p-6">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-sm font-medium text-gray-600">Candidates</p>
+                        <p className="text-2xl font-bold text-orange-600">{scheduledData.data.candidates.length}</p>
+                      </div>
+                      <Users className="w-8 h-8 text-orange-600" />
+                    </div>
+                  </CardContent>
+                </Card>
               </div>
             )}
 
-            <div className="grid grid-cols-2 gap-3">
-              <Button
-                variant={isMuted ? "destructive" : "outline"}
-                onClick={toggleMute}
-                className="h-16 flex flex-col items-center justify-center space-y-1"
-              >
-                {isMuted ? <MicOff className="w-5 h-5" /> : <Mic className="w-5 h-5" />}
-                <span className="text-xs">{isMuted ? "Unmute" : "Mute"}</span>
-              </Button>
+            {/* Scheduled Candidates Grid */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {filteredScheduledCandidates.map((candidate) => (
+                <Card key={candidate.interviewId} className="hover:shadow-xl transition-all duration-300 hover:scale-105 bg-gradient-to-br from-white to-gray-50 border-gray-200">
+                  <CardHeader className="pb-4">
+                    <div className="flex items-center space-x-3">
+                      <Avatar className="w-12 h-12">
+                        <AvatarFallback className="bg-gradient-to-r from-blue-500 to-purple-600 text-white font-semibold">
+                          {candidate.candidateName.split(" ").map((n) => n[0]).join("")}
+                        </AvatarFallback>
+                      </Avatar>
+                      <div className="flex-1">
+                        <h3 className="font-semibold text-lg text-gray-900">{candidate.candidateName}</h3>
+                        <Badge className={`mt-1 ${getStatusColor(candidate.interviewStatus)}`}>
+                          {candidate.interviewStatus}
+                        </Badge>
+                      </div>
+                    </div>
+                  </CardHeader>
+                  <CardContent className="space-y-5">
+                    {/* Interview Details */}
+                    <div className="space-y-3">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center space-x-2">
+                          {getInterviewTypeIcon(candidate.interviewType)}
+                          <span className="text-sm font-medium">{candidate.interviewType}</span>
+                        </div>
+                        <div className="flex items-center space-x-2">
+                          {getInterviewModeIcon(candidate.interviewMode)}
+                          <span className="text-sm">{candidate.interviewMode}</span>
+                        </div>
+                      </div>
+                      
+                      <div className="flex items-center space-x-2 text-sm text-gray-600">
+                        <CalendarIcon className="w-4 h-4" />
+                        <span>{format(parseISO(candidate.interviewDate), "MMM dd, yyyy")}</span>
+                      </div>
+                      
+                      <div className="flex items-center space-x-2 text-sm text-gray-600">
+                        <Clock className="w-4 h-4" />
+                        <span>{candidate.interviewTime}</span>
+                      </div>
+                    </div>
 
-              <Button
-                variant={!isCameraOn ? "destructive" : "outline"}
-                onClick={toggleCamera}
-                className="h-16 flex flex-col items-center justify-center space-y-1"
-              >
-                {isCameraOn ? <Camera className="w-5 h-5" /> : <CameraOff className="w-5 h-5" />}
-                <span className="text-xs">{isCameraOn ? "Stop Video" : "Start Video"}</span>
-              </Button>
+                    {/* Contact Info */}
+                    <div className="space-y-2">
+                      <div className="flex items-center space-x-2 text-sm text-gray-600">
+                        <MailIcon className="w-4 h-4" />
+                        <span>{candidate.email}</span>
+                      </div>
+                      <div className="flex items-center space-x-2 text-sm text-gray-600">
+                        <PhoneIcon className="w-4 h-4" />
+                        <span>{candidate.phone}</span>
+                      </div>
+                      <div className="flex items-center space-x-2 text-sm text-gray-600">
+                        <MapPinIcon className="w-4 h-4" />
+                        <span>{candidate.currentLocation}</span>
+                      </div>
+                    </div>
 
-              <Button
-                variant={isScreenSharing ? "default" : "outline"}
-                onClick={toggleScreenShare}
-                className="h-16 flex flex-col items-center justify-center space-y-1"
-              >
-                <Monitor className="w-5 h-5" />
-                <span className="text-xs">{isScreenSharing ? "Stop Share" : "Share Screen"}</span>
-              </Button>
+                    {/* Job Info */}
+                    <div className="space-y-2">
+                      <div className="flex items-center space-x-2 text-sm">
+                        <Briefcase className="w-4 h-4 text-gray-500" />
+                        <span className="font-medium">{candidate.job.title}</span>
+                      </div>
+                      <div className="flex items-center space-x-2 text-sm text-gray-600">
+                        <Building className="w-4 h-4" />
+                        <span>{candidate.job.company}</span>
+                      </div>
+                    </div>
 
-              <Button
-                variant={isRecording ? "destructive" : "outline"}
-                onClick={isRecording ? stopRecording : startRecording}
-                className="h-16 flex flex-col items-center justify-center space-y-1"
-              >
-                {isRecording ? <Square className="w-5 h-5" /> : <Play className="w-5 h-5" />}
-                <span className="text-xs">{isRecording ? "Stop Recording" : "Start Recording"}</span>
-              </Button>
+                    {/* Interview Details */}
+                    <div className="space-y-2">
+                      <div className="flex items-center space-x-2 text-sm">
+                        <User className="w-4 h-4 text-gray-500" />
+                        <span className="font-medium">Interviewer: {candidate.interviewer}</span>
+                      </div>
+                      {candidate.meetingLink && (
+                        <div className="flex items-center space-x-2 text-sm">
+                          <Video className="w-4 h-4 text-gray-500" />
+                          <span className="font-medium">Platform: {candidate.platform}</span>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Skills & Experience */}
+                    <div className="space-y-2">
+                      <div className="flex items-center space-x-2 text-sm">
+                        <GraduationCap className="w-4 h-4 text-gray-500" />
+                        <span className="font-medium">Skills</span>
+                      </div>
+                      <div className="flex flex-wrap gap-1">
+                        {candidate.keySkills.split(" ").map((skill, index) => (
+                          <Badge key={index} variant="outline" className="text-xs">
+                            {skill}
+                          </Badge>
+                        ))}
+                      </div>
+                      <div className="flex items-center justify-between text-sm">
+                        <span className="text-gray-600">{candidate.yearsOfExperience}</span>
+                        <span className="font-medium">₹{candidate.salaryExpectation.toLocaleString()}</span>
+                      </div>
+                    </div>
+
+                    {/* Meeting Link */}
+                    {candidate.meetingLink && (
+                      <div className="pt-2 border-t">
+                        <a
+                          href={candidate.meetingLink}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="flex items-center space-x-2 text-sm text-blue-600 hover:text-blue-800 transition-colors"
+                        >
+                          <ExternalLinkIcon className="w-4 h-4" />
+                          <span>Join Meeting</span>
+                        </a>
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              ))}
             </div>
 
-            {isRecording && (
-              <div className="flex items-center justify-center space-x-2 p-3 bg-red-50 rounded-lg">
-                <div className="w-3 h-3 bg-red-600 rounded-full animate-pulse" />
-                <span className="text-sm font-medium text-red-700">
-                  Recording: {formatRecordingTime(recordingTime)}
-                </span>
-              </div>
+            {filteredScheduledCandidates.length === 0 && (
+              <Card className="bg-gradient-to-r from-gray-50 to-gray-100 border-gray-200">
+                <CardContent className="flex flex-col items-center justify-center py-16">
+                  <div className="p-4 bg-blue-100 rounded-full mb-4">
+                    <Calendar className="w-12 h-12 text-blue-600" />
+                  </div>
+                  <h3 className="text-xl font-semibold text-gray-900 mb-2">No scheduled interviews found</h3>
+                  <p className="text-gray-600 text-center max-w-md">
+                    No scheduled interviews match your current search and filter criteria.
+                  </p>
+                </CardContent>
+              </Card>
             )}
           </div>
+        </TabsContent>
+      </Tabs>
 
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setShowLiveInterviewDialog(false)}>
-              Minimize
-            </Button>
-            <Button variant="destructive">
-              <PhoneCall className="w-4 h-4 mr-2" />
-              End Interview
-            </Button>
+      {/* Single Interview Schedule Dialog */}
+      <Dialog open={singleScheduleOpen} onOpenChange={setSingleScheduleOpen}>
+        <DialogContent className="max-w-5xl w-[95vw] h-[85vh] overflow-hidden">
+          <DialogHeader className="border-b pb-6">
+            <div className="flex items-center space-x-3">
+              <div className="p-2 bg-blue-100 rounded-lg">
+                <CalendarDays className="w-6 h-6 text-blue-600" />
+              </div>
+              <div>
+                <DialogTitle className="text-2xl font-bold text-gray-900">Schedule Interview</DialogTitle>
+                <DialogDescription className="text-gray-600 mt-1">
+                  Schedule an interview for <span className="font-semibold text-blue-600">{selectedCandidate?.name}</span>
+                </DialogDescription>
+              </div>
+            </div>
+          </DialogHeader>
+          
+          <div className="flex-1 overflow-y-auto p-6">
+            <div className="space-y-8">
+              {/* Candidate Information Section */}
+              <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl p-6 border border-blue-100">
+                <div className="flex items-center space-x-3 mb-4">
+                  <User className="w-5 h-5 text-blue-600" />
+                  <h3 className="text-lg font-semibold text-gray-900">Candidate Information</h3>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="candidateId" className="text-sm font-medium text-gray-700">Candidate ID</Label>
+                    <Input
+                      id="candidateId"
+                      value={singleInterviewForm.candidateId}
+                      onChange={(e) => setSingleInterviewForm({
+                        ...singleInterviewForm,
+                        candidateId: e.target.value
+                      })}
+                      disabled
+                      className="bg-gray-50 border-gray-200"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="candidateName" className="text-sm font-medium text-gray-700">Candidate Name</Label>
+                    <Input
+                      id="candidateName"
+                      value={singleInterviewForm.candidateName}
+                      onChange={(e) => setSingleInterviewForm({
+                        ...singleInterviewForm,
+                        candidateName: e.target.value
+                      })}
+                      className="border-gray-300 focus:border-blue-500 focus:ring-blue-500"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Interview Details Section */}
+              <div className="bg-gradient-to-r from-green-50 to-emerald-50 rounded-xl p-6 border border-green-100">
+                <div className="flex items-center space-x-3 mb-4">
+                  <Calendar className="w-5 h-5 text-green-600" />
+                  <h3 className="text-lg font-semibold text-gray-900">Interview Details</h3>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="interviewDate" className="text-sm font-medium text-gray-700">Interview Date</Label>
+                    <Input
+                      id="interviewDate"
+                      type="date"
+                      value={singleInterviewForm.interviewDate}
+                      onChange={(e) => setSingleInterviewForm({
+                        ...singleInterviewForm,
+                        interviewDate: e.target.value
+                      })}
+                      className="border-gray-300 focus:border-green-500 focus:ring-green-500"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="interviewTime" className="text-sm font-medium text-gray-700">Interview Time</Label>
+                    <Input
+                      id="interviewTime"
+                      type="time"
+                      value={singleInterviewForm.interviewTime}
+                      onChange={(e) => setSingleInterviewForm({
+                        ...singleInterviewForm,
+                        interviewTime: e.target.value
+                      })}
+                      className="border-gray-300 focus:border-green-500 focus:ring-green-500"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Interview Configuration Section */}
+              <div className="bg-gradient-to-r from-purple-50 to-violet-50 rounded-xl p-6 border border-purple-100">
+                <div className="flex items-center space-x-3 mb-4">
+                  <Settings className="w-5 h-5 text-purple-600" />
+                  <h3 className="text-lg font-semibold text-gray-900">Interview Configuration</h3>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="interviewType" className="text-sm font-medium text-gray-700">Interview Type</Label>
+                    <Select
+                      value={singleInterviewForm.interviewType}
+                      onValueChange={(value) => setSingleInterviewForm({
+                        ...singleInterviewForm,
+                        interviewType: value
+                      })}
+                    >
+                      <SelectTrigger className="border-gray-300 focus:border-purple-500 focus:ring-purple-500">
+                        <SelectValue placeholder="Select interview type" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="Technical">Technical</SelectItem>
+                        <SelectItem value="HR">HR</SelectItem>
+                        <SelectItem value="Behavioral">Behavioral</SelectItem>
+                        <SelectItem value="Panel">Panel</SelectItem>
+                        <SelectItem value="Final">Final</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="interviewMode" className="text-sm font-medium text-gray-700">Interview Mode</Label>
+                    <Select
+                      value={singleInterviewForm.interviewMode}
+                      onValueChange={(value) => setSingleInterviewForm({
+                        ...singleInterviewForm,
+                        interviewMode: value
+                      })}
+                    >
+                      <SelectTrigger className="border-gray-300 focus:border-purple-500 focus:ring-purple-500">
+                        <SelectValue placeholder="Select interview mode" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="Online">Online</SelectItem>
+                        <SelectItem value="Onsite">Onsite</SelectItem>
+                        <SelectItem value="Phone">Phone</SelectItem>
+                        <SelectItem value="Hybrid">Hybrid</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+              </div>
+
+              {/* Meeting Information Section */}
+              <div className="bg-gradient-to-r from-orange-50 to-amber-50 rounded-xl p-6 border border-orange-100">
+                <div className="flex items-center space-x-3 mb-4">
+                  <Video className="w-5 h-5 text-orange-600" />
+                  <h3 className="text-lg font-semibold text-gray-900">Meeting Information</h3>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="platform" className="text-sm font-medium text-gray-700">Platform</Label>
+                    <Input
+                      id="platform"
+                      value={singleInterviewForm.platform}
+                      onChange={(e) => setSingleInterviewForm({
+                        ...singleInterviewForm,
+                        platform: e.target.value
+                      })}
+                      placeholder="Zoom, Google Meet, etc."
+                      className="border-gray-300 focus:border-orange-500 focus:ring-orange-500"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="meetingLink" className="text-sm font-medium text-gray-700">Meeting Link</Label>
+                    <Input
+                      id="meetingLink"
+                      value={singleInterviewForm.meetingLink}
+                      onChange={(e) => setSingleInterviewForm({
+                        ...singleInterviewForm,
+                        meetingLink: e.target.value
+                      })}
+                      placeholder="https://..."
+                      className="border-gray-300 focus:border-orange-500 focus:ring-orange-500"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="interviewer" className="text-sm font-medium text-gray-700">Interviewer</Label>
+                    <Input
+                      id="interviewer"
+                      value={singleInterviewForm.interviewer}
+                      onChange={(e) => setSingleInterviewForm({
+                        ...singleInterviewForm,
+                        interviewer: e.target.value
+                      })}
+                      placeholder="Interviewer name"
+                      className="border-gray-300 focus:border-orange-500 focus:ring-orange-500"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Additional Notes Section */}
+              <div className="bg-gradient-to-r from-gray-50 to-slate-50 rounded-xl p-6 border border-gray-200">
+                <div className="flex items-center space-x-3 mb-4">
+                  <FileText className="w-5 h-5 text-gray-600" />
+                  <h3 className="text-lg font-semibold text-gray-900">Additional Notes</h3>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="notes" className="text-sm font-medium text-gray-700">Notes</Label>
+                  <Textarea
+                    id="notes"
+                    value={singleInterviewForm.notes}
+                    onChange={(e) => setSingleInterviewForm({
+                      ...singleInterviewForm,
+                      notes: e.target.value
+                    })}
+                    placeholder="Add any additional notes or instructions for the interview..."
+                    rows={4}
+                    className="border-gray-300 focus:border-gray-500 focus:ring-gray-500 resize-none"
+                  />
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <DialogFooter className="border-t pt-6 bg-white">
+            <div className="flex items-center justify-between w-full">
+              <div className="flex items-center space-x-2 text-sm text-gray-600">
+                <AlertCircle className="w-4 h-4" />
+                <span>All fields marked with * are required</span>
+              </div>
+              <div className="flex items-center space-x-3">
+                <Button
+                  variant="outline"
+                  onClick={() => setSingleScheduleOpen(false)}
+                  className="border-gray-300 text-gray-700 hover:bg-gray-50"
+                >
+                  Cancel
+                </Button>
+                <Button
+                  onClick={handleSingleSchedule}
+                  disabled={schedulingLoading || !singleInterviewForm.candidateId || !singleInterviewForm.interviewDate || !singleInterviewForm.interviewTime || !singleInterviewForm.interviewType || !singleInterviewForm.interviewMode}
+                  className="bg-blue-600 hover:bg-blue-700 text-white px-6"
+                >
+                  {schedulingLoading ? (
+                    <>
+                      <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
+                      Scheduling...
+                    </>
+                  ) : (
+                    <>
+                      <CalendarDays className="w-4 h-4 mr-2" />
+                      Schedule Interview
+                    </>
+                  )}
+                </Button>
+              </div>
+            </div>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Bulk Interview Schedule Dialog */}
+      <Dialog open={bulkScheduleOpen} onOpenChange={setBulkScheduleOpen}>
+        <DialogContent className="max-w-5xl w-[95vw] h-[85vh] overflow-hidden">
+          <DialogHeader className="border-b pb-6">
+            <div className="flex items-center space-x-3">
+              <div className="p-2 bg-purple-100 rounded-lg">
+                <Users className="w-6 h-6 text-purple-600" />
+              </div>
+              <div>
+                <DialogTitle className="text-2xl font-bold text-gray-900">Bulk Schedule Interviews</DialogTitle>
+                <DialogDescription className="text-gray-600 mt-1">
+                  Schedule interviews for <span className="font-semibold text-purple-600">{selectedCandidates.length} selected candidates</span>
+                </DialogDescription>
+              </div>
+            </div>
+          </DialogHeader>
+          
+          <div className="flex-1 overflow-y-auto p-6">
+            <div className="space-y-8">
+              {/* Selected Candidates Summary */}
+              <div className="bg-gradient-to-r from-purple-50 to-violet-50 rounded-xl p-6 border border-purple-100">
+                <div className="flex items-center space-x-3 mb-4">
+                  <Users className="w-5 h-5 text-purple-600" />
+                  <h3 className="text-lg font-semibold text-gray-900">Selected Candidates</h3>
+                </div>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center space-x-4">
+                    <div className="p-3 bg-purple-100 rounded-lg">
+                      <span className="text-2xl font-bold text-purple-600">{selectedCandidates.length}</span>
+                    </div>
+                    <div>
+                      <p className="text-sm text-gray-600">Total candidates selected</p>
+                      <p className="text-xs text-gray-500">All candidates will be scheduled with the same interview details</p>
+                    </div>
+                  </div>
+                  <Badge variant="outline" className="border-purple-200 text-purple-700">
+                    Bulk Operation
+                  </Badge>
+                </div>
+              </div>
+
+              {/* Interview Details Section */}
+              <div className="bg-gradient-to-r from-green-50 to-emerald-50 rounded-xl p-6 border border-green-100">
+                <div className="flex items-center space-x-3 mb-4">
+                  <Calendar className="w-5 h-5 text-green-600" />
+                  <h3 className="text-lg font-semibold text-gray-900">Interview Details</h3>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="bulkInterviewDate" className="text-sm font-medium text-gray-700">Interview Date</Label>
+                    <Input
+                      id="bulkInterviewDate"
+                      type="date"
+                      value={bulkInterviewForm.interviewDate}
+                      onChange={(e) => setBulkInterviewForm({
+                        ...bulkInterviewForm,
+                        interviewDate: e.target.value
+                      })}
+                      className="border-gray-300 focus:border-green-500 focus:ring-green-500"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="bulkInterviewTime" className="text-sm font-medium text-gray-700">Interview Time</Label>
+                    <Input
+                      id="bulkInterviewTime"
+                      type="time"
+                      value={bulkInterviewForm.interviewTime}
+                      onChange={(e) => setBulkInterviewForm({
+                        ...bulkInterviewForm,
+                        interviewTime: e.target.value
+                      })}
+                      className="border-gray-300 focus:border-green-500 focus:ring-green-500"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Interview Configuration Section */}
+              <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl p-6 border border-blue-100">
+                <div className="flex items-center space-x-3 mb-4">
+                  <Settings className="w-5 h-5 text-blue-600" />
+                  <h3 className="text-lg font-semibold text-gray-900">Interview Configuration</h3>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="bulkInterviewType" className="text-sm font-medium text-gray-700">Interview Type</Label>
+                    <Select
+                      value={bulkInterviewForm.interviewType}
+                      onValueChange={(value) => setBulkInterviewForm({
+                        ...bulkInterviewForm,
+                        interviewType: value
+                      })}
+                    >
+                      <SelectTrigger className="border-gray-300 focus:border-blue-500 focus:ring-blue-500">
+                        <SelectValue placeholder="Select interview type" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="Technical">Technical</SelectItem>
+                        <SelectItem value="HR">HR</SelectItem>
+                        <SelectItem value="Behavioral">Behavioral</SelectItem>
+                        <SelectItem value="Panel">Panel</SelectItem>
+                        <SelectItem value="Final">Final</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="bulkInterviewMode" className="text-sm font-medium text-gray-700">Interview Mode</Label>
+                    <Select
+                      value={bulkInterviewForm.interviewMode}
+                      onValueChange={(value) => setBulkInterviewForm({
+                        ...bulkInterviewForm,
+                        interviewMode: value
+                      })}
+                    >
+                      <SelectTrigger className="border-gray-300 focus:border-blue-500 focus:ring-blue-500">
+                        <SelectValue placeholder="Select interview mode" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="Online">Online</SelectItem>
+                        <SelectItem value="Onsite">Onsite</SelectItem>
+                        <SelectItem value="Phone">Phone</SelectItem>
+                        <SelectItem value="Hybrid">Hybrid</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+              </div>
+
+              {/* Meeting Information Section */}
+              <div className="bg-gradient-to-r from-orange-50 to-amber-50 rounded-xl p-6 border border-orange-100">
+                <div className="flex items-center space-x-3 mb-4">
+                  <Video className="w-5 h-5 text-orange-600" />
+                  <h3 className="text-lg font-semibold text-gray-900">Meeting Information</h3>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="bulkPlatform" className="text-sm font-medium text-gray-700">Platform</Label>
+                    <Input
+                      id="bulkPlatform"
+                      value={bulkInterviewForm.platform}
+                      onChange={(e) => setBulkInterviewForm({
+                        ...bulkInterviewForm,
+                        platform: e.target.value
+                      })}
+                      placeholder="Zoom, Google Meet, etc."
+                      className="border-gray-300 focus:border-orange-500 focus:ring-orange-500"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="bulkMeetingLink" className="text-sm font-medium text-gray-700">Meeting Link</Label>
+                    <Input
+                      id="bulkMeetingLink"
+                      value={bulkInterviewForm.meetingLink}
+                      onChange={(e) => setBulkInterviewForm({
+                        ...bulkInterviewForm,
+                        meetingLink: e.target.value
+                      })}
+                      placeholder="https://..."
+                      className="border-gray-300 focus:border-orange-500 focus:ring-orange-500"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="bulkInterviewer" className="text-sm font-medium text-gray-700">Interviewer</Label>
+                    <Input
+                      id="bulkInterviewer"
+                      value={bulkInterviewForm.interviewer}
+                      onChange={(e) => setBulkInterviewForm({
+                        ...bulkInterviewForm,
+                        interviewer: e.target.value
+                      })}
+                      placeholder="Interviewer name"
+                      className="border-gray-300 focus:border-orange-500 focus:ring-orange-500"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Additional Notes Section */}
+              <div className="bg-gradient-to-r from-gray-50 to-slate-50 rounded-xl p-6 border border-gray-200">
+                <div className="flex items-center space-x-3 mb-4">
+                  <FileText className="w-5 h-5 text-gray-600" />
+                  <h3 className="text-lg font-semibold text-gray-900">Additional Notes</h3>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="bulkNotes" className="text-sm font-medium text-gray-700">Notes</Label>
+                  <Textarea
+                    id="bulkNotes"
+                    value={bulkInterviewForm.notes}
+                    onChange={(e) => setBulkInterviewForm({
+                      ...bulkInterviewForm,
+                      notes: e.target.value
+                    })}
+                    placeholder="Add any additional notes or instructions for all interviews..."
+                    rows={4}
+                    className="border-gray-300 focus:border-gray-500 focus:ring-gray-500 resize-none"
+                  />
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <DialogFooter className="border-t pt-6 bg-white">
+            <div className="flex items-center justify-between w-full">
+              <div className="flex items-center space-x-2 text-sm text-gray-600">
+                <AlertCircle className="w-4 h-4" />
+                <span>All fields marked with * are required</span>
+              </div>
+              <div className="flex items-center space-x-3">
+                <Button
+                  variant="outline"
+                  onClick={() => setBulkScheduleOpen(false)}
+                  className="border-gray-300 text-gray-700 hover:bg-gray-50"
+                >
+                  Cancel
+                </Button>
+                <Button
+                  onClick={handleBulkSchedule}
+                  disabled={schedulingLoading || !bulkInterviewForm.interviewDate || !bulkInterviewForm.interviewTime || !bulkInterviewForm.interviewType || !bulkInterviewForm.interviewMode}
+                  className="bg-purple-600 hover:bg-purple-700 text-white px-6"
+                >
+                  {schedulingLoading ? (
+                    <>
+                      <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
+                      Scheduling...
+                    </>
+                  ) : (
+                    <>
+                      <Users className="w-4 h-4 mr-2" />
+                      Schedule {selectedCandidates.length} Interviews
+                    </>
+                  )}
+                </Button>
+              </div>
+            </div>
           </DialogFooter>
         </DialogContent>
       </Dialog>
