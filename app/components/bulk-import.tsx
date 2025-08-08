@@ -88,7 +88,23 @@ interface ResumeParseResponse {
   successful_files: number
   failed_files: number
   total_processing_time: number
-  results: any[]
+  results: Array<{
+    filename: string
+    status: "success" | "failed"
+    error?: string | null
+    parsed_data?: ParsedResumeData | null
+    file_type?: string | null
+    processing_time?: number
+  }>
+}
+
+interface ProcessingResult {
+  filename: string
+  status: "success" | "failed"
+  error?: string | null
+  parsed_data?: ParsedResumeData | null
+  file_type?: string | null
+  processing_time?: number
 }
 
 export default function BulkImport() {
@@ -103,6 +119,7 @@ export default function BulkImport() {
   const [parseResults, setParseResults] = useState<ResumeParseResponse | null>(null)
   const [activeTab, setActiveTab] = useState("upload")
   const [loading, setLoading] = useState(false)
+  const [processingResults, setProcessingResults] = useState<ProcessingResult[]>([])
   
   // Filters
   const [searchTerm, setSearchTerm] = useState("")
@@ -276,7 +293,11 @@ export default function BulkImport() {
       const data: ResumeParseResponse = await response.json()
       setParseResults(data)
       setParsedResumes(data.results)
+      setProcessingResults(data.results)
       setProcessingProgress(100)
+      
+      // Switch to results tab
+      setActiveTab("results")
 
       // Refresh the parsed data tab
       await fetchResumes()
@@ -332,7 +353,11 @@ export default function BulkImport() {
       }
       setParseResults(mockData)
       setParsedResumes(mockData.results)
+      setProcessingResults(mockData.results)
       setProcessingProgress(100)
+      
+      // Switch to results tab
+      setActiveTab("results")
     } finally {
       setIsProcessing(false)
     }
@@ -473,8 +498,9 @@ export default function BulkImport() {
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-        <TabsList className="grid w-full grid-cols-2">
+        <TabsList className="grid w-full grid-cols-3">
           <TabsTrigger value="upload">Bulk Import Files</TabsTrigger>
+          <TabsTrigger value="results">Processing Results</TabsTrigger>
           <TabsTrigger value="parsed">Parsed Data</TabsTrigger>
         </TabsList>
 
@@ -671,6 +697,181 @@ export default function BulkImport() {
                 </Card>
               </div>
             </div>
+          )}
+        </TabsContent>
+
+        <TabsContent value="results" className="space-y-6">
+          {parseResults ? (
+            <>
+              {/* Summary Cards */}
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+                <Card className="bg-gradient-to-br from-blue-50 to-blue-100 border-blue-200 hover:shadow-lg transition-all duration-300 hover:scale-105">
+                  <CardContent className="p-6">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-3xl font-bold text-blue-900">{parseResults.total_files}</p>
+                        <p className="text-sm text-blue-700 font-medium">Total Files</p>
+                      </div>
+                      <div className="w-12 h-12 bg-blue-200 rounded-full flex items-center justify-center shadow-inner">
+                        <FileText className="w-6 h-6 text-blue-700" />
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+
+                <Card className="bg-gradient-to-br from-green-50 to-green-100 border-green-200 hover:shadow-lg transition-all duration-300 hover:scale-105">
+                  <CardContent className="p-6">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-3xl font-bold text-green-900">{parseResults.successful_files}</p>
+                        <p className="text-sm text-green-700 font-medium">Successful</p>
+                      </div>
+                      <div className="w-12 h-12 bg-green-200 rounded-full flex items-center justify-center shadow-inner">
+                        <CheckCircle className="w-6 h-6 text-green-700" />
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+
+                <Card className="bg-gradient-to-br from-red-50 to-red-100 border-red-200 hover:shadow-lg transition-all duration-300 hover:scale-105">
+                  <CardContent className="p-6">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-3xl font-bold text-red-900">{parseResults.failed_files}</p>
+                        <p className="text-sm text-red-700 font-medium">Failed</p>
+                      </div>
+                      <div className="w-12 h-12 bg-red-200 rounded-full flex items-center justify-center shadow-inner">
+                        <XCircle className="w-6 h-6 text-red-700" />
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+
+                <Card className="bg-gradient-to-br from-orange-50 to-orange-100 border-orange-200 hover:shadow-lg transition-all duration-300 hover:scale-105">
+                  <CardContent className="p-6">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-3xl font-bold text-orange-900">{parseResults.total_processing_time.toFixed(1)}s</p>
+                        <p className="text-sm text-orange-700 font-medium">Processing Time</p>
+                      </div>
+                      <div className="w-12 h-12 bg-orange-200 rounded-full flex items-center justify-center shadow-inner">
+                        <Clock className="w-6 h-6 text-orange-700" />
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
+
+              {/* Results Table */}
+              <Card className="shadow-lg">
+                <CardHeader className="bg-gradient-to-r from-gray-50 to-gray-100 border-b">
+                  <CardTitle className="flex items-center space-x-2">
+                    <FileSpreadsheet className="w-5 h-5 text-blue-600" />
+                    <span>Processing Results</span>
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="p-0">
+                  <div className="overflow-x-auto">
+                    <Table>
+                      <TableHeader>
+                        <TableRow className="bg-gray-50 hover:bg-gray-50">
+                          <TableHead className="font-semibold text-gray-700">File Name</TableHead>
+                          <TableHead className="font-semibold text-gray-700">Status</TableHead>
+                          <TableHead className="font-semibold text-gray-700">File Type</TableHead>
+                          <TableHead className="font-semibold text-gray-700">Processing Time</TableHead>
+                          <TableHead className="font-semibold text-gray-700">Details</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {parseResults.results.map((result, index) => (
+                          <TableRow key={index} className="hover:bg-gray-50 transition-colors">
+                            <TableCell className="py-4">
+                              <div className="flex items-center space-x-3">
+                                <div className="flex-shrink-0">
+                                  {getFileIcon(result.file_type || '')}
+                                </div>
+                                <div className="min-w-0 flex-1">
+                                  <p className="font-medium text-gray-900 truncate">{result.filename}</p>
+                                </div>
+                              </div>
+                            </TableCell>
+                            <TableCell className="py-4">
+                              {result.status === 'success' ? (
+                                <Badge className="bg-green-100 text-green-800 border-green-200 hover:bg-green-100 px-3 py-1">
+                                  <CheckCircle className="w-3 h-3 mr-1" />
+                                  Success
+                                </Badge>
+                              ) : (
+                                <Badge className="bg-red-100 text-red-800 border-red-200 hover:bg-red-100 px-3 py-1">
+                                  <XCircle className="w-3 h-3 mr-1" />
+                                  Failed
+                                </Badge>
+                              )}
+                            </TableCell>
+                            <TableCell className="py-4">
+                              <Badge variant="outline" className="text-xs font-medium">
+                                {result.file_type?.toUpperCase() || 'Unknown'}
+                              </Badge>
+                            </TableCell>
+                            <TableCell className="py-4">
+                              <div className="flex items-center space-x-2">
+                                <span className="text-sm font-medium text-gray-900">
+                                  {result.processing_time ? `${result.processing_time.toFixed(2)}s` : 'N/A'}
+                                </span>
+                                {result.processing_time && (
+                                  <div className="w-16 bg-gray-200 rounded-full h-1.5">
+                                    <div 
+                                      className="bg-blue-600 h-1.5 rounded-full transition-all duration-300"
+                                      style={{ 
+                                        width: `${Math.min((result.processing_time / 10) * 100, 100)}%` 
+                                      }}
+                                    ></div>
+                                  </div>
+                                )}
+                              </div>
+                            </TableCell>
+                            <TableCell className="py-4">
+                              {result.status === 'success' ? (
+                                <div className="text-sm">
+                                  <div className="font-medium text-green-700">
+                                    {result.parsed_data?.Name || 'Name extracted'}
+                                  </div>
+                                  <div className="text-xs text-gray-500">
+                                    {result.parsed_data?.Email || 'Email extracted'}
+                                  </div>
+                                </div>
+                              ) : (
+                                <div className="text-sm text-red-600 max-w-xs">
+                                  <div className="font-medium">Error:</div>
+                                  <div className="text-xs">{result.error || 'Processing failed'}</div>
+                                </div>
+                              )}
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+                </CardContent>
+              </Card>
+            </>
+          ) : (
+            <Card>
+              <CardContent className="p-12 text-center">
+                <FileText className="w-16 h-16 text-gray-400 mx-auto mb-4" />
+                <h3 className="text-lg font-semibold text-gray-900 mb-2">No Processing Results</h3>
+                <p className="text-gray-600 mb-4">
+                  Upload and process files to see the results here.
+                </p>
+                <Button 
+                  onClick={() => setActiveTab("upload")}
+                  className="bg-blue-600 hover:bg-blue-700"
+                >
+                  <Upload className="w-4 h-4 mr-2" />
+                  Upload Files
+                </Button>
+              </CardContent>
+            </Card>
           )}
         </TabsContent>
 
