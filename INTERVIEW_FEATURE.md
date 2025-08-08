@@ -41,7 +41,7 @@ Each candidate card displays:
 
 ### API Integration
 - Uses `BASE_API_URL` from `BaseUrlApi.js`
-- Fetches data from `http://localhost:5000/api/interviews/selected`
+- Fetches data from `https://ats-backend-nodejs-upvy.onrender.com/api/interviews/selected`
 - Handles loading states and error scenarios
 - Real-time data updates
 
