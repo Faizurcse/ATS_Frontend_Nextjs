@@ -51,6 +51,7 @@ interface Customer {
   companySize?: string
   website?: string
   description?: string
+  email?: string
   status: 'ACTIVE' | 'INACTIVE' | 'PROSPECT' | 'SUSPENDED'
   priority: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL'
   country: string
@@ -69,6 +70,7 @@ interface CustomerFormData {
   companySize: string
   website: string
   description: string
+  email: string
   status: string
   priority: string
   country: string
@@ -97,6 +99,7 @@ export default function CustomerManagement() {
     companySize: '',
     website: '',
     description: '',
+    email: '',
     status: 'ACTIVE',
     priority: 'MEDIUM',
     country: '',
@@ -271,6 +274,7 @@ export default function CustomerManagement() {
       companySize: '',
       website: '',
       description: '',
+      email: '',
       status: 'ACTIVE',
       priority: 'MEDIUM',
       country: '',
@@ -291,6 +295,7 @@ export default function CustomerManagement() {
       companySize: customer.companySize || '',
       website: customer.website || '',
       description: customer.description || '',
+      email: customer.email || '',
       status: customer.status,
       priority: customer.priority,
       country: customer.country,
@@ -695,6 +700,17 @@ export default function CustomerManagement() {
                                      </a>
                                    </div>
                                  )}
+                                 {customer.email && (
+                                   <div className="flex items-center gap-1.5 text-sm text-slate-600 truncate">
+                                     <Mail className="w-3.5 h-3.5 flex-shrink-0" />
+                                     <a 
+                                       href={`mailto:${customer.email}`}
+                                       className="hover:text-blue-600 transition-colors truncate"
+                                     >
+                                       <span className="truncate">{customer.email}</span>
+                                     </a>
+                                   </div>
+                                 )}
                                </div>
                              </div>
                            </TableCell>
@@ -886,6 +902,16 @@ function CustomerForm({
               value={formData.website}
               onChange={(e) => setFormData({ ...formData, website: e.target.value })}
               placeholder="https://example.com"
+              className="h-12 border-slate-200 focus:border-blue-500 focus:ring-blue-500"
+            />
+          </div>
+          <div className="space-y-2">
+            <label className="text-sm font-medium text-slate-700">Email</label>
+            <Input
+              type="email"
+              value={formData.email}
+              onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+              placeholder="contact@company.com"
               className="h-12 border-slate-200 focus:border-blue-500 focus:ring-blue-500"
             />
           </div>
