@@ -62,6 +62,7 @@ interface ApiUser {
   name: string
   email: string
   number: string
+  userType: 'ADMIN' | 'MANAGER' | 'USER'
 }
 
 interface LoginHistory {
@@ -70,6 +71,7 @@ interface LoginHistory {
   user: {
     name: string
     email: string
+    userType: 'ADMIN' | 'MANAGER' | 'USER'
   }
 }
 
@@ -90,6 +92,7 @@ export default function UserManagement() {
   const [historyError, setHistoryError] = useState<string | null>(null)
   const [searchTerm, setSearchTerm] = useState("")
   const [historySearchTerm, setHistorySearchTerm] = useState("")
+  const [userTypeFilter, setUserTypeFilter] = useState<"ALL" | "ADMIN" | "MANAGER" | "USER">("ALL")
   const [isAddUserDialogOpen, setIsAddUserDialogOpen] = useState(false)
   const [isEditUserDialogOpen, setIsEditUserDialogOpen] = useState(false)
   const [editingUser, setEditingUser] = useState<ApiUser | null>(null)
@@ -97,6 +100,7 @@ export default function UserManagement() {
     name: "",
     email: "",
     number: "",
+    userType: "USER" as 'ADMIN' | 'MANAGER' | 'USER',
   })
 
   // Fetch users from API
@@ -194,9 +198,12 @@ export default function UserManagement() {
     const matchesSearch =
       user.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
       user.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      user.number.includes(searchTerm)
+      user.number.includes(searchTerm) ||
+      user.userType.toLowerCase().includes(searchTerm.toLowerCase())
     
-    return matchesSearch
+    const matchesTypeFilter = userTypeFilter === "ALL" || user.userType === userTypeFilter
+    
+    return matchesSearch && matchesTypeFilter
   })
 
   const filteredLoginHistory = loginHistory.filter((login) => {
@@ -233,6 +240,7 @@ export default function UserManagement() {
         name: "",
         email: "",
         number: "",
+        userType: "USER" as 'ADMIN' | 'MANAGER' | 'USER',
       })
       setIsAddUserDialogOpen(false)
     } catch (err) {
@@ -253,7 +261,8 @@ export default function UserManagement() {
         body: JSON.stringify({
           name: editingUser.name,
           email: editingUser.email,
-          number: editingUser.number
+          number: editingUser.number,
+          userType: editingUser.userType
         })
       })
 
@@ -334,13 +343,15 @@ export default function UserManagement() {
                       id: 1,
                       name: "Faiz",
                       email: "faiz@appitsoftware.com",
-                      number: "9876543210"
+                      number: "9876543210",
+                      userType: "ADMIN"
                     },
                     {
                       id: 2,
                       name: "Aravind",
                       email: "aravind.gajjela@appitsoftware.com",
-                      number: "9876543210"
+                      number: "9876543210",
+                      userType: "MANAGER"
                     }
                   ])
                   setError(null)
@@ -411,6 +422,24 @@ export default function UserManagement() {
                     placeholder="Enter phone number"
                   />
                 </div>
+                <div className="space-y-2">
+                  <Label htmlFor="userType">User Type *</Label>
+                  <Select
+                    value={newUser.userType}
+                    onValueChange={(value: 'ADMIN' | 'MANAGER' | 'USER') => 
+                      setNewUser({ ...newUser, userType: value })
+                    }
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select user type" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="USER">Regular User</SelectItem>
+                      <SelectItem value="MANAGER">Manager</SelectItem>
+                      <SelectItem value="ADMIN">Administrator</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
               </div>
               <div className="flex justify-end space-x-2">
                 <Button variant="outline" onClick={() => setIsAddUserDialogOpen(false)}>
@@ -430,7 +459,7 @@ export default function UserManagement() {
       </div>
 
       {/* Statistics Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-5 gap-6">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Total Users</CardTitle>
@@ -444,34 +473,45 @@ export default function UserManagement() {
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">System Users</CardTitle>
-            <Shield className="h-4 w-4 text-blue-600" />
+            <CardTitle className="text-sm font-medium">Admins</CardTitle>
+            <Shield className="h-4 w-4 text-red-600" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-blue-600">{users.length}</div>
-            <p className="text-xs text-gray-600">Registered accounts</p>
+            <div className="text-2xl font-bold text-red-600">{users.filter(u => u.userType === 'ADMIN').length}</div>
+            <p className="text-xs text-gray-600">Administrator accounts</p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Managers</CardTitle>
+            <UserCheck className="h-4 w-4 text-blue-600" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-blue-600">{users.filter(u => u.userType === 'MANAGER').length}</div>
+            <p className="text-xs text-gray-600">Manager accounts</p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Regular Users</CardTitle>
+            <User className="h-4 w-4 text-green-600" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-green-600">{users.filter(u => u.userType === 'USER').length}</div>
+            <p className="text-xs text-gray-600">Standard user accounts</p>
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Login Sessions</CardTitle>
-            <Activity className="h-4 w-4 text-green-600" />
+            <Activity className="h-4 w-4 text-orange-600" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-green-600">{loginHistory.length}</div>
+            <div className="text-2xl font-bold text-orange-600">{loginHistory.length}</div>
             <p className="text-xs text-gray-600">Total login sessions</p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Recent Activity</CardTitle>
-            <Clock className="h-4 w-4 text-orange-600" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-orange-600">{loginHistory.length > 0 ? 'Active' : 'None'}</div>
-            <p className="text-xs text-gray-600">Recent login activity</p>
           </CardContent>
         </Card>
       </div>
@@ -490,14 +530,27 @@ export default function UserManagement() {
                   <CardTitle>User Accounts</CardTitle>
                   <p className="text-sm text-gray-600">Manage and view all system users</p>
                 </div>
-                <div className="relative flex-1 max-w-sm">
-                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
-                  <Input
-                    placeholder="Search users..."
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                    className="pl-10"
-                  />
+                <div className="flex gap-2 flex-1 max-w-lg">
+                  <div className="relative flex-1">
+                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+                    <Input
+                      placeholder="Search users..."
+                      value={searchTerm}
+                      onChange={(e) => setSearchTerm(e.target.value)}
+                      className="pl-10"
+                    />
+                  </div>
+                  <Select value={userTypeFilter} onValueChange={(value: "ALL" | "ADMIN" | "MANAGER" | "USER") => setUserTypeFilter(value)}>
+                    <SelectTrigger className="w-32">
+                      <SelectValue placeholder="Filter by role" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="ALL">All Roles</SelectItem>
+                      <SelectItem value="ADMIN">Admins</SelectItem>
+                      <SelectItem value="MANAGER">Managers</SelectItem>
+                      <SelectItem value="USER">Users</SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
               </div>
             </CardHeader>
@@ -524,6 +577,7 @@ export default function UserManagement() {
                       <TableRow>
                         <TableHead>User</TableHead>
                         <TableHead>Contact</TableHead>
+                        <TableHead>Role</TableHead>
                         <TableHead>Actions</TableHead>
                       </TableRow>
                     </TableHeader>
@@ -547,6 +601,14 @@ export default function UserManagement() {
                                 <span className="text-sm">{user.number}</span>
                               </div>
                             </div>
+                          </TableCell>
+                          <TableCell>
+                            <Badge 
+                              variant={user.userType === 'ADMIN' ? 'destructive' : user.userType === 'MANAGER' ? 'default' : 'secondary'}
+                              className="capitalize"
+                            >
+                              {user.userType.toLowerCase()}
+                            </Badge>
                           </TableCell>
                           <TableCell>
                             <div className="flex space-x-2">
@@ -652,6 +714,7 @@ export default function UserManagement() {
                     <TableHeader>
                       <TableRow>
                         <TableHead>User</TableHead>
+                        <TableHead>Role</TableHead>
                         <TableHead>Login Time</TableHead>
                         <TableHead>Session ID</TableHead>
                       </TableRow>
@@ -664,6 +727,14 @@ export default function UserManagement() {
                               <div className="font-medium text-lg">{login.user.name}</div>
                               <div className="text-sm text-gray-500">{login.user.email}</div>
                             </div>
+                          </TableCell>
+                          <TableCell>
+                            <Badge 
+                              variant={login.user.userType === 'ADMIN' ? 'destructive' : login.user.userType === 'MANAGER' ? 'default' : 'secondary'}
+                              className="capitalize"
+                            >
+                              {login.user.userType.toLowerCase()}
+                            </Badge>
                           </TableCell>
                           <TableCell>
                             <div className="space-y-1">
@@ -736,6 +807,24 @@ export default function UserManagement() {
                   value={editingUser.number}
                   onChange={(e) => setEditingUser({ ...editingUser, number: e.target.value })}
                 />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="edit-userType">User Type</Label>
+                <Select
+                  value={editingUser.userType}
+                  onValueChange={(value: 'ADMIN' | 'MANAGER' | 'USER') => 
+                    setEditingUser({ ...editingUser, userType: value })
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select user type" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="USER">Regular User</SelectItem>
+                    <SelectItem value="MANAGER">Manager</SelectItem>
+                    <SelectItem value="ADMIN">Administrator</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
             </div>
           )}
