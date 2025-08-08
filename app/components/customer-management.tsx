@@ -1,0 +1,1051 @@
+"use client"
+
+import React, { useState, useEffect } from 'react'
+import { 
+  Building2, 
+  Plus, 
+  Search, 
+  Filter, 
+  Edit, 
+  Trash2, 
+  Eye, 
+  MoreHorizontal,
+  MapPin,
+  Globe,
+  DollarSign,
+  Calendar,
+  Users,
+  TrendingUp,
+  AlertCircle,
+  CheckCircle,
+  Clock,
+  X,
+  Star,
+  Briefcase,
+  Mail,
+  Phone,
+  ExternalLink,
+  ChevronLeft,
+  ChevronRight,
+  Download,
+  Upload,
+  Settings,
+  BarChart3,
+  RefreshCw
+} from 'lucide-react'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Badge } from '@/components/ui/badge'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { toast } from '@/components/ui/use-toast'
+import BaseUrlApi from '../../BaseUrlApi'
+
+interface Customer {
+  id: number
+  companyName: string
+  industry: string
+  companySize?: string
+  website?: string
+  description?: string
+  status: 'ACTIVE' | 'INACTIVE' | 'PROSPECT' | 'SUSPENDED'
+  priority: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL'
+  country: string
+  city: string
+  address?: string
+  annualRevenue?: string
+  contractValue?: number
+  billingCycle?: string
+  createdAt: string
+  updatedAt: string
+}
+
+interface CustomerFormData {
+  companyName: string
+  industry: string
+  companySize: string
+  website: string
+  description: string
+  status: string
+  priority: string
+  country: string
+  city: string
+  address: string
+  annualRevenue: string
+  contractValue: string
+  billingCycle: string
+}
+
+export default function CustomerManagement() {
+  const [customers, setCustomers] = useState<Customer[]>([])
+  const [loading, setLoading] = useState(true)
+  const [searchTerm, setSearchTerm] = useState('')
+  const [statusFilter, setStatusFilter] = useState('all')
+  const [priorityFilter, setPriorityFilter] = useState('all')
+  const [industryFilter, setIndustryFilter] = useState('all')
+  const [currentPage, setCurrentPage] = useState(1)
+  const [totalPages, setTotalPages] = useState(1)
+  const [showCreateDialog, setShowCreateDialog] = useState(false)
+  const [showEditDialog, setShowEditDialog] = useState(false)
+  const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null)
+  const [formData, setFormData] = useState<CustomerFormData>({
+    companyName: '',
+    industry: '',
+    companySize: '',
+    website: '',
+    description: '',
+    status: 'ACTIVE',
+    priority: 'MEDIUM',
+    country: '',
+    city: '',
+    address: '',
+    annualRevenue: '',
+    contractValue: '',
+    billingCycle: ''
+  })
+
+  // Fetch customers
+  const fetchCustomers = async () => {
+    try {
+      setLoading(true)
+      const params = new URLSearchParams({
+        page: currentPage.toString(),
+        limit: '10',
+        ...(searchTerm && { search: searchTerm }),
+        ...(statusFilter !== 'all' && { status: statusFilter }),
+        ...(priorityFilter !== 'all' && { priority: priorityFilter }),
+        ...(industryFilter !== 'all' && { industry: industryFilter })
+      })
+
+      const response = await fetch(`${BaseUrlApi}/customers?${params}`)
+      const data = await response.json()
+
+      if (data.success) {
+        setCustomers(data.data.customers)
+        setTotalPages(data.data.pagination.totalPages)
+      } else {
+        toast({
+          title: "Error",
+          description: "Failed to fetch customers",
+          variant: "destructive"
+        })
+      }
+    } catch (error) {
+      console.error('Error fetching customers:', error)
+      toast({
+        title: "Error",
+        description: "Failed to fetch customers",
+        variant: "destructive"
+      })
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  // Create customer
+  const createCustomer = async () => {
+    try {
+      const response = await fetch(`${BaseUrlApi}/customers`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          ...formData,
+          contractValue: formData.contractValue ? parseFloat(formData.contractValue) : null
+        })
+      })
+
+      const data = await response.json()
+
+      if (data.success) {
+        toast({
+          title: "Success",
+          description: "Customer created successfully"
+        })
+        setShowCreateDialog(false)
+        resetForm()
+        fetchCustomers()
+      } else {
+        toast({
+          title: "Error",
+          description: data.message || "Failed to create customer",
+          variant: "destructive"
+        })
+      }
+    } catch (error) {
+      console.error('Error creating customer:', error)
+      toast({
+        title: "Error",
+        description: "Failed to create customer",
+        variant: "destructive"
+      })
+    }
+  }
+
+  // Update customer
+  const updateCustomer = async () => {
+    if (!selectedCustomer) return
+
+    try {
+      const response = await fetch(`${BaseUrlApi}/customers/${selectedCustomer.id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          ...formData,
+          contractValue: formData.contractValue ? parseFloat(formData.contractValue) : null
+        })
+      })
+
+      const data = await response.json()
+
+      if (data.success) {
+        toast({
+          title: "Success",
+          description: "Customer updated successfully"
+        })
+        setShowEditDialog(false)
+        resetForm()
+        fetchCustomers()
+      } else {
+        toast({
+          title: "Error",
+          description: data.message || "Failed to update customer",
+          variant: "destructive"
+        })
+      }
+    } catch (error) {
+      console.error('Error updating customer:', error)
+      toast({
+        title: "Error",
+        description: "Failed to update customer",
+        variant: "destructive"
+      })
+    }
+  }
+
+  // Delete customer
+  const deleteCustomer = async (id: number) => {
+    if (!confirm('Are you sure you want to delete this customer?')) return
+
+    try {
+      const response = await fetch(`${BaseUrlApi}/customers/${id}`, {
+        method: 'DELETE'
+      })
+
+      const data = await response.json()
+
+      if (data.success) {
+        toast({
+          title: "Success",
+          description: "Customer deleted successfully"
+        })
+        fetchCustomers()
+      } else {
+        toast({
+          title: "Error",
+          description: data.message || "Failed to delete customer",
+          variant: "destructive"
+        })
+      }
+    } catch (error) {
+      console.error('Error deleting customer:', error)
+      toast({
+        title: "Error",
+        description: "Failed to delete customer",
+        variant: "destructive"
+      })
+    }
+  }
+
+  // Reset form
+  const resetForm = () => {
+    setFormData({
+      companyName: '',
+      industry: '',
+      companySize: '',
+      website: '',
+      description: '',
+      status: 'ACTIVE',
+      priority: 'MEDIUM',
+      country: '',
+      city: '',
+      address: '',
+      annualRevenue: '',
+      contractValue: '',
+      billingCycle: ''
+    })
+  }
+
+  // Edit customer
+  const handleEdit = (customer: Customer) => {
+    setSelectedCustomer(customer)
+    setFormData({
+      companyName: customer.companyName,
+      industry: customer.industry,
+      companySize: customer.companySize || '',
+      website: customer.website || '',
+      description: customer.description || '',
+      status: customer.status,
+      priority: customer.priority,
+      country: customer.country,
+      city: customer.city,
+      address: customer.address || '',
+      annualRevenue: customer.annualRevenue || '',
+      contractValue: customer.contractValue?.toString() || '',
+      billingCycle: customer.billingCycle || ''
+    })
+    setShowEditDialog(true)
+  }
+
+  // Get status badge
+  const getStatusBadge = (status: string) => {
+    const variants = {
+      ACTIVE: { variant: 'default' as const, icon: CheckCircle, className: 'bg-green-50 text-green-700 border-green-200' },
+      INACTIVE: { variant: 'secondary' as const, icon: Clock, className: 'bg-gray-50 text-gray-700 border-gray-200' },
+      PROSPECT: { variant: 'outline' as const, icon: TrendingUp, className: 'bg-blue-50 text-blue-700 border-blue-200' },
+      SUSPENDED: { variant: 'destructive' as const, icon: AlertCircle, className: 'bg-red-50 text-red-700 border-red-200' }
+    }
+    const { variant, icon: Icon, className } = variants[status as keyof typeof variants] || variants.ACTIVE
+    return (
+      <Badge variant={variant} className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium ${className}`}>
+        <Icon className="w-3.5 h-3.5" />
+        {status}
+      </Badge>
+    )
+  }
+
+  // Get priority badge
+  const getPriorityBadge = (priority: string) => {
+    const variants = {
+      LOW: { className: 'bg-gray-50 text-gray-700 border-gray-200' },
+      MEDIUM: { className: 'bg-blue-50 text-blue-700 border-blue-200' },
+      HIGH: { className: 'bg-orange-50 text-orange-700 border-orange-200' },
+      CRITICAL: { className: 'bg-red-50 text-red-700 border-red-200' }
+    }
+    const { className } = variants[priority as keyof typeof variants] || variants.MEDIUM
+    return (
+      <Badge variant="outline" className={`px-3 py-1.5 text-xs font-medium ${className}`}>
+        {priority}
+      </Badge>
+    )
+  }
+
+  // Stats state
+  const [stats, setStats] = useState({
+    total: 0,
+    active: 0,
+    prospects: 0,
+    critical: 0
+  })
+
+  // Fetch stats separately (always show total counts, not filtered)
+  const fetchStats = async () => {
+    try {
+      const response = await fetch(`${BaseUrlApi}/customers?limit=1000`)
+      const data = await response.json()
+
+      if (data.success) {
+        const allCustomers = data.data.customers
+        setStats({
+          total: allCustomers.length,
+          active: allCustomers.filter((c: Customer) => c.status === 'ACTIVE').length,
+          prospects: allCustomers.filter((c: Customer) => c.status === 'PROSPECT').length,
+          critical: allCustomers.filter((c: Customer) => c.priority === 'CRITICAL').length
+        })
+      }
+    } catch (error) {
+      console.error('Error fetching stats:', error)
+    }
+  }
+
+  // Refresh data function (clears filters and refreshes data)
+  const refreshData = async () => {
+    try {
+      // Clear all filters and search
+      setSearchTerm('')
+      setStatusFilter('all')
+      setPriorityFilter('all')
+      setIndustryFilter('all')
+      setCurrentPage(1)
+      
+      // Wait a bit for state to update, then fetch fresh data
+      setTimeout(async () => {
+        await fetchCustomers()
+        toast({
+          title: "Success",
+          description: "Filters cleared and data refreshed successfully"
+        })
+      }, 100)
+    } catch (error) {
+      console.error('Error refreshing data:', error)
+      toast({
+        title: "Error",
+        description: "Failed to refresh data",
+        variant: "destructive"
+      })
+    }
+  }
+
+  // Export to Excel function
+  const exportToExcel = () => {
+    try {
+      // Create CSV content
+      const headers = [
+        'Company Name',
+        'Industry', 
+        'Company Size',
+        'Website',
+        'Status',
+        'Priority',
+        'Country',
+        'City',
+        'Address',
+        'Annual Revenue',
+        'Contract Value',
+        'Billing Cycle',
+        'Created At'
+      ]
+
+      const csvContent = [
+        headers.join(','),
+        ...customers.map(customer => [
+          `"${customer.companyName}"`,
+          `"${customer.industry}"`,
+          `"${customer.companySize || ''}"`,
+          `"${customer.website || ''}"`,
+          `"${customer.status}"`,
+          `"${customer.priority}"`,
+          `"${customer.country}"`,
+          `"${customer.city}"`,
+          `"${customer.address || ''}"`,
+          `"${customer.annualRevenue || ''}"`,
+          `"${customer.contractValue || ''}"`,
+          `"${customer.billingCycle || ''}"`,
+          `"${new Date(customer.createdAt).toLocaleDateString()}"`
+        ].join(','))
+      ].join('\n')
+
+      // Create and download file
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
+      const link = document.createElement('a')
+      const url = URL.createObjectURL(blob)
+      link.setAttribute('href', url)
+      link.setAttribute('download', `customers_${new Date().toISOString().split('T')[0]}.csv`)
+      link.style.visibility = 'hidden'
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
+
+      toast({
+        title: "Success",
+        description: "Customer data exported to Excel successfully"
+      })
+    } catch (error) {
+      console.error('Error exporting to Excel:', error)
+      toast({
+        title: "Error",
+        description: "Failed to export customer data",
+        variant: "destructive"
+      })
+    }
+  }
+
+  useEffect(() => {
+    fetchCustomers()
+  }, [searchTerm, statusFilter, priorityFilter, industryFilter, currentPage])
+
+  useEffect(() => {
+    fetchStats()
+  }, [])
+
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50 p-6">
+      <div className="max-w-7xl mx-auto space-y-8">
+        {/* Header */}
+        <div className="flex items-center justify-between">
+          <div className="space-y-2">
+            <h1 className="text-4xl font-bold tracking-tight bg-gradient-to-r from-slate-900 via-blue-900 to-indigo-900 bg-clip-text text-transparent">
+              Customer Management
+            </h1>
+            <p className="text-lg text-slate-600 max-w-2xl">
+              Manage your customer relationships and company information with our comprehensive CRM system
+            </p>
+          </div>
+                     <div className="flex items-center gap-3">
+             <Button 
+               variant="outline" 
+               size="sm" 
+               className="gap-2"
+               onClick={exportToExcel}
+             >
+               <Download className="w-4 h-4" />
+               Export to Excel
+             </Button>
+            <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>
+              <DialogTrigger asChild>
+                <Button className="gap-2 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 shadow-lg">
+                  <Plus className="w-4 h-4" />
+                  Add Customer
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+                <DialogHeader className="space-y-3">
+                  <DialogTitle className="text-2xl font-bold text-slate-900">
+                    Create New Customer
+                  </DialogTitle>
+                  <DialogDescription className="text-slate-600">
+                    Add a new customer to your database with comprehensive company information
+                  </DialogDescription>
+                </DialogHeader>
+                <CustomerForm 
+                  formData={formData} 
+                  setFormData={setFormData} 
+                  onSubmit={createCustomer}
+                  submitText="Create Customer"
+                  onCancel={() => setShowCreateDialog(false)}
+                />
+              </DialogContent>
+            </Dialog>
+          </div>
+        </div>
+
+        {/* Stats Cards */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+          <Card className="bg-white/80 backdrop-blur-sm border-0 shadow-xl hover:shadow-2xl transition-all duration-300">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-3">
+              <CardTitle className="text-sm font-semibold text-slate-700">Total Customers</CardTitle>
+              <div className="p-2 bg-blue-100 rounded-lg">
+                <Building2 className="h-5 w-5 text-blue-600" />
+              </div>
+            </CardHeader>
+            <CardContent>
+              <div className="text-3xl font-bold text-slate-900">{stats.total}</div>
+              <p className="text-xs text-slate-500 mt-1">
+                All registered customers
+              </p>
+            </CardContent>
+          </Card>
+          <Card className="bg-white/80 backdrop-blur-sm border-0 shadow-xl hover:shadow-2xl transition-all duration-300">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-3">
+              <CardTitle className="text-sm font-semibold text-slate-700">Active Customers</CardTitle>
+              <div className="p-2 bg-green-100 rounded-lg">
+                <CheckCircle className="h-5 w-5 text-green-600" />
+              </div>
+            </CardHeader>
+            <CardContent>
+              <div className="text-3xl font-bold text-green-600">{stats.active}</div>
+              <p className="text-xs text-slate-500 mt-1">
+                Currently active
+              </p>
+            </CardContent>
+          </Card>
+          <Card className="bg-white/80 backdrop-blur-sm border-0 shadow-xl hover:shadow-2xl transition-all duration-300">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-3">
+              <CardTitle className="text-sm font-semibold text-slate-700">Prospects</CardTitle>
+              <div className="p-2 bg-blue-100 rounded-lg">
+                <TrendingUp className="h-5 w-5 text-blue-600" />
+              </div>
+            </CardHeader>
+            <CardContent>
+              <div className="text-3xl font-bold text-blue-600">{stats.prospects}</div>
+              <p className="text-xs text-slate-500 mt-1">
+                Potential customers
+              </p>
+            </CardContent>
+          </Card>
+          <Card className="bg-white/80 backdrop-blur-sm border-0 shadow-xl hover:shadow-2xl transition-all duration-300">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-3">
+              <CardTitle className="text-sm font-semibold text-slate-700">Critical Priority</CardTitle>
+              <div className="p-2 bg-red-100 rounded-lg">
+                <AlertCircle className="h-5 w-5 text-red-600" />
+              </div>
+            </CardHeader>
+            <CardContent>
+              <div className="text-3xl font-bold text-red-600">{stats.critical}</div>
+              <p className="text-xs text-slate-500 mt-1">
+                High priority customers
+              </p>
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Filters and Search */}
+                 <Card className="bg-white/80 backdrop-blur-sm border-0 shadow-xl">
+           <CardHeader className="pb-4">
+             <div className="flex items-center justify-between">
+               <div>
+                 <CardTitle className="text-xl font-bold text-slate-900">Customer Directory</CardTitle>
+                 <CardDescription className="text-slate-600">
+                   Search and filter your customer database with advanced options
+                 </CardDescription>
+               </div>
+               <Button 
+                 variant="outline" 
+                 size="sm" 
+                 className="gap-2"
+                 onClick={refreshData}
+               >
+                 <RefreshCw className="w-4 h-4" />
+                 Refresh
+               </Button>
+             </div>
+           </CardHeader>
+          <CardContent className="space-y-6">
+            <div className="flex flex-col lg:flex-row gap-4">
+              <div className="flex-1">
+                <div className="relative">
+                  <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 text-slate-400 w-5 h-5" />
+                  <Input
+                    placeholder="Search customers by name, industry, or location..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className="pl-12 h-12 text-base border-slate-200 focus:border-blue-500 focus:ring-blue-500"
+                  />
+                </div>
+              </div>
+              <div className="flex gap-3">
+                <Select value={statusFilter} onValueChange={setStatusFilter}>
+                  <SelectTrigger className="w-40 h-12 border-slate-200">
+                    <SelectValue placeholder="Status" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Status</SelectItem>
+                    <SelectItem value="ACTIVE">Active</SelectItem>
+                    <SelectItem value="INACTIVE">Inactive</SelectItem>
+                    <SelectItem value="PROSPECT">Prospect</SelectItem>
+                    <SelectItem value="SUSPENDED">Suspended</SelectItem>
+                  </SelectContent>
+                </Select>
+                <Select value={priorityFilter} onValueChange={setPriorityFilter}>
+                  <SelectTrigger className="w-40 h-12 border-slate-200">
+                    <SelectValue placeholder="Priority" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Priority</SelectItem>
+                    <SelectItem value="LOW">Low</SelectItem>
+                    <SelectItem value="MEDIUM">Medium</SelectItem>
+                    <SelectItem value="HIGH">High</SelectItem>
+                    <SelectItem value="CRITICAL">Critical</SelectItem>
+                  </SelectContent>
+                </Select>
+                <Select value={industryFilter} onValueChange={setIndustryFilter}>
+                  <SelectTrigger className="w-48 h-12 border-slate-200">
+                    <SelectValue placeholder="Industry" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Industries</SelectItem>
+                    <SelectItem value="Technology">Technology</SelectItem>
+                    <SelectItem value="Healthcare">Healthcare</SelectItem>
+                    <SelectItem value="Finance">Finance</SelectItem>
+                    <SelectItem value="Manufacturing">Manufacturing</SelectItem>
+                    <SelectItem value="Retail">Retail</SelectItem>
+                    <SelectItem value="Education">Education</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            {/* Customer Table */}
+            {loading ? (
+              <div className="flex items-center justify-center py-12">
+                <div className="flex items-center gap-3">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+                  <span className="text-slate-600">Loading customers...</span>
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                <div className="rounded-lg border border-slate-200 overflow-hidden">
+                  <Table>
+                    <TableHeader>
+                      <TableRow className="bg-slate-50/50">
+                        <TableHead className="font-semibold text-slate-700">Company</TableHead>
+                        <TableHead className="font-semibold text-slate-700">Industry</TableHead>
+                        <TableHead className="font-semibold text-slate-700">Location</TableHead>
+                        <TableHead className="font-semibold text-slate-700">Status</TableHead>
+                        <TableHead className="font-semibold text-slate-700">Priority</TableHead>
+                        <TableHead className="font-semibold text-slate-700">Revenue</TableHead>
+                        <TableHead className="font-semibold text-slate-700">Actions</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                                         <TableBody>
+                       {customers.map((customer) => (
+                         <TableRow key={customer.id} className="hover:bg-slate-50/50 transition-colors">
+                           <TableCell className="whitespace-nowrap">
+                             <div className="flex items-center gap-2">
+                               <div className="min-w-0 flex-1">
+                                 <div className="font-semibold text-slate-900 truncate">{customer.companyName}</div>
+                                 {customer.website && (
+                                   <div className="flex items-center gap-1.5 text-sm text-slate-600 truncate">
+                                     <Globe className="w-3.5 h-3.5 flex-shrink-0" />
+                                     <a 
+                                       href={customer.website.startsWith('http') ? customer.website : `https://${customer.website}`}
+                                       target="_blank"
+                                       rel="noopener noreferrer"
+                                       className="hover:text-blue-600 transition-colors flex items-center gap-1 truncate"
+                                     >
+                                       <span className="truncate">{customer.website}</span>
+                                       <ExternalLink className="w-3 h-3 flex-shrink-0" />
+                                     </a>
+                                   </div>
+                                 )}
+                               </div>
+                             </div>
+                           </TableCell>
+                           <TableCell className="whitespace-nowrap">
+                             <Badge variant="outline" className="bg-slate-50 text-slate-700 border-slate-200">
+                               {customer.industry}
+                             </Badge>
+                           </TableCell>
+                           <TableCell className="whitespace-nowrap">
+                             <div className="flex items-center gap-1.5 text-sm text-slate-600">
+                               <MapPin className="w-3.5 h-3.5 flex-shrink-0" />
+                               <span className="truncate">{customer.city}, {customer.country}</span>
+                             </div>
+                           </TableCell>
+                           <TableCell className="whitespace-nowrap">
+                             {getStatusBadge(customer.status)}
+                           </TableCell>
+                           <TableCell className="whitespace-nowrap">
+                             {getPriorityBadge(customer.priority)}
+                           </TableCell>
+                           <TableCell className="whitespace-nowrap">
+                             {customer.annualRevenue ? (
+                               <div className="flex items-center gap-1.5 text-slate-700">
+                                 <DollarSign className="w-3.5 h-3.5 flex-shrink-0" />
+                                 <span className="font-medium truncate">{customer.annualRevenue}</span>
+                               </div>
+                             ) : (
+                               <span className="text-slate-400">-</span>
+                             )}
+                           </TableCell>
+                           <TableCell className="whitespace-nowrap">
+                             <div className="flex items-center gap-2">
+                               <Button
+                                 variant="ghost"
+                                 size="sm"
+                                 onClick={() => handleEdit(customer)}
+                                 className="h-8 w-8 p-0 hover:bg-blue-50 hover:text-blue-600"
+                               >
+                                 <Edit className="w-4 h-4" />
+                               </Button>
+                               <Button
+                                 variant="ghost"
+                                 size="sm"
+                                 onClick={() => deleteCustomer(customer.id)}
+                                 className="h-8 w-8 p-0 hover:bg-red-50 hover:text-red-600"
+                               >
+                                 <Trash2 className="w-4 h-4" />
+                               </Button>
+                             </div>
+                           </TableCell>
+                         </TableRow>
+                       ))}
+                     </TableBody>
+                  </Table>
+                </div>
+
+                {/* Pagination */}
+                {totalPages > 1 && (
+                  <div className="flex items-center justify-between bg-white/50 backdrop-blur-sm rounded-lg p-4 border border-slate-200">
+                    <p className="text-sm text-slate-600">
+                      Page {currentPage} of {totalPages}
+                    </p>
+                    <div className="flex gap-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
+                        disabled={currentPage === 1}
+                        className="gap-2"
+                      >
+                        <ChevronLeft className="w-4 h-4" />
+                        Previous
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setCurrentPage(Math.min(totalPages, currentPage + 1))}
+                        disabled={currentPage === totalPages}
+                        className="gap-2"
+                      >
+                        Next
+                        <ChevronRight className="w-4 h-4" />
+                      </Button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Edit Dialog */}
+        <Dialog open={showEditDialog} onOpenChange={setShowEditDialog}>
+          <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+            <DialogHeader className="space-y-3">
+              <DialogTitle className="text-2xl font-bold text-slate-900">
+                Edit Customer
+              </DialogTitle>
+              <DialogDescription className="text-slate-600">
+                Update customer information and preferences
+              </DialogDescription>
+            </DialogHeader>
+            <CustomerForm 
+              formData={formData} 
+              setFormData={setFormData} 
+              onSubmit={updateCustomer}
+              submitText="Update Customer"
+              onCancel={() => setShowEditDialog(false)}
+            />
+          </DialogContent>
+        </Dialog>
+      </div>
+    </div>
+  )
+}
+
+// Customer Form Component
+function CustomerForm({ 
+  formData, 
+  setFormData, 
+  onSubmit, 
+  submitText,
+  onCancel
+}: { 
+  formData: CustomerFormData
+  setFormData: (data: CustomerFormData) => void
+  onSubmit: () => void
+  submitText: string
+  onCancel: () => void
+}) {
+  return (
+    <div className="space-y-8">
+      {/* Basic Information */}
+      <div className="space-y-6">
+        <div className="flex items-center gap-3">
+          <div className="p-2 bg-blue-100 rounded-lg">
+            <Building2 className="w-5 h-5 text-blue-600" />
+          </div>
+          <h3 className="text-lg font-semibold text-slate-900">Basic Information</h3>
+        </div>
+        
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div className="space-y-2">
+            <label className="text-sm font-medium text-slate-700">Company Name *</label>
+            <Input
+              value={formData.companyName}
+              onChange={(e) => setFormData({ ...formData, companyName: e.target.value })}
+              placeholder="Enter company name"
+              className="h-12 border-slate-200 focus:border-blue-500 focus:ring-blue-500"
+            />
+          </div>
+          <div className="space-y-2">
+            <label className="text-sm font-medium text-slate-700">Industry *</label>
+            <Select value={formData.industry} onValueChange={(value) => setFormData({ ...formData, industry: value })}>
+              <SelectTrigger className="h-12 border-slate-200 focus:border-blue-500 focus:ring-blue-500">
+                <SelectValue placeholder="Select industry" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="Technology">Technology</SelectItem>
+                <SelectItem value="Healthcare">Healthcare</SelectItem>
+                <SelectItem value="Finance">Finance</SelectItem>
+                <SelectItem value="Manufacturing">Manufacturing</SelectItem>
+                <SelectItem value="Retail">Retail</SelectItem>
+                <SelectItem value="Education">Education</SelectItem>
+                <SelectItem value="Other">Other</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div className="space-y-2">
+            <label className="text-sm font-medium text-slate-700">Company Size</label>
+            <Select value={formData.companySize} onValueChange={(value) => setFormData({ ...formData, companySize: value })}>
+              <SelectTrigger className="h-12 border-slate-200 focus:border-blue-500 focus:ring-blue-500">
+                <SelectValue placeholder="Select size" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="Small">Small (1-50)</SelectItem>
+                <SelectItem value="Medium">Medium (51-200)</SelectItem>
+                <SelectItem value="Large">Large (201-1000)</SelectItem>
+                <SelectItem value="Enterprise">Enterprise (1000+)</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-2">
+            <label className="text-sm font-medium text-slate-700">Website</label>
+            <Input
+              value={formData.website}
+              onChange={(e) => setFormData({ ...formData, website: e.target.value })}
+              placeholder="https://example.com"
+              className="h-12 border-slate-200 focus:border-blue-500 focus:ring-blue-500"
+            />
+          </div>
+        </div>
+
+        <div className="space-y-2">
+          <label className="text-sm font-medium text-slate-700">Description</label>
+          <textarea
+            value={formData.description}
+            onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+            placeholder="Enter company description"
+            className="w-full p-4 border border-slate-200 rounded-lg resize-none focus:border-blue-500 focus:ring-blue-500"
+            rows={4}
+          />
+        </div>
+      </div>
+
+      {/* Status & Priority */}
+      <div className="space-y-6">
+        <div className="flex items-center gap-3">
+          <div className="p-2 bg-green-100 rounded-lg">
+            <CheckCircle className="w-5 h-5 text-green-600" />
+          </div>
+          <h3 className="text-lg font-semibold text-slate-900">Status & Priority</h3>
+        </div>
+        
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div className="space-y-2">
+            <label className="text-sm font-medium text-slate-700">Status</label>
+            <Select value={formData.status} onValueChange={(value) => setFormData({ ...formData, status: value })}>
+              <SelectTrigger className="h-12 border-slate-200 focus:border-blue-500 focus:ring-blue-500">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="ACTIVE">Active</SelectItem>
+                <SelectItem value="INACTIVE">Inactive</SelectItem>
+                <SelectItem value="PROSPECT">Prospect</SelectItem>
+                <SelectItem value="SUSPENDED">Suspended</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-2">
+            <label className="text-sm font-medium text-slate-700">Priority</label>
+            <Select value={formData.priority} onValueChange={(value) => setFormData({ ...formData, priority: value })}>
+              <SelectTrigger className="h-12 border-slate-200 focus:border-blue-500 focus:ring-blue-500">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="LOW">Low</SelectItem>
+                <SelectItem value="MEDIUM">Medium</SelectItem>
+                <SelectItem value="HIGH">High</SelectItem>
+                <SelectItem value="CRITICAL">Critical</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+      </div>
+
+      {/* Location */}
+      <div className="space-y-6">
+        <div className="flex items-center gap-3">
+          <div className="p-2 bg-purple-100 rounded-lg">
+            <MapPin className="w-5 h-5 text-purple-600" />
+          </div>
+          <h3 className="text-lg font-semibold text-slate-900">Location</h3>
+        </div>
+        
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div className="space-y-2">
+            <label className="text-sm font-medium text-slate-700">Country *</label>
+            <Input
+              value={formData.country}
+              onChange={(e) => setFormData({ ...formData, country: e.target.value })}
+              placeholder="Enter country"
+              className="h-12 border-slate-200 focus:border-blue-500 focus:ring-blue-500"
+            />
+          </div>
+          <div className="space-y-2">
+            <label className="text-sm font-medium text-slate-700">City *</label>
+            <Input
+              value={formData.city}
+              onChange={(e) => setFormData({ ...formData, city: e.target.value })}
+              placeholder="Enter city"
+              className="h-12 border-slate-200 focus:border-blue-500 focus:ring-blue-500"
+            />
+          </div>
+        </div>
+
+        <div className="space-y-2">
+          <label className="text-sm font-medium text-slate-700">Address</label>
+          <Input
+            value={formData.address}
+            onChange={(e) => setFormData({ ...formData, address: e.target.value })}
+            placeholder="Enter full address"
+            className="h-12 border-slate-200 focus:border-blue-500 focus:ring-blue-500"
+          />
+        </div>
+      </div>
+
+      {/* Financial Information */}
+      <div className="space-y-6">
+        <div className="flex items-center gap-3">
+          <div className="p-2 bg-green-100 rounded-lg">
+            <DollarSign className="w-5 h-5 text-green-600" />
+          </div>
+          <h3 className="text-lg font-semibold text-slate-900">Financial Information</h3>
+        </div>
+        
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <div className="space-y-2">
+            <label className="text-sm font-medium text-slate-700">Annual Revenue</label>
+            <Input
+              value={formData.annualRevenue}
+              onChange={(e) => setFormData({ ...formData, annualRevenue: e.target.value })}
+              placeholder="e.g., $1M-$10M"
+              className="h-12 border-slate-200 focus:border-blue-500 focus:ring-blue-500"
+            />
+          </div>
+          <div className="space-y-2">
+            <label className="text-sm font-medium text-slate-700">Contract Value</label>
+            <Input
+              type="number"
+              value={formData.contractValue}
+              onChange={(e) => setFormData({ ...formData, contractValue: e.target.value })}
+              placeholder="0.00"
+              className="h-12 border-slate-200 focus:border-blue-500 focus:ring-blue-500"
+            />
+          </div>
+          <div className="space-y-2">
+            <label className="text-sm font-medium text-slate-700">Billing Cycle</label>
+            <Select value={formData.billingCycle} onValueChange={(value) => setFormData({ ...formData, billingCycle: value })}>
+              <SelectTrigger className="h-12 border-slate-200 focus:border-blue-500 focus:ring-blue-500">
+                <SelectValue placeholder="Select cycle" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="Monthly">Monthly</SelectItem>
+                <SelectItem value="Quarterly">Quarterly</SelectItem>
+                <SelectItem value="Annual">Annual</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+      </div>
+
+      {/* Action Buttons */}
+      <div className="flex justify-end gap-4 pt-6 border-t border-slate-200">
+        <Button 
+          variant="outline" 
+          onClick={onCancel}
+          className="h-12 px-6 border-slate-200 hover:bg-slate-50"
+        >
+          Cancel
+        </Button>
+        <Button 
+          onClick={onSubmit}
+          className="h-12 px-6 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 shadow-lg"
+        >
+          {submitText}
+        </Button>
+      </div>
+    </div>
+  )
+}
