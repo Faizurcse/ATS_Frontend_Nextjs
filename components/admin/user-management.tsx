@@ -103,6 +103,72 @@ export default function UserManagement() {
     userType: "USER" as 'ADMIN' | 'MANAGER' | 'USER',
   })
 
+  // Character limits for form fields - Professional standards
+  const characterLimits = {
+    name: 100,        // Names should be reasonable length
+    email: 150,       // Email addresses can be long
+    number: 12        // Phone numbers should be concise (max 12 digits)
+  }
+
+  // Minimum character requirements for fields - Professional standards
+  const minimumCharacters = {
+    name: 2,          // Names should be at least 2 characters
+    email: 8,         // Email should be at least 8 characters (e.g., "a@b.com")
+    number: 10        // Phone numbers should be at least 10 digits (e.g., "1234567890")
+  }
+
+  // Helper function to get character count and limit
+  const getCharacterCount = (value: string, field: keyof typeof characterLimits) => {
+    const limit = characterLimits[field]
+    const count = value.length
+    const remaining = limit - count
+    return { count, limit, remaining }
+  }
+
+  // Helper function to render character count message with color coding
+  const renderCharacterCount = (value: string, field: keyof typeof characterLimits) => {
+    const { count, limit, remaining } = getCharacterCount(value, field)
+    const minRequired = minimumCharacters[field]
+    const isOverLimit = count > limit
+    const isTooShort = count > 0 && count < minRequired
+    const isGoodLength = count >= minRequired && count <= limit
+    const isNearLimit = count >= minRequired && count > limit * 0.8 && count <= limit
+
+    let messageColor = 'text-gray-500'
+    let messageText = `${count}/${limit} characters`
+
+    if (count === 0) {
+      messageColor = 'text-gray-400'
+      messageText = `${count}/${limit} characters`
+    } else if (isOverLimit) {
+      messageColor = 'text-red-500'
+      messageText = `${count}/${limit} characters (${Math.abs(remaining)} over limit)`
+    } else if (isTooShort) {
+      messageColor = 'text-red-500'
+      messageText = `${count}/${limit} characters (minimum ${minRequired} characters required)`
+    } else if (isGoodLength && !isNearLimit) {
+      messageColor = 'text-green-500'
+      messageText = `${count}/${limit} characters (good length)`
+    } else if (isNearLimit) {
+      messageColor = 'text-yellow-500'
+      messageText = `${count}/${limit} characters (${remaining} remaining)`
+    }
+
+    return (
+      <div className={`text-xs ${messageColor}`}>
+        {messageText}
+      </div>
+    )
+  }
+
+  // Helper function to handle input changes with character limit validation
+  const handleInputChange = (field: keyof typeof characterLimits, value: string, setter: (value: string) => void) => {
+    const limit = characterLimits[field]
+    if (value.length <= limit) {
+      setter(value)
+    }
+  }
+
   // Fetch users from API
   const fetchUsers = async () => {
     try {
@@ -399,9 +465,11 @@ export default function UserManagement() {
                   <Input
                     id="name"
                     value={newUser.name}
-                    onChange={(e) => setNewUser({ ...newUser, name: e.target.value })}
+                    onChange={(e) => handleInputChange('name', e.target.value, (val) => setNewUser({ ...newUser, name: val }))}
                     placeholder="Enter full name"
+                    maxLength={characterLimits.name}
                   />
+                  {renderCharacterCount(newUser.name, 'name')}
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="email">Email *</Label>
@@ -409,18 +477,26 @@ export default function UserManagement() {
                     id="email"
                     type="email"
                     value={newUser.email}
-                    onChange={(e) => setNewUser({ ...newUser, email: e.target.value })}
+                    onChange={(e) => handleInputChange('email', e.target.value, (val) => setNewUser({ ...newUser, email: val }))}
                     placeholder="Enter email address"
+                    maxLength={characterLimits.email}
                   />
+                  {renderCharacterCount(newUser.email, 'email')}
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="number">Phone Number *</Label>
                   <Input
                     id="number"
+                    type="tel"
                     value={newUser.number}
-                    onChange={(e) => setNewUser({ ...newUser, number: e.target.value })}
-                    placeholder="Enter phone number"
+                    onChange={(e) => {
+                      const value = e.target.value.replace(/[^0-9]/g, '') // Only allow numbers
+                      handleInputChange('number', value, (val) => setNewUser({ ...newUser, number: val }))
+                    }}
+                    placeholder="Enter phone number (numbers only)"
+                    maxLength={characterLimits.number}
                   />
+                  {renderCharacterCount(newUser.number, 'number')}
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="userType">User Type *</Label>
@@ -788,8 +864,10 @@ export default function UserManagement() {
                 <Input
                   id="edit-name"
                   value={editingUser.name}
-                  onChange={(e) => setEditingUser({ ...editingUser, name: e.target.value })}
+                  onChange={(e) => handleInputChange('name', e.target.value, (val) => setEditingUser({ ...editingUser, name: val }))}
+                  maxLength={characterLimits.name}
                 />
+                {renderCharacterCount(editingUser.name, 'name')}
               </div>
               <div className="space-y-2">
                 <Label htmlFor="edit-email">Email</Label>
@@ -797,16 +875,24 @@ export default function UserManagement() {
                   id="edit-email"
                   type="email"
                   value={editingUser.email}
-                  onChange={(e) => setEditingUser({ ...editingUser, email: e.target.value })}
+                  onChange={(e) => handleInputChange('email', e.target.value, (val) => setEditingUser({ ...editingUser, email: val }))}
+                  maxLength={characterLimits.email}
                 />
+                {renderCharacterCount(editingUser.email, 'email')}
               </div>
               <div className="space-y-2">
                 <Label htmlFor="edit-number">Phone Number</Label>
                 <Input
                   id="edit-number"
+                  type="tel"
                   value={editingUser.number}
-                  onChange={(e) => setEditingUser({ ...editingUser, number: e.target.value })}
+                  onChange={(e) => {
+                    const value = e.target.value.replace(/[^0-9]/g, '') // Only allow numbers
+                    handleInputChange('number', value, (val) => setEditingUser({ ...editingUser, number: val }))
+                  }}
+                  maxLength={characterLimits.number}
                 />
+                {renderCharacterCount(editingUser.number, 'number')}
               </div>
               <div className="space-y-2">
                 <Label htmlFor="edit-userType">User Type</Label>

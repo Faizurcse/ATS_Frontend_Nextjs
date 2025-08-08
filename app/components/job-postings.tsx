@@ -126,6 +126,88 @@ export default function JobPostings() {
 
   const { toast } = useToast();
 
+  // Character limits for form fields - Professional standards
+  const characterLimits = {
+    title: 150,         // Job titles should be descriptive but not too long (e.g., "Senior Full-Stack Software Engineer")
+    company: 100,       // Company names can be long but should be reasonable
+    department: 80,     // Department names should be descriptive but concise
+    internalSPOC: 100,  // Names can be long (first + last name + title)
+    recruiter: 100,     // Names can be long (first + last name + title)
+    email: 150,         // Email addresses can be long (e.g., "hr-recruitment@company-name.com")
+    location: 200,      // Full location addresses can be long
+    description: 5000,  // Job descriptions should be comprehensive (typical job posting length)
+    requirements: 2000, // Requirements list can be detailed
+    skills: 1000,       // Skills list can be comprehensive
+    benefits: 1000      // Benefits list can be detailed
+  }
+
+  // Minimum character requirements for fields - Professional standards
+  const minimumCharacters = {
+    title: 8,           // Job titles should be descriptive (e.g., "Developer", "Manager", "Engineer")
+    company: 3,         // Company names should be at least 3 characters (e.g., "IBM", "MS", "Apple")
+    department: 3,      // Department names should be at least 3 characters (e.g., "IT", "HR", "Sales")
+    internalSPOC: 4,    // Names should be at least 4 characters for professional names
+    recruiter: 4,       // Names should be at least 4 characters for professional names
+    email: 8,           // Email should be at least 8 characters (e.g., "a@b.com", "hr@company.com")
+    location: 4,        // Location should be at least 4 characters (e.g., "NYC", "LA", "London")
+    description: 50,    // Job descriptions should be at least 50 characters for meaningful professional content
+    requirements: 10,   // Requirements should be at least 10 characters for meaningful professional content
+    skills: 3,          // Skills should be at least 3 characters (e.g., "JS", "AI", "React")
+    benefits: 4         // Benefits should be at least 4 characters (e.g., "401k", "Health", "PTO")
+  }
+
+  // Helper function to get character count and limit
+  const getCharacterCount = (value: string, field: keyof typeof characterLimits) => {
+    const limit = characterLimits[field]
+    const count = value.length
+    const remaining = limit - count
+    return { count, limit, remaining }
+  }
+
+  // Helper function to render character count message with color coding
+  const renderCharacterCount = (value: string, field: keyof typeof characterLimits) => {
+    const { count, limit, remaining } = getCharacterCount(value, field)
+    const minRequired = minimumCharacters[field]
+    const isOverLimit = count > limit
+    const isTooShort = count > 0 && count < minRequired
+    const isGoodLength = count >= minRequired && count <= limit * 0.8
+    const isNearLimit = count > limit * 0.8 && count <= limit
+
+    let messageColor = 'text-gray-500'
+    let messageText = `${count}/${limit} characters`
+
+    if (count === 0) {
+      messageColor = 'text-gray-400'
+      messageText = `${count}/${limit} characters`
+    } else if (isOverLimit) {
+      messageColor = 'text-red-500'
+      messageText = `${count}/${limit} characters (${Math.abs(remaining)} over limit)`
+    } else if (isTooShort) {
+      messageColor = 'text-red-500'
+      messageText = `${count}/${limit} characters (minimum ${minRequired} characters required)`
+    } else if (isGoodLength) {
+      messageColor = 'text-green-500'
+      messageText = `${count}/${limit} characters (good length)`
+    } else if (isNearLimit) {
+      messageColor = 'text-yellow-500'
+      messageText = `${count}/${limit} characters (${remaining} remaining)`
+    }
+
+    return (
+      <div className={`text-xs ${messageColor}`}>
+        {messageText}
+      </div>
+    )
+  }
+
+  // Helper function to handle input changes with character limit validation
+  const handleInputChange = (field: keyof typeof characterLimits, value: string, setter: (value: string) => void) => {
+    const limit = characterLimits[field]
+    if (value.length <= limit) {
+      setter(value)
+    }
+  }
+
   // Function to fetch jobs from API
   const fetchJobs = async () => {
     try {
@@ -1245,20 +1327,24 @@ export default function JobPostings() {
                       <Input
                         id="title"
                         value={newJob.title}
-                        onChange={(e) => setNewJob({ ...newJob, title: e.target.value })}
+                        onChange={(e) => handleInputChange('title', e.target.value, (value) => setNewJob({ ...newJob, title: value }))}
                         placeholder="Senior Software Engineer"
                         required
+                        maxLength={characterLimits.title}
                       />
+                      {renderCharacterCount(newJob.title, 'title')}
                     </div>
                     <div className="space-y-2">
                       <Label htmlFor="company">Company *</Label>
                       <Input
                         id="company"
                         value={newJob.company}
-                        onChange={(e) => setNewJob({ ...newJob, company: e.target.value })}
+                        onChange={(e) => handleInputChange('company', e.target.value, (value) => setNewJob({ ...newJob, company: value }))}
                         placeholder="TechCorp Inc."
                         required
+                        maxLength={characterLimits.company}
                       />
+                      {renderCharacterCount(newJob.company, 'company')}
                     </div>
                   </div>
                   <div className="grid grid-cols-3 gap-4">
@@ -1267,28 +1353,34 @@ export default function JobPostings() {
                       <Input
                         id="department"
                         value={newJob.department}
-                        onChange={(e) => setNewJob({ ...newJob, department: e.target.value })}
+                        onChange={(e) => handleInputChange('department', e.target.value, (value) => setNewJob({ ...newJob, department: value }))}
                         placeholder="Engineering"
+                        maxLength={characterLimits.department}
                       />
+                      {renderCharacterCount(newJob.department, 'department')}
                     </div>
                     <div className="space-y-2">
                       <Label htmlFor="internalSPOC">Internal SPOC *</Label>
                       <Input
                         id="internalSPOC"
                         value={newJob.internalSPOC}
-                        onChange={(e) => setNewJob({ ...newJob, internalSPOC: e.target.value })}
+                        onChange={(e) => handleInputChange('internalSPOC', e.target.value, (value) => setNewJob({ ...newJob, internalSPOC: value }))}
                         placeholder="Sarah Wilson"
                         required
+                        maxLength={characterLimits.internalSPOC}
                       />
+                      {renderCharacterCount(newJob.internalSPOC, 'internalSPOC')}
                     </div>
                     <div className="space-y-2">
                       <Label htmlFor="recruiter">Recruiter</Label>
                       <Input
                         id="recruiter"
                         value={newJob.recruiter}
-                        onChange={(e) => setNewJob({ ...newJob, recruiter: e.target.value })}
+                        onChange={(e) => handleInputChange('recruiter', e.target.value, (value) => setNewJob({ ...newJob, recruiter: value }))}
                         placeholder="Sarah Wilson"
+                        maxLength={characterLimits.recruiter}
                       />
+                      {renderCharacterCount(newJob.recruiter, 'recruiter')}
                     </div>
                     <div className="space-y-2">
                       <Label htmlFor="email">Email *</Label>
@@ -1296,10 +1388,12 @@ export default function JobPostings() {
                         id="email"
                         type="email"
                         value={newJob.email}
-                        onChange={(e) => setNewJob({ ...newJob, email: e.target.value })}
+                        onChange={(e) => handleInputChange('email', e.target.value, (value) => setNewJob({ ...newJob, email: value }))}
                         placeholder="hr@company.com"
                         required
+                        maxLength={characterLimits.email}
                       />
+                      {renderCharacterCount(newJob.email, 'email')}
                     </div>
                   </div>
                 </div>
@@ -1396,10 +1490,12 @@ export default function JobPostings() {
                       <Input
                         id="location"
                         value={newJob.location}
-                        onChange={(e) => setNewJob({ ...newJob, location: e.target.value })}
+                        onChange={(e) => handleInputChange('location', e.target.value, (value) => setNewJob({ ...newJob, location: value }))}
                         placeholder="Enter complete location"
                         required
+                        maxLength={characterLimits.location}
                       />
+                      {renderCharacterCount(newJob.location, 'location')}
                     </div>
                   </div>
                 </div>
@@ -1493,21 +1589,25 @@ export default function JobPostings() {
                     <Textarea
                       id="description"
                       value={newJob.description}
-                      onChange={(e) => setNewJob({ ...newJob, description: e.target.value })}
+                      onChange={(e) => handleInputChange('description', e.target.value, (value) => setNewJob({ ...newJob, description: value }))}
                       placeholder="Describe the role, responsibilities, and what makes this position exciting..."
                       rows={4}
                       required
+                      maxLength={characterLimits.description}
                     />
+                    {renderCharacterCount(newJob.description, 'description')}
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="requirements">Requirements (one per line)</Label>
                     <Textarea
                       id="requirements"
                       value={newJob.requirements}
-                      onChange={(e) => setNewJob({ ...newJob, requirements: e.target.value })}
+                      onChange={(e) => handleInputChange('requirements', e.target.value, (value) => setNewJob({ ...newJob, requirements: value }))}
                       placeholder="Bachelor's degree in Computer Science&#10;5+ years of experience&#10;Strong communication skills"
                       rows={4}
+                      maxLength={characterLimits.requirements}
                     />
+                    {renderCharacterCount(newJob.requirements, 'requirements')}
                   </div>
                   <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-2">
@@ -1515,18 +1615,22 @@ export default function JobPostings() {
                       <Input
                         id="skills"
                         value={newJob.skills}
-                        onChange={(e) => setNewJob({ ...newJob, skills: e.target.value })}
+                        onChange={(e) => handleInputChange('skills', e.target.value, (value) => setNewJob({ ...newJob, skills: value }))}
                         placeholder="React, Node.js, TypeScript, AWS"
+                        maxLength={characterLimits.skills}
                       />
+                      {renderCharacterCount(newJob.skills, 'skills')}
                     </div>
                     <div className="space-y-2">
                       <Label htmlFor="benefits">Benefits (comma-separated)</Label>
                       <Input
                         id="benefits"
                         value={newJob.benefits}
-                        onChange={(e) => setNewJob({ ...newJob, benefits: e.target.value })}
+                        onChange={(e) => handleInputChange('benefits', e.target.value, (value) => setNewJob({ ...newJob, benefits: value }))}
                         placeholder="Health Insurance, 401k, Flexible PTO"
+                        maxLength={characterLimits.benefits}
                       />
+                      {renderCharacterCount(newJob.benefits, 'benefits')}
                     </div>
                   </div>
                 </div>
@@ -1573,20 +1677,24 @@ export default function JobPostings() {
                         <Input
                           id="edit-title"
                           value={editingJob.title}
-                          onChange={(e) => setEditingJob({ ...editingJob, title: e.target.value })}
+                          onChange={(e) => handleInputChange('title', e.target.value, (value) => setEditingJob({ ...editingJob, title: value }))}
                           placeholder="Senior Software Engineer"
                           required
+                          maxLength={characterLimits.title}
                         />
+                        {renderCharacterCount(editingJob.title, 'title')}
                       </div>
                       <div className="space-y-2">
                         <Label htmlFor="edit-company">Company *</Label>
                         <Input
                           id="edit-company"
                           value={editingJob.company}
-                          onChange={(e) => setEditingJob({ ...editingJob, company: e.target.value })}
+                          onChange={(e) => handleInputChange('company', e.target.value, (value) => setEditingJob({ ...editingJob, company: value }))}
                           placeholder="TechCorp Inc."
                           required
+                          maxLength={characterLimits.company}
                         />
+                        {renderCharacterCount(editingJob.company, 'company')}
                       </div>
                     </div>
                     <div className="grid grid-cols-3 gap-4">
@@ -1595,28 +1703,34 @@ export default function JobPostings() {
                         <Input
                           id="edit-department"
                           value={editingJob.department}
-                          onChange={(e) => setEditingJob({ ...editingJob, department: e.target.value })}
+                          onChange={(e) => handleInputChange('department', e.target.value, (value) => setEditingJob({ ...editingJob, department: value }))}
                           placeholder="Engineering"
+                          maxLength={characterLimits.department}
                         />
+                        {renderCharacterCount(editingJob.department, 'department')}
                       </div>
                       <div className="space-y-2">
                         <Label htmlFor="edit-internalSPOC">Internal SPOC *</Label>
                         <Input
                           id="edit-internalSPOC"
                           value={editingJob.internalSPOC}
-                          onChange={(e) => setEditingJob({ ...editingJob, internalSPOC: e.target.value })}
+                          onChange={(e) => handleInputChange('internalSPOC', e.target.value, (value) => setEditingJob({ ...editingJob, internalSPOC: value }))}
                           placeholder="Sarah Wilson"
                           required
+                          maxLength={characterLimits.internalSPOC}
                         />
+                        {renderCharacterCount(editingJob.internalSPOC, 'internalSPOC')}
                       </div>
                       <div className="space-y-2">
                         <Label htmlFor="edit-recruiter">Recruiter</Label>
                         <Input
                           id="edit-recruiter"
                           value={editingJob.recruiter}
-                          onChange={(e) => setEditingJob({ ...editingJob, recruiter: e.target.value })}
+                          onChange={(e) => handleInputChange('recruiter', e.target.value, (value) => setEditingJob({ ...editingJob, recruiter: value }))}
                           placeholder="Sarah Wilson"
+                          maxLength={characterLimits.recruiter}
                         />
+                        {renderCharacterCount(editingJob.recruiter, 'recruiter')}
                       </div>
                       <div className="space-y-2">
                         <Label htmlFor="edit-email">Email *</Label>
@@ -1624,10 +1738,12 @@ export default function JobPostings() {
                           id="edit-email"
                           type="email"
                           value={editingJob.email}
-                          onChange={(e) => setEditingJob({ ...editingJob, email: e.target.value })}
+                          onChange={(e) => handleInputChange('email', e.target.value, (value) => setEditingJob({ ...editingJob, email: value }))}
                           placeholder="hr@company.com"
                           required
+                          maxLength={characterLimits.email}
                         />
+                        {renderCharacterCount(editingJob.email, 'email')}
                       </div>
                     </div>
                   </div>
@@ -1728,6 +1844,7 @@ export default function JobPostings() {
                           placeholder="Enter complete location"
                           required
                         />
+                        {renderCharacterCount(editingJob.location, 'location')}
                       </div>
                     </div>
                   </div>
@@ -1826,6 +1943,7 @@ export default function JobPostings() {
                         rows={4}
                         required
                       />
+                      {renderCharacterCount(editingJob.description, 'description')}
                     </div>
                     <div className="space-y-2">
                       <Label htmlFor="edit-requirements">Requirements (one per line)</Label>
@@ -1836,6 +1954,7 @@ export default function JobPostings() {
                         placeholder="Bachelor's degree in Computer Science&#10;5+ years of experience&#10;Strong communication skills"
                         rows={4}
                       />
+                      {renderCharacterCount(editingJob.requirements.join('\n'), 'requirements')}
                     </div>
                     <div className="grid grid-cols-2 gap-4">
                       <div className="space-y-2">
@@ -1846,6 +1965,7 @@ export default function JobPostings() {
                           onChange={(e) => setEditingJob({ ...editingJob, skills: e.target.value.split(',').map(s => s.trim()).filter(s => s) })}
                           placeholder="React, Node.js, TypeScript, AWS"
                         />
+                        {renderCharacterCount(editingJob.skills.join(', '), 'skills')}
                       </div>
                       <div className="space-y-2">
                         <Label htmlFor="edit-benefits">Benefits (comma-separated)</Label>
@@ -1855,6 +1975,7 @@ export default function JobPostings() {
                           onChange={(e) => setEditingJob({ ...editingJob, benefits: e.target.value.split(',').map(b => b.trim()).filter(b => b) })}
                           placeholder="Health Insurance, 401k, Flexible PTO"
                         />
+                        {renderCharacterCount(editingJob.benefits.join(', '), 'benefits')}
                       </div>
                     </div>
                   </div>

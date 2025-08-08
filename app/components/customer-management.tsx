@@ -110,6 +110,90 @@ export default function CustomerManagement() {
     billingCycle: ''
   })
 
+  // Character limits for form fields - Professional standards
+  const characterLimits = {
+    companyName: 150,    // Company names can be long but should be reasonable
+    industry: 50,        // Industry names should be concise
+    companySize: 20,     // Company size descriptions should be short
+    website: 200,        // Website URLs can be long
+    description: 2000,   // Company descriptions should be comprehensive
+    email: 150,          // Email addresses can be long
+    country: 100,        // Country names can be long
+    city: 100,           // City names can be long
+    address: 300,        // Full addresses can be long
+    annualRevenue: 50,   // Revenue amounts should be concise
+    contractValue: 20,   // Contract values should be concise
+    billingCycle: 30     // Billing cycle descriptions should be concise
+  }
+
+  // Minimum character requirements for fields - Professional standards
+  const minimumCharacters = {
+    companyName: 3,      // Company names should be at least 3 characters (e.g., "IBM", "MS", "Apple")
+    industry: 3,         // Industry names should be at least 3 characters
+    companySize: 1,      // Company size can be short
+    website: 5,          // Website should be at least 5 characters (e.g., "a.com")
+    description: 10,     // Descriptions should be at least 10 characters for meaningful content
+    email: 8,            // Email should be at least 8 characters (e.g., "a@b.com")
+    country: 3,          // Country names should be at least 3 characters (e.g., "USA", "UK")
+    city: 3,             // City names should be at least 3 characters (e.g., "NYC", "LA")
+    address: 5,          // Addresses should be at least 5 characters
+    annualRevenue: 1,    // Revenue can be short
+    contractValue: 1,    // Contract value can be short
+    billingCycle: 2      // Billing cycle should be at least 2 characters
+  }
+
+  // Helper function to get character count and limit
+  const getCharacterCount = (value: string, field: keyof typeof characterLimits) => {
+    const limit = characterLimits[field]
+    const count = value.length
+    const remaining = limit - count
+    return { count, limit, remaining }
+  }
+
+  // Helper function to render character count message with color coding
+  const renderCharacterCount = (value: string, field: keyof typeof characterLimits) => {
+    const { count, limit, remaining } = getCharacterCount(value, field)
+    const minRequired = minimumCharacters[field]
+    const isOverLimit = count > limit
+    const isTooShort = count > 0 && count < minRequired
+    const isGoodLength = count >= minRequired && count <= limit * 0.8
+    const isNearLimit = count > limit * 0.8 && count <= limit
+
+    let messageColor = 'text-gray-500'
+    let messageText = `${count}/${limit} characters`
+
+    if (count === 0) {
+      messageColor = 'text-gray-400'
+      messageText = `${count}/${limit} characters`
+    } else if (isOverLimit) {
+      messageColor = 'text-red-500'
+      messageText = `${count}/${limit} characters (${Math.abs(remaining)} over limit)`
+    } else if (isTooShort) {
+      messageColor = 'text-red-500'
+      messageText = `${count}/${limit} characters (minimum ${minRequired} characters required)`
+    } else if (isGoodLength) {
+      messageColor = 'text-green-500'
+      messageText = `${count}/${limit} characters (good length)`
+    } else if (isNearLimit) {
+      messageColor = 'text-yellow-500'
+      messageText = `${count}/${limit} characters (${remaining} remaining)`
+    }
+
+    return (
+      <div className={`text-xs ${messageColor}`}>
+        {messageText}
+      </div>
+    )
+  }
+
+  // Helper function to handle input changes with character limit validation
+  const handleInputChange = (field: keyof typeof characterLimits, value: string, setter: (value: string) => void) => {
+    const limit = characterLimits[field]
+    if (value.length <= limit) {
+      setter(value)
+    }
+  }
+
   // Fetch customers
   const fetchCustomers = async () => {
     try {
@@ -514,6 +598,10 @@ export default function CustomerManagement() {
                   onSubmit={createCustomer}
                   submitText="Create Customer"
                   onCancel={() => setShowCreateDialog(false)}
+                  characterLimits={characterLimits}
+                  minimumCharacters={minimumCharacters}
+                  renderCharacterCount={(value: string, field: string) => renderCharacterCount(value, field as keyof typeof characterLimits)}
+                  handleInputChange={(field: string, value: string, setter: (value: string) => void) => handleInputChange(field as keyof typeof characterLimits, value, setter)}
                 />
               </DialogContent>
             </Dialog>
@@ -819,6 +907,10 @@ export default function CustomerManagement() {
               onSubmit={updateCustomer}
               submitText="Update Customer"
               onCancel={() => setShowEditDialog(false)}
+              characterLimits={characterLimits}
+              minimumCharacters={minimumCharacters}
+              renderCharacterCount={(value: string, field: string) => renderCharacterCount(value, field as keyof typeof characterLimits)}
+              handleInputChange={(field: string, value: string, setter: (value: string) => void) => handleInputChange(field as keyof typeof characterLimits, value, setter)}
             />
           </DialogContent>
         </Dialog>
@@ -833,13 +925,21 @@ function CustomerForm({
   setFormData, 
   onSubmit, 
   submitText,
-  onCancel
+  onCancel,
+  characterLimits,
+  minimumCharacters,
+  renderCharacterCount,
+  handleInputChange
 }: { 
   formData: CustomerFormData
   setFormData: (data: CustomerFormData) => void
   onSubmit: () => void
   submitText: string
   onCancel: () => void
+  characterLimits: Record<string, number>
+  minimumCharacters: Record<string, number>
+  renderCharacterCount: (value: string, field: string) => React.ReactNode
+  handleInputChange: (field: string, value: string, setter: (value: string) => void) => void
 }) {
   return (
     <div className="space-y-8">
@@ -857,10 +957,12 @@ function CustomerForm({
             <label className="text-sm font-medium text-slate-700">Company Name *</label>
             <Input
               value={formData.companyName}
-              onChange={(e) => setFormData({ ...formData, companyName: e.target.value })}
+              onChange={(e) => handleInputChange('companyName', e.target.value, (value) => setFormData({ ...formData, companyName: value }))}
               placeholder="Enter company name"
               className="h-12 border-slate-200 focus:border-blue-500 focus:ring-blue-500"
+              maxLength={characterLimits.companyName}
             />
+            {renderCharacterCount(formData.companyName, 'companyName')}
           </div>
           <div className="space-y-2">
             <label className="text-sm font-medium text-slate-700">Industry *</label>
@@ -900,20 +1002,24 @@ function CustomerForm({
             <label className="text-sm font-medium text-slate-700">Website</label>
             <Input
               value={formData.website}
-              onChange={(e) => setFormData({ ...formData, website: e.target.value })}
+              onChange={(e) => handleInputChange('website', e.target.value, (value) => setFormData({ ...formData, website: value }))}
               placeholder="https://example.com"
               className="h-12 border-slate-200 focus:border-blue-500 focus:ring-blue-500"
+              maxLength={characterLimits.website}
             />
+            {renderCharacterCount(formData.website, 'website')}
           </div>
           <div className="space-y-2">
             <label className="text-sm font-medium text-slate-700">Email</label>
             <Input
               type="email"
               value={formData.email}
-              onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+              onChange={(e) => handleInputChange('email', e.target.value, (value) => setFormData({ ...formData, email: value }))}
               placeholder="contact@company.com"
               className="h-12 border-slate-200 focus:border-blue-500 focus:ring-blue-500"
+              maxLength={characterLimits.email}
             />
+            {renderCharacterCount(formData.email, 'email')}
           </div>
         </div>
 
@@ -921,11 +1027,13 @@ function CustomerForm({
           <label className="text-sm font-medium text-slate-700">Description</label>
           <textarea
             value={formData.description}
-            onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+            onChange={(e) => handleInputChange('description', e.target.value, (value) => setFormData({ ...formData, description: value }))}
             placeholder="Enter company description"
             className="w-full p-4 border border-slate-200 rounded-lg resize-none focus:border-blue-500 focus:ring-blue-500"
             rows={4}
+            maxLength={characterLimits.description}
           />
+          {renderCharacterCount(formData.description, 'description')}
         </div>
       </div>
 
@@ -984,19 +1092,23 @@ function CustomerForm({
             <label className="text-sm font-medium text-slate-700">Country *</label>
             <Input
               value={formData.country}
-              onChange={(e) => setFormData({ ...formData, country: e.target.value })}
+              onChange={(e) => handleInputChange('country', e.target.value, (value) => setFormData({ ...formData, country: value }))}
               placeholder="Enter country"
               className="h-12 border-slate-200 focus:border-blue-500 focus:ring-blue-500"
+              maxLength={characterLimits.country}
             />
+            {renderCharacterCount(formData.country, 'country')}
           </div>
           <div className="space-y-2">
             <label className="text-sm font-medium text-slate-700">City *</label>
             <Input
               value={formData.city}
-              onChange={(e) => setFormData({ ...formData, city: e.target.value })}
+              onChange={(e) => handleInputChange('city', e.target.value, (value) => setFormData({ ...formData, city: value }))}
               placeholder="Enter city"
               className="h-12 border-slate-200 focus:border-blue-500 focus:ring-blue-500"
+              maxLength={characterLimits.city}
             />
+            {renderCharacterCount(formData.city, 'city')}
           </div>
         </div>
 
@@ -1004,10 +1116,12 @@ function CustomerForm({
           <label className="text-sm font-medium text-slate-700">Address</label>
           <Input
             value={formData.address}
-            onChange={(e) => setFormData({ ...formData, address: e.target.value })}
+            onChange={(e) => handleInputChange('address', e.target.value, (value) => setFormData({ ...formData, address: value }))}
             placeholder="Enter full address"
             className="h-12 border-slate-200 focus:border-blue-500 focus:ring-blue-500"
+            maxLength={characterLimits.address}
           />
+          {renderCharacterCount(formData.address, 'address')}
         </div>
       </div>
 
@@ -1025,20 +1139,24 @@ function CustomerForm({
             <label className="text-sm font-medium text-slate-700">Annual Revenue</label>
             <Input
               value={formData.annualRevenue}
-              onChange={(e) => setFormData({ ...formData, annualRevenue: e.target.value })}
+              onChange={(e) => handleInputChange('annualRevenue', e.target.value, (value) => setFormData({ ...formData, annualRevenue: value }))}
               placeholder="e.g., $1M-$10M"
               className="h-12 border-slate-200 focus:border-blue-500 focus:ring-blue-500"
+              maxLength={characterLimits.annualRevenue}
             />
+            {renderCharacterCount(formData.annualRevenue, 'annualRevenue')}
           </div>
           <div className="space-y-2">
             <label className="text-sm font-medium text-slate-700">Contract Value</label>
             <Input
               type="number"
               value={formData.contractValue}
-              onChange={(e) => setFormData({ ...formData, contractValue: e.target.value })}
+              onChange={(e) => handleInputChange('contractValue', e.target.value, (value) => setFormData({ ...formData, contractValue: value }))}
               placeholder="0.00"
               className="h-12 border-slate-200 focus:border-blue-500 focus:ring-blue-500"
+              maxLength={characterLimits.contractValue}
             />
+            {renderCharacterCount(formData.contractValue, 'contractValue')}
           </div>
           <div className="space-y-2">
             <label className="text-sm font-medium text-slate-700">Billing Cycle</label>
@@ -1052,6 +1170,7 @@ function CustomerForm({
                 <SelectItem value="Annual">Annual</SelectItem>
               </SelectContent>
             </Select>
+            {renderCharacterCount(formData.billingCycle, 'billingCycle')}
           </div>
         </div>
       </div>

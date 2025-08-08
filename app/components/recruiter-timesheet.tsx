@@ -159,6 +159,84 @@ const RecruiterTimesheet = () => {
   const [dateFilter, setDateFilter] = useState<Date | undefined>(undefined);
   const [billableFilter, setBillableFilter] = useState<string>('all');
 
+  // Character limits for form fields - Professional standards
+  const characterLimits = {
+    recruiterName: 100,    // Recruiter names should be reasonable length
+    recruiterEmail: 150,   // Email addresses can be long
+    entityId: 50,          // Entity IDs should be concise
+    entityName: 200,       // Entity names can be descriptive
+    companyName: 150,      // Company names should be reasonable length
+    taskType: 200,         // Task types should be descriptive
+    billableRate: 20,      // Billable rates should be concise
+    comments: 1000,        // Comments should be comprehensive
+    approvedBy: 100        // Approved by names should be reasonable length
+  }
+
+  // Minimum character requirements for fields - Professional standards
+  const minimumCharacters = {
+    recruiterName: 3,      // Recruiter names should be at least 3 characters
+    recruiterEmail: 8,     // Email should be at least 8 characters (e.g., "a@b.com")
+    entityId: 1,           // Entity IDs can be short
+    entityName: 2,         // Entity names should be at least 2 characters
+    companyName: 2,        // Company names should be at least 2 characters
+    taskType: 5,           // Task types should be at least 5 characters for meaningful content
+    billableRate: 1,       // Billable rates can be short
+    comments: 5,           // Comments should be at least 5 characters for meaningful content
+    approvedBy: 2          // Approved by names should be at least 2 characters
+  }
+
+  // Helper function to get character count and limit
+  const getCharacterCount = (value: string, field: keyof typeof characterLimits) => {
+    const limit = characterLimits[field]
+    const count = value.length
+    const remaining = limit - count
+    return { count, limit, remaining }
+  }
+
+  // Helper function to render character count message with color coding
+  const renderCharacterCount = (value: string, field: keyof typeof characterLimits) => {
+    const { count, limit, remaining } = getCharacterCount(value, field)
+    const minRequired = minimumCharacters[field]
+    const isOverLimit = count > limit
+    const isTooShort = count > 0 && count < minRequired
+    const isGoodLength = count >= minRequired && count <= limit * 0.8
+    const isNearLimit = count > limit * 0.8 && count <= limit
+
+    let messageColor = 'text-gray-500'
+    let messageText = `${count}/${limit} characters`
+
+    if (count === 0) {
+      messageColor = 'text-gray-400'
+      messageText = `${count}/${limit} characters`
+    } else if (isOverLimit) {
+      messageColor = 'text-red-500'
+      messageText = `${count}/${limit} characters (${Math.abs(remaining)} over limit)`
+    } else if (isTooShort) {
+      messageColor = 'text-red-500'
+      messageText = `${count}/${limit} characters (minimum ${minRequired} characters required)`
+    } else if (isGoodLength) {
+      messageColor = 'text-green-500'
+      messageText = `${count}/${limit} characters (good length)`
+    } else if (isNearLimit) {
+      messageColor = 'text-yellow-500'
+      messageText = `${count}/${limit} characters (${remaining} remaining)`
+    }
+
+    return (
+      <div className={`text-xs ${messageColor}`}>
+        {messageText}
+      </div>
+    )
+  }
+
+  // Helper function to handle input changes with character limit validation
+  const handleInputChange = (field: keyof typeof characterLimits, value: string, setter: (value: string) => void) => {
+    const limit = characterLimits[field]
+    if (value.length <= limit) {
+      setter(value)
+    }
+  }
+
   useEffect(() => {
     fetchTimesheetData();
   }, []);
@@ -921,10 +999,12 @@ const RecruiterTimesheet = () => {
                     <Input
                       id="recruiterName"
                       value={createForm.recruiterName}
-                      onChange={(e) => setCreateForm({...createForm, recruiterName: e.target.value})}
+                      onChange={(e) => handleInputChange('recruiterName', e.target.value, (value) => setCreateForm({...createForm, recruiterName: value}))}
                       placeholder="Enter recruiter name"
                       required
+                      maxLength={characterLimits.recruiterName}
                     />
+                    {renderCharacterCount(createForm.recruiterName, 'recruiterName')}
                   </div>
                   <div>
                     <Label htmlFor="recruiterEmail">Recruiter Email</Label>
@@ -932,9 +1012,11 @@ const RecruiterTimesheet = () => {
                       id="recruiterEmail"
                       type="email"
                       value={createForm.recruiterEmail}
-                      onChange={(e) => setCreateForm({...createForm, recruiterEmail: e.target.value})}
+                      onChange={(e) => handleInputChange('recruiterEmail', e.target.value, (value) => setCreateForm({...createForm, recruiterEmail: value}))}
                       placeholder="Enter recruiter email"
+                      maxLength={characterLimits.recruiterEmail}
                     />
+                    {renderCharacterCount(createForm.recruiterEmail, 'recruiterEmail')}
                   </div>
                   <div>
                     <Label htmlFor="date">Date *</Label>
@@ -996,10 +1078,12 @@ const RecruiterTimesheet = () => {
                     <Input
                       id="taskType"
                       value={createForm.taskType}
-                      onChange={(e) => setCreateForm({...createForm, taskType: e.target.value})}
+                      onChange={(e) => handleInputChange('taskType', e.target.value, (value) => setCreateForm({...createForm, taskType: value}))}
                       placeholder="e.g., Candidate Sourcing"
                       required
+                      maxLength={characterLimits.taskType}
                     />
+                    {renderCharacterCount(createForm.taskType, 'taskType')}
                   </div>
                   <div>
                     <Label htmlFor="taskCategory">Task Category</Label>
@@ -1050,27 +1134,33 @@ const RecruiterTimesheet = () => {
                     <Input
                       id="entityId"
                       value={createForm.entityId}
-                      onChange={(e) => setCreateForm({...createForm, entityId: e.target.value})}
+                      onChange={(e) => handleInputChange('entityId', e.target.value, (value) => setCreateForm({...createForm, entityId: value}))}
                       placeholder="Enter entity ID"
+                      maxLength={characterLimits.entityId}
                     />
+                    {renderCharacterCount(createForm.entityId, 'entityId')}
                   </div>
                   <div>
                     <Label htmlFor="entityName">Entity Name</Label>
                     <Input
                       id="entityName"
                       value={createForm.entityName}
-                      onChange={(e) => setCreateForm({...createForm, entityName: e.target.value})}
+                      onChange={(e) => handleInputChange('entityName', e.target.value, (value) => setCreateForm({...createForm, entityName: value}))}
                       placeholder="Enter entity name"
+                      maxLength={characterLimits.entityName}
                     />
+                    {renderCharacterCount(createForm.entityName, 'entityName')}
                   </div>
                   <div>
                     <Label htmlFor="companyName">Company Name</Label>
                     <Input
                       id="companyName"
                       value={createForm.companyName}
-                      onChange={(e) => setCreateForm({...createForm, companyName: e.target.value})}
+                      onChange={(e) => handleInputChange('companyName', e.target.value, (value) => setCreateForm({...createForm, companyName: value}))}
                       placeholder="Enter company name"
+                      maxLength={characterLimits.companyName}
                     />
+                    {renderCharacterCount(createForm.companyName, 'companyName')}
                   </div>
                   <div>
                     <Label htmlFor="billableRate">Billable Rate ($/hr)</Label>
@@ -1080,9 +1170,11 @@ const RecruiterTimesheet = () => {
                       step="0.01"
                       min="0"
                       value={createForm.billableRate}
-                      onChange={(e) => setCreateForm({...createForm, billableRate: e.target.value})}
+                      onChange={(e) => handleInputChange('billableRate', e.target.value, (value) => setCreateForm({...createForm, billableRate: value}))}
                       placeholder="0.00"
+                      maxLength={characterLimits.billableRate}
                     />
+                    {renderCharacterCount(createForm.billableRate, 'billableRate')}
                   </div>
                 </div>
                 <div>
@@ -1090,10 +1182,12 @@ const RecruiterTimesheet = () => {
                   <Textarea
                     id="comments"
                     value={createForm.comments}
-                    onChange={(e) => setCreateForm({...createForm, comments: e.target.value})}
+                    onChange={(e) => handleInputChange('comments', e.target.value, (value) => setCreateForm({...createForm, comments: value}))}
                     placeholder="Enter any additional comments"
                     rows={3}
+                    maxLength={characterLimits.comments}
                   />
+                  {renderCharacterCount(createForm.comments, 'comments')}
                 </div>
                 <div className="flex items-center space-x-2">
                   <input
@@ -1983,10 +2077,12 @@ const RecruiterTimesheet = () => {
                                    <Input
                                      id="edit-recruiterName"
                                      value={editForm.recruiterName}
-                                     onChange={(e) => setEditForm({...editForm, recruiterName: e.target.value})}
+                                     onChange={(e) => handleInputChange('recruiterName', e.target.value, (value) => setEditForm({...editForm, recruiterName: value}))}
                                      placeholder="Enter recruiter name"
                                      required
+                                     maxLength={characterLimits.recruiterName}
                                    />
+                                   {renderCharacterCount(editForm.recruiterName, 'recruiterName')}
                                  </div>
                                  <div>
                                    <Label htmlFor="edit-recruiterEmail">Recruiter Email</Label>
@@ -1994,9 +2090,11 @@ const RecruiterTimesheet = () => {
                                      id="edit-recruiterEmail"
                                      type="email"
                                      value={editForm.recruiterEmail}
-                                     onChange={(e) => setEditForm({...editForm, recruiterEmail: e.target.value})}
+                                     onChange={(e) => handleInputChange('recruiterEmail', e.target.value, (value) => setEditForm({...editForm, recruiterEmail: value}))}
                                      placeholder="Enter recruiter email"
+                                     maxLength={characterLimits.recruiterEmail}
                                    />
+                                   {renderCharacterCount(editForm.recruiterEmail, 'recruiterEmail')}
                                  </div>
                                  <div>
                                    <Label htmlFor="edit-date">Date *</Label>
@@ -2058,10 +2156,12 @@ const RecruiterTimesheet = () => {
                                    <Input
                                      id="edit-taskType"
                                      value={editForm.taskType}
-                                     onChange={(e) => setEditForm({...editForm, taskType: e.target.value})}
+                                     onChange={(e) => handleInputChange('taskType', e.target.value, (value) => setEditForm({...editForm, taskType: value}))}
                                      placeholder="e.g., Candidate Sourcing"
                                      required
+                                     maxLength={characterLimits.taskType}
                                    />
+                                   {renderCharacterCount(editForm.taskType, 'taskType')}
                                  </div>
                                  <div>
                                    <Label htmlFor="edit-taskCategory">Task Category</Label>
@@ -2112,27 +2212,33 @@ const RecruiterTimesheet = () => {
                                    <Input
                                      id="edit-entityId"
                                      value={editForm.entityId}
-                                     onChange={(e) => setEditForm({...editForm, entityId: e.target.value})}
+                                     onChange={(e) => handleInputChange('entityId', e.target.value, (value) => setEditForm({...editForm, entityId: value}))}
                                      placeholder="Enter entity ID"
+                                     maxLength={characterLimits.entityId}
                                    />
+                                   {renderCharacterCount(editForm.entityId, 'entityId')}
                                  </div>
                                  <div>
                                    <Label htmlFor="edit-entityName">Entity Name</Label>
                                    <Input
                                      id="edit-entityName"
                                      value={editForm.entityName}
-                                     onChange={(e) => setEditForm({...editForm, entityName: e.target.value})}
+                                     onChange={(e) => handleInputChange('entityName', e.target.value, (value) => setEditForm({...editForm, entityName: value}))}
                                      placeholder="Enter entity name"
+                                     maxLength={characterLimits.entityName}
                                    />
+                                   {renderCharacterCount(editForm.entityName, 'entityName')}
                                  </div>
                                  <div>
                                    <Label htmlFor="edit-companyName">Company Name</Label>
                                    <Input
                                      id="edit-companyName"
                                      value={editForm.companyName}
-                                     onChange={(e) => setEditForm({...editForm, companyName: e.target.value})}
+                                     onChange={(e) => handleInputChange('companyName', e.target.value, (value) => setEditForm({...editForm, companyName: value}))}
                                      placeholder="Enter company name"
+                                     maxLength={characterLimits.companyName}
                                    />
+                                   {renderCharacterCount(editForm.companyName, 'companyName')}
                                  </div>
                                  <div>
                                    <Label htmlFor="edit-billableRate">Billable Rate ($/hr)</Label>
@@ -2142,9 +2248,11 @@ const RecruiterTimesheet = () => {
                                      step="0.01"
                                      min="0"
                                      value={editForm.billableRate}
-                                     onChange={(e) => setEditForm({...editForm, billableRate: e.target.value})}
+                                     onChange={(e) => handleInputChange('billableRate', e.target.value, (value) => setEditForm({...editForm, billableRate: value}))}
                                      placeholder="0.00"
+                                     maxLength={characterLimits.billableRate}
                                    />
+                                   {renderCharacterCount(editForm.billableRate, 'billableRate')}
                                  </div>
                                </div>
                                <div>
@@ -2152,10 +2260,12 @@ const RecruiterTimesheet = () => {
                                  <Textarea
                                    id="edit-comments"
                                    value={editForm.comments}
-                                   onChange={(e) => setEditForm({...editForm, comments: e.target.value})}
+                                   onChange={(e) => handleInputChange('comments', e.target.value, (value) => setEditForm({...editForm, comments: value}))}
                                    placeholder="Enter any additional comments"
                                    rows={3}
+                                   maxLength={characterLimits.comments}
                                  />
+                                 {renderCharacterCount(editForm.comments, 'comments')}
                                </div>
                                <div className="flex items-center space-x-2">
                                  <input
@@ -2290,11 +2400,13 @@ const RecruiterTimesheet = () => {
                                          <Label htmlFor="approvedBy">Approved By</Label>
                                          <Input
                                            id="approvedBy"
-                                           placeholder="Enter your name or ID"
+                                           type="text"
                                            value={approvalForm.approvedBy}
-                                           onChange={(e) => setApprovalForm({...approvalForm, approvedBy: e.target.value})}
-                                           className="mt-1"
+                                           onChange={(e) => handleInputChange('approvedBy', e.target.value, (value) => setApprovalForm({...approvalForm, approvedBy: value}))}
+                                           placeholder="Enter your name or ID"
+                                           maxLength={characterLimits.approvedBy}
                                          />
+                                         {renderCharacterCount(approvalForm.approvedBy, 'approvedBy')}
                                        </div>
                                        <div>
                                          <Label htmlFor="approvedAt">Approved At (Optional)</Label>
@@ -2326,11 +2438,13 @@ const RecruiterTimesheet = () => {
                                          <Label htmlFor="editApprovedBy">Approved By</Label>
                                          <Input
                                            id="editApprovedBy"
-                                           placeholder="Enter your name or ID"
+                                           type="text"
                                            value={approvalForm.approvedBy}
-                                           onChange={(e) => setApprovalForm({...approvalForm, approvedBy: e.target.value})}
-                                           className="mt-1"
+                                           onChange={(e) => handleInputChange('approvedBy', e.target.value, (value) => setApprovalForm({...approvalForm, approvedBy: value}))}
+                                           placeholder="Enter your name or ID"
+                                           maxLength={characterLimits.approvedBy}
                                          />
+                                         {renderCharacterCount(approvalForm.approvedBy, 'approvedBy')}
                                        </div>
                                        <div>
                                          <Label htmlFor="editApprovedAt">Approved At (Optional)</Label>
