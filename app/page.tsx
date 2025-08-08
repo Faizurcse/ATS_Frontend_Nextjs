@@ -134,8 +134,8 @@ export default function Dashboard() {
       label: "Management",
       items: [
         { id: "customers", label: "Customers", icon: Building2, component: CustomerManagement},
-        { id: "email-analytics", label: "Email Analytics", icon: Mail, component: EmailAnalytics,badge: "New" },
-        { id: "bulk-import", label: "Bulk Import", icon: Upload, component: BulkImport,badge: "New" },
+        { id: "email-analytics", label: "Email Analytics", icon: Mail, component: EmailAnalytics},
+        { id: "bulk-import", label: "Bulk Import", icon: Upload, component: BulkImport },
       ],
     },
     {
@@ -151,8 +151,8 @@ export default function Dashboard() {
       id: "administration",
       label: "Administration",
       items: [
-        { id: "user-management", label: "User Management", icon: Shield, component: UserManagement },
-        { id: "system-settings", label: "System Settings", icon: Database,badge: "New", component: () => <div>System Settings - Coming Soon</div> },
+        { id: "user-management", label: "User Management", icon: Shield, component: UserManagement }
+        // { id: "system-settings", label: "System Settings", icon: Database,badge: "New", component: () => <div>System Settings - Coming Soon</div> },
       ],
     },
 
