@@ -10,7 +10,6 @@ import { toast } from "@/components/ui/use-toast"
 import { CheckCircle } from "lucide-react"
 import BASE_API_URL from '../../BaseUrlApi';
 
-
 console.log("faiz--",BASE_API_URL)
 
 export default function OTPAuth() {
@@ -44,25 +43,129 @@ export default function OTPAuth() {
     setError("")
   }
 
+  // Helper function to check if the server is running
+  const checkServerHealth = async (): Promise<boolean> => {
+    try {
+      const controller = new AbortController()
+      const timeoutId = setTimeout(() => controller.abort(), 5000) // 5 second timeout
+      
+      // Try to check server health using a simple GET request to the base URL
+      const response = await fetch(`${BASE_API_URL}`, {
+        method: "GET",
+        signal: controller.signal
+      })
+      
+      clearTimeout(timeoutId)
+      return response.ok || response.status === 404 // 404 means server is running but endpoint doesn't exist
+    } catch (error) {
+      console.log("Server health check failed:", error)
+      return false
+    }
+  }
+
+  // Helper function to handle API responses with timeout and retry
+  const handleApiResponse = async (response: Response) => {
+    const contentType = response.headers.get("content-type")
+    
+    if (!response.ok) {
+      let errorMessage = `HTTP error! status: ${response.status}`
+      
+      try {
+        if (contentType && contentType.includes("application/json")) {
+          const errorData = await response.json()
+          errorMessage = errorData.message || errorData.error || errorMessage
+        } else {
+          // Handle HTML responses (server errors)
+          const errorText = await response.text()
+          if (errorText.includes("<!DOCTYPE") || errorText.includes("<html")) {
+            errorMessage = `Server error (${response.status}). Please try again later.`
+          } else {
+            errorMessage = errorText || errorMessage
+          }
+        }
+      } catch (parseError) {
+        console.error("Error parsing response:", parseError)
+        errorMessage = `Server error (${response.status}). Please try again later.`
+      }
+      
+      throw new Error(errorMessage)
+    }
+    
+    // Handle successful responses
+    if (contentType && contentType.includes("application/json")) {
+      return await response.json()
+    } else {
+      const text = await response.text()
+      try {
+        return JSON.parse(text)
+      } catch {
+        throw new Error("Invalid JSON response from server")
+      }
+    }
+  }
+
+  // Helper function to make API requests with timeout and retry
+  const makeApiRequest = async (url: string, options: RequestInit, retryCount = 0): Promise<Response> => {
+    const controller = new AbortController()
+    const timeoutId = setTimeout(() => controller.abort(), 10000) // 10 second timeout
+    
+    try {
+      console.log(`Making API request to: ${url}`, { options, retryCount })
+      const response = await fetch(url, {
+        ...options,
+        signal: controller.signal
+      })
+      
+      clearTimeout(timeoutId)
+      console.log(`API response status: ${response.status}`, { url })
+      return response
+    } catch (error: any) {
+      clearTimeout(timeoutId)
+      
+      if (error.name === 'AbortError') {
+        throw new Error('Request timed out. Please check your connection.')
+      }
+      
+      if (retryCount < 2) {
+        console.log(`Retrying request (${retryCount + 1}/2) after 2 seconds...`)
+        // Retry after 2 seconds
+        await new Promise(resolve => setTimeout(resolve, 2000))
+        return makeApiRequest(url, options, retryCount + 1)
+      }
+      
+      throw error
+    }
+  }
+
   const handleSendOtp = async (e: React.FormEvent) => {
     e.preventDefault()
     setLoading(true)
     setError("")
     setSuccess("")
     try {
-      const res = await fetch(`${BASE_API_URL}/auth/send-otp`, {
+      console.log("Sending OTP request for email:", email)
+      
+      // Check server health first
+      const isServerHealthy = await checkServerHealth()
+      if (!isServerHealthy) {
+        setError("Server is currently unavailable. Please try again in a few minutes.")
+        return
+      }
+      
+      const res = await makeApiRequest(`${BASE_API_URL}/auth/send-otp`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email }),
       })
-      const data = await res.json()
-      if (!res.ok) throw new Error(data.message || "Failed to send OTP")
+      
+      const data = await handleApiResponse(res)
       localStorage.setItem("auth_email", email) // Save email in localStorage
       setStep("verify")
       setSuccess("OTP sent to your email.")
       toast({ title: "OTP Sent", description: "Check your email for the OTP." })
     } catch (err: any) {
-      setError(err.message)
+      console.error("Send OTP error:", err)
+      setError(err.message || "Failed to send OTP. Please try again.")
     } finally {
       setLoading(false)
     }
@@ -79,13 +182,26 @@ export default function OTPAuth() {
     setSuccess("")
     try {
       const storedEmail = localStorage.getItem("auth_email") || email
-      const res = await fetch(`${BASE_API_URL}/auth/verify-otp`, {
+      console.log("Verifying OTP for email:", storedEmail, "OTP:", otp)
+      
+      // Check server health first
+      const isServerHealthy = await checkServerHealth()
+      if (!isServerHealthy) {
+        setError("Server is currently unavailable. Please try again in a few minutes.")
+        return
+      }
+      
+      const requestBody = { email: storedEmail, otp }
+      console.log("Request body:", requestBody)
+      
+      const res = await makeApiRequest(`${BASE_API_URL}/auth/verify-otp`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: storedEmail, otp }),
+        body: JSON.stringify(requestBody),
       })
-      const data = await res.json()
-      if (!res.ok) throw new Error(data.message || "Invalid OTP")
+      
+      const data = await handleApiResponse(res)
+      console.log("OTP verification successful:", data)
       setSuccess("OTP verified! Redirecting to dashboard...")
       localStorage.setItem("authenticated", "true")
       toast({ title: "Login Successful", description: "You are now logged in." })
@@ -93,7 +209,22 @@ export default function OTPAuth() {
         window.location.href = "/"
       }, 1500)
     } catch (err: any) {
-      setError(err.message)
+      console.error("Verify OTP error:", err)
+      
+      // Provide more specific error messages based on the error type
+      let errorMessage = err.message || "Invalid OTP. Please try again."
+      
+      if (err.message.includes("500")) {
+        errorMessage = "Server is currently experiencing issues. Please try again in a few minutes or contact support."
+      } else if (err.message.includes("400")) {
+        errorMessage = "Invalid OTP or email. Please check your input and try again."
+      } else if (err.message.includes("timeout")) {
+        errorMessage = "Request timed out. Please check your internet connection and try again."
+      } else if (err.message.includes("Failed to fetch")) {
+        errorMessage = "Unable to connect to the server. Please check your internet connection and try again."
+      }
+      
+      setError(errorMessage)
     } finally {
       setLoading(false)
     }
