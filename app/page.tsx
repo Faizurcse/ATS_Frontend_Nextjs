@@ -400,7 +400,7 @@ function DashboardOverview({ setActiveTab, showQuickActions, setShowQuickActions
         
         // Create AbortController for timeout
         const controller = new AbortController()
-        const timeoutId = setTimeout(() => controller.abort(), 10000) // 10 second timeout
+        const timeoutId = setTimeout(() => controller.abort(), 50000) // 10 second timeout
         
         const response = await fetch('https://ats-backend-nodejs-h80i.onrender.com/api/dashboard', {
           signal: controller.signal

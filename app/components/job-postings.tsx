@@ -36,6 +36,7 @@ import {
   Search,
   X,
   Trash2,
+  Sparkles,
 } from "lucide-react"
 import {
   JOB_TYPES,
@@ -45,6 +46,7 @@ import {
   getCitiesByCountry,
   getSalaryPlaceholder,
 } from "../../lib/location-data"
+import BASE_API_URL_AI from '../../PythonApi';
 import BASE_API_URL from '../../BaseUrlApi';
 import { useToast } from "@/components/ui/use-toast";
 
@@ -107,6 +109,9 @@ export default function JobPostings() {
   const [isPostingJob, setIsPostingJob] = useState(false)
   const [isDeletingJob, setIsDeletingJob] = useState(false)
   const [apiAvailable, setApiAvailable] = useState(true)
+  const [isAIGenerating, setIsAIGenerating] = useState(false)
+  const [aiPrompt, setAiPrompt] = useState("")
+  const [aiMessage, setAiMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null)
 
   const [searchFilters, setSearchFilters] = useState<SearchFilters>({
     searchTerm: "",
@@ -212,34 +217,34 @@ export default function JobPostings() {
   const fetchJobs = async () => {
     try {
       setIsLoadingJobs(true)
-      
+
       console.log('Attempting to fetch jobs from:', `${BASE_API_URL}/jobs/get-jobs`)
-      
+
       const response = await fetch(`${BASE_API_URL}/jobs/get-jobs`, {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',
         },
       })
-      
+
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`)
       }
-      
+
       const data = await response.json()
       console.log('Fetched jobs from API:', data)
-      
+
       // Extract jobs array from the response
       const jobsArray = data.jobs || data
       console.log('Jobs array:', jobsArray)
-      
+
       // Check if jobsArray is actually an array
       if (!Array.isArray(jobsArray)) {
         console.error('Jobs data is not an array:', jobsArray)
         setJobPostings([])
         return
       }
-      
+
       // Transform API data to match our JobPosting interface
       const transformedJobs: JobPosting[] = jobsArray.map((job: any) => ({
         id: job.id || job._id || Date.now().toString(),
@@ -252,10 +257,10 @@ export default function JobPostings() {
         salaryMin: job.salaryMin || 0,
         salaryMax: job.salaryMax || 0,
         description: job.description || "No description available",
-        requirements: Array.isArray(job.requirements) ? job.requirements : 
-                     typeof job.requirements === 'string' ? job.requirements.split('\n').filter((r: string) => r.trim()) : [],
-        skills: Array.isArray(job.requiredSkills) ? job.requiredSkills : 
-                typeof job.requiredSkills === 'string' ? job.requiredSkills.split(',').map((s: string) => s.trim()) : [],
+        requirements: Array.isArray(job.requirements) ? job.requirements :
+          typeof job.requirements === 'string' ? job.requirements.split('\n').filter((r: string) => r.trim()) : [],
+        skills: Array.isArray(job.requiredSkills) ? job.requiredSkills :
+          typeof job.requiredSkills === 'string' ? job.requiredSkills.split(',').map((s: string) => s.trim()) : [],
         experience: job.experienceLevel || "Not specified",
         status: "active" as const,
         priority: (job.priority || "medium").toLowerCase() as "urgent" | "high" | "medium" | "low",
@@ -269,19 +274,19 @@ export default function JobPostings() {
         department: job.department || "Not specified",
         employmentType: job.jobType || "Full-time",
         remote: job.workType === "Remote",
-        benefits: Array.isArray(job.benefits) ? job.benefits : 
-                  typeof job.benefits === 'string' ? job.benefits.split(',').map((b: string) => b.trim()) : [],
+        benefits: Array.isArray(job.benefits) ? job.benefits :
+          typeof job.benefits === 'string' ? job.benefits.split(',').map((b: string) => b.trim()) : [],
         interviewCount: job.interviewCount || 0,
         aiScore: job.aiScore || Math.floor(Math.random() * 30) + 60,
         aiTags: job.aiTags || [],
         workType: (job.workType || "ONSITE") as "ONSITE" | "REMOTE" | "HYBRID",
         jobStatus: (job.jobStatus || "ACTIVE") as "ACTIVE" | "PAUSED" | "CLOSED" | "FILLED"
       }))
-      
+
       setJobPostings(transformedJobs)
     } catch (error) {
       console.error('Error fetching jobs:', error)
-      
+
       // Check if it's a connection error (API server not running)
       if (error instanceof TypeError && error.message.includes('Failed to fetch')) {
         console.log('API server appears to be offline. Using demo data instead.')
@@ -374,22 +379,22 @@ export default function JobPostings() {
     location: "",
     country: "",
     city: "",
-    jobType: "full-time" as JobType,
+    jobType: "" as JobType | "",
     salaryMin: "",
     salaryMax: "",
     description: "",
     requirements: "",
     skills: "",
     experience: "",
-    priority: "medium" as "urgent" | "high" | "medium" | "low",
+    priority: "" as "urgent" | "high" | "medium" | "low" | "",
     internalSPOC: "",
     recruiter: "",
     email: "",
     department: "",
     remote: false,
     benefits: "",
-    workType: "ONSITE" as "ONSITE" | "REMOTE" | "HYBRID",
-    jobStatus: "ACTIVE" as "ACTIVE" | "PAUSED" | "CLOSED" | "FILLED"
+    workType: "" as "ONSITE" | "REMOTE" | "HYBRID" | "",
+    jobStatus: "" as "ACTIVE" | "PAUSED" | "CLOSED" | "FILLED" | ""
   })
 
   const statusOptions = [
@@ -410,24 +415,26 @@ export default function JobPostings() {
         internalSPOC: newJob.internalSPOC,
         recruiter: newJob.recruiter,
         email: newJob.email,
-        jobType: newJob.jobType === "full-time" ? "Full-time" : 
-                 newJob.jobType === "part-time" ? "Part-time" : 
-                 newJob.jobType === "contract" ? "Contract" : 
-                 newJob.jobType === "freelance" ? "Freelance" : 
-                 newJob.jobType === "internship" ? "Internship" : 
-                 newJob.jobType === "temporary" ? "Temporary" : "Full-time",
+        jobType: newJob.jobType ?
+          (newJob.jobType === "full-time" ? "Full-time" :
+            newJob.jobType === "part-time" ? "Part-time" :
+              newJob.jobType === "contract" ? "Contract" :
+                newJob.jobType === "freelance" ? "Freelance" :
+                  newJob.jobType === "internship" ? "Internship" :
+                    newJob.jobType === "temporary" ? "Temporary" : "Full-time") : "Full-time",
         experienceLevel: newJob.experience || "Mid level",
         country: newJob.country,
         city: newJob.city,
         fullLocation: newJob.location,
-        workType: newJob.workType,
-        jobStatus: newJob.jobStatus,
+        workType: newJob.workType || "ONSITE",
+        jobStatus: newJob.jobStatus || "ACTIVE",
         salaryMin: Number.parseInt(newJob.salaryMin) || 0,
         salaryMax: Number.parseInt(newJob.salaryMax) || 0,
-        priority: newJob.priority === "urgent" ? "Urgent" : 
-                  newJob.priority === "high" ? "High" : 
-                  newJob.priority === "medium" ? "Medium" : 
-                  newJob.priority === "low" ? "Low" : "Medium",
+        priority: newJob.priority ?
+          (newJob.priority === "urgent" ? "Urgent" :
+            newJob.priority === "high" ? "High" :
+              newJob.priority === "medium" ? "Medium" :
+                newJob.priority === "low" ? "Low" : "Medium") : "Medium",
         description: newJob.description,
         requirements: newJob.requirements,
         requiredSkills: newJob.skills,
@@ -450,30 +457,31 @@ export default function JobPostings() {
       const result = await response.json()
       console.log('Job posted successfully:', result)
 
-      // Reset form
+      // Reset form and AI states
       setNewJob({
         title: "",
         company: "",
         location: "",
         country: "",
         city: "",
-        jobType: "full-time",
+        jobType: "",
         salaryMin: "",
         salaryMax: "",
         description: "",
         requirements: "",
         skills: "",
         experience: "",
-        priority: "medium",
+        priority: "",
         internalSPOC: "",
         recruiter: "",
         email: "",
         department: "",
         remote: false,
         benefits: "",
-        workType: "ONSITE",
-        jobStatus: "ACTIVE"
+        workType: "",
+        jobStatus: ""
       })
+      resetAIStates()
       setIsAddDialogOpen(false)
 
       // Show success message
@@ -481,13 +489,13 @@ export default function JobPostings() {
         title: "Job Posted",
         description: "Job posting created successfully!",
       })
-      
+
       // Refresh the jobs list to show the newly posted job
       await fetchJobs()
-      
+
     } catch (error) {
       console.error('Error posting job:', error)
-      
+
       // Check if it's a connection error (API server not running)
       if (error instanceof TypeError && error.message.includes('Failed to fetch')) {
         toast({
@@ -520,24 +528,26 @@ export default function JobPostings() {
         internalSPOC: editingJob.internalSPOC,
         recruiter: editingJob.recruiter,
         email: editingJob.email || "",
-        jobType: editingJob.jobType === "full-time" ? "Full-time" : 
-                 editingJob.jobType === "part-time" ? "Part-time" : 
-                 editingJob.jobType === "contract" ? "Contract" : 
-                 editingJob.jobType === "freelance" ? "Freelance" : 
-                 editingJob.jobType === "internship" ? "Internship" : 
-                 editingJob.jobType === "temporary" ? "Temporary" : "Full-time",
+        jobType: editingJob.jobType ?
+          (editingJob.jobType === "full-time" ? "Full-time" :
+            editingJob.jobType === "part-time" ? "Part-time" :
+              editingJob.jobType === "contract" ? "Contract" :
+                editingJob.jobType === "freelance" ? "Freelance" :
+                  editingJob.jobType === "internship" ? "Internship" :
+                    editingJob.jobType === "temporary" ? "Temporary" : "Full-time") : "Full-time",
         experienceLevel: editingJob.experience || "Mid level",
         country: editingJob.country,
         city: editingJob.city,
         fullLocation: editingJob.location,
-        workType: editingJob.workType,
-        jobStatus: editingJob.jobStatus,
+        workType: editingJob.workType || "ONSITE",
+        jobStatus: editingJob.jobStatus || "ACTIVE",
         salaryMin: editingJob.salaryMin,
         salaryMax: editingJob.salaryMax,
-        priority: editingJob.priority === "urgent" ? "Urgent" : 
-                  editingJob.priority === "high" ? "High" : 
-                  editingJob.priority === "medium" ? "Medium" : 
-                  editingJob.priority === "low" ? "Low" : "Medium",
+        priority: editingJob.priority ?
+          (editingJob.priority === "urgent" ? "Urgent" :
+            editingJob.priority === "high" ? "High" :
+              editingJob.priority === "medium" ? "Medium" :
+                editingJob.priority === "low" ? "Low" : "Medium") : "Medium",
         description: editingJob.description,
         requirements: editingJob.requirements.join('\n'),
         requiredSkills: editingJob.skills.join(', '),
@@ -566,7 +576,7 @@ export default function JobPostings() {
           job.id === editingJob.id ? { ...editingJob, lastUpdated: new Date().toISOString().split("T")[0] } : job,
         ),
       )
-      
+
       setIsEditDialogOpen(false)
       setEditingJob(null)
 
@@ -575,10 +585,10 @@ export default function JobPostings() {
         title: "Job Updated",
         description: "Job posting updated successfully!",
       })
-      
+
     } catch (error) {
       console.error('Error updating job:', error)
-      
+
       // Check if it's a connection error (API server not running)
       if (error instanceof TypeError && error.message.includes('Failed to fetch')) {
         toast({
@@ -601,7 +611,7 @@ export default function JobPostings() {
   const handleDeleteJob = async (jobId: string) => {
     // Show confirmation dialog
     const isConfirmed = window.confirm('Are you sure you want to delete this job posting? This action cannot be undone.')
-    
+
     if (!isConfirmed) {
       return
     }
@@ -609,15 +619,15 @@ export default function JobPostings() {
     setIsDeletingJob(true)
     try {
       console.log('Attempting to delete job:', jobId)
-      
+
       // Find the job data to get email
       const jobToDelete = jobPostings.find(job => job.id === jobId)
       if (!jobToDelete) {
         throw new Error('Job not found in local state')
       }
-      
+
       console.log('Job email:', jobToDelete.email)
-      
+
       // Make API call to delete job with email data
       const response = await fetch(`${BASE_API_URL}/jobs/delete-job/${jobId}`, {
         method: 'DELETE',
@@ -645,10 +655,10 @@ export default function JobPostings() {
         title: "Job Deleted",
         description: result.message || 'Job deleted successfully!',
       })
-      
+
     } catch (error) {
       console.error('Error deleting job:', error)
-      
+
       // Check if it's a connection error (API server not running)
       if (error instanceof TypeError && error.message.includes('Failed to fetch')) {
         toast({
@@ -666,6 +676,171 @@ export default function JobPostings() {
     } finally {
       setIsDeletingJob(false)
     }
+  }
+
+  // AI Job Posting Generation
+  const generateJobPosting = async () => {
+    if (!aiPrompt.trim()) {
+      setAiMessage({ type: 'error', text: 'Please enter a prompt for job posting generation' })
+      return
+    }
+
+    try {
+      setIsAIGenerating(true)
+      setAiMessage(null)
+
+      const response = await fetch(`http://localhost:8000/job-posting/generate`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ prompt: aiPrompt.trim() })
+      })
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`)
+      }
+
+      const data = await response.json()
+
+      if (data.success && data.data) {
+        const generatedData = data.data
+
+        // Auto-fill the form fields with generated data - ensure ALL fields are mapped
+        const updatedJob = {
+          ...newJob,
+          title: generatedData.title || newJob.title,
+          company: generatedData.company || newJob.company,
+          department: generatedData.department || newJob.department,
+          internalSPOC: generatedData.internalSPOC || newJob.internalSPOC,
+          recruiter: generatedData.recruiter || newJob.recruiter,
+          email: generatedData.email || newJob.email,
+          jobType: generatedData.jobType ? (generatedData.jobType.toLowerCase() as JobType) : newJob.jobType,
+          experience: (() => {
+            const expLevel = generatedData.experienceLevel || generatedData.experience || newJob.experience;
+            if (expLevel) {
+              // Extract just the level part from "Mid level (3-5 years)" -> "Mid level"
+              if (expLevel.includes("Entry level") || expLevel.includes("Entry")) return "Entry level";
+              if (expLevel.includes("Mid level") || expLevel.includes("Mid")) return "Mid level";
+              if (expLevel.includes("Senior level") || expLevel.includes("Senior")) return "Senior level";
+              if (expLevel.includes("Lead") || expLevel.includes("Principal")) return "Lead/Principal";
+            }
+            return expLevel;
+          })(),
+          country: COUNTRIES.find(c => c.name === generatedData.country)?.code || generatedData.country || newJob.country,
+          city: generatedData.city || newJob.city,
+          location: generatedData.location || generatedData.fullLocation || newJob.location,
+          workType: generatedData.workType ? generatedData.workType : newJob.workType,
+          jobStatus: generatedData.jobStatus ? generatedData.jobStatus : newJob.jobStatus,
+          salaryMin: generatedData.salaryMin?.toString() || newJob.salaryMin,
+          salaryMax: generatedData.salaryMax?.toString() || newJob.salaryMax,
+          priority: generatedData.priority ? (generatedData.priority.toLowerCase() as "urgent" | "high" | "medium" | "low") : newJob.priority,
+          description: generatedData.description || newJob.description,
+          requirements: generatedData.requirements || newJob.requirements,
+          skills: generatedData.skills || generatedData.requiredSkills || newJob.skills,
+          benefits: generatedData.benefits || newJob.benefits,
+        }
+
+        console.log('AI Generated Data:', generatedData)
+        console.log('Updated Job State:', updatedJob)
+
+        // Debug: Check each field individually
+        console.log('Field Mapping Check:')
+        console.log('Title:', generatedData.title, '->', updatedJob.title)
+        console.log('Company:', generatedData.company, '->', updatedJob.company)
+        console.log('Department:', generatedData.department, '->', updatedJob.department)
+        console.log('InternalSPOC:', generatedData.internalSPOC, '->', updatedJob.internalSPOC)
+        console.log('Recruiter:', generatedData.recruiter, '->', updatedJob.recruiter)
+        console.log('Email:', generatedData.email, '->', updatedJob.email)
+        console.log('JobType:', generatedData.jobType, '->', updatedJob.jobType)
+        console.log('Experience:', generatedData.experience, '->', updatedJob.experience, '(Raw:', generatedData.experienceLevel, ')')
+        console.log('Country:', generatedData.country, '->', updatedJob.country, '(Mapped to code:', COUNTRIES.find(c => c.name === generatedData.country)?.code, ')')
+        console.log('City:', generatedData.city, '->', updatedJob.city)
+        console.log('Location:', generatedData.location, '->', updatedJob.location)
+        console.log('WorkType:', generatedData.workType, '->', updatedJob.workType)
+        console.log('JobStatus:', generatedData.jobStatus, '->', updatedJob.jobStatus)
+        console.log('SalaryMin:', generatedData.salaryMin, '->', updatedJob.salaryMin)
+        console.log('SalaryMax:', generatedData.salaryMax, '->', updatedJob.salaryMax)
+        console.log('Priority:', generatedData.priority, '->', updatedJob.priority)
+        console.log('Description:', generatedData.description, '->', updatedJob.description)
+        console.log('Requirements:', generatedData.requirements, '->', updatedJob.requirements)
+        console.log('Skills:', generatedData.skills, '->', updatedJob.skills)
+        console.log('Benefits:', generatedData.benefits, '->', updatedJob.benefits)
+
+        // Force a complete state update to ensure all fields are rendered
+        setNewJob(updatedJob)
+
+        // Force a re-render by updating a timestamp
+        setTimeout(() => {
+          setNewJob(prev => ({ ...prev, ...updatedJob }))
+        }, 100)
+
+        setAiMessage({
+          type: 'success',
+          text: 'Job posting generated successfully! Form fields have been auto-filled.'
+        })
+        setAiPrompt("")
+
+        toast({
+          title: "Success!",
+          description: "Job posting generated and form auto-filled successfully.",
+          variant: "default",
+        })
+      } else {
+        throw new Error(data.message || 'Failed to generate job posting')
+      }
+    } catch (error) {
+      console.error('Error generating job posting:', error)
+
+      let errorMessage = 'Failed to generate job posting'
+      if (error instanceof TypeError && error.message.includes('Failed to fetch')) {
+        errorMessage = 'API server is not available. Please start your backend server to use this feature.'
+        setApiAvailable(false)
+      } else if (error instanceof Error) {
+        errorMessage = error.message
+      }
+
+      setAiMessage({ type: 'error', text: errorMessage })
+      toast({
+        title: "Error",
+        description: errorMessage,
+        variant: "destructive",
+      })
+    } finally {
+      setIsAIGenerating(false)
+    }
+  }
+
+  // Reset AI states and form
+  const resetAIStates = () => {
+    setAiPrompt("")
+    setAiMessage(null)
+  }
+
+  // Clear all form data
+  const clearForm = () => {
+    setNewJob({
+      title: "",
+      company: "",
+      location: "",
+      country: "",
+      city: "",
+      jobType: "",
+      salaryMin: "",
+      salaryMax: "",
+      description: "",
+      requirements: "",
+      skills: "",
+      experience: "",
+      priority: "",
+      internalSPOC: "",
+      recruiter: "",
+      email: "",
+      department: "",
+      remote: false,
+      benefits: "",
+      workType: "",
+      jobStatus: ""
+    })
+    resetAIStates()
   }
 
   // AI-powered job filtering
@@ -805,22 +980,22 @@ export default function JobPostings() {
                     const updatedJobs = jobPostings.map((j) =>
                       j.id === job.id
                         ? {
-                            ...j,
-                            jobType: value as JobType,
-                            lastUpdated: new Date().toISOString().split("T")[0],
-                          }
+                          ...j,
+                          jobType: value as JobType,
+                          lastUpdated: new Date().toISOString().split("T")[0],
+                        }
                         : j,
                     )
                     setJobPostings(updatedJobs)
 
                     // Prepare data for API
                     const jobData = {
-                      jobType: value === "full-time" ? "Full-time" : 
-                               value === "part-time" ? "Part-time" : 
-                               value === "contract" ? "Contract" : 
-                               value === "freelance" ? "Freelance" : 
-                               value === "internship" ? "Internship" : 
-                               value === "temporary" ? "Temporary" : "Full-time"
+                      jobType: value === "full-time" ? "Full-time" :
+                        value === "part-time" ? "Part-time" :
+                          value === "contract" ? "Contract" :
+                            value === "freelance" ? "Freelance" :
+                              value === "internship" ? "Internship" :
+                                value === "temporary" ? "Temporary" : "Full-time"
                     }
 
                     // Call API to update job
@@ -873,10 +1048,10 @@ export default function JobPostings() {
                     const updatedJobs = jobPostings.map((j) =>
                       j.id === job.id
                         ? {
-                            ...j,
-                            jobStatus: value as "ACTIVE" | "PAUSED" | "CLOSED" | "FILLED",
-                            lastUpdated: new Date().toISOString().split("T")[0],
-                          }
+                          ...j,
+                          jobStatus: value as "ACTIVE" | "PAUSED" | "CLOSED" | "FILLED",
+                          lastUpdated: new Date().toISOString().split("T")[0],
+                        }
                         : j,
                     )
                     setJobPostings(updatedJobs)
@@ -955,10 +1130,10 @@ export default function JobPostings() {
                     const updatedJobs = jobPostings.map((j) =>
                       j.id === job.id
                         ? {
-                            ...j,
-                            workType: value as "ONSITE" | "REMOTE" | "HYBRID",
-                            lastUpdated: new Date().toISOString().split("T")[0],
-                          }
+                          ...j,
+                          workType: value as "ONSITE" | "REMOTE" | "HYBRID",
+                          lastUpdated: new Date().toISOString().split("T")[0],
+                        }
                         : j,
                     )
                     setJobPostings(updatedJobs)
@@ -1030,20 +1205,20 @@ export default function JobPostings() {
                     const updatedJobs = jobPostings.map((j) =>
                       j.id === job.id
                         ? {
-                            ...j,
-                            priority: value as "urgent" | "high" | "medium" | "low",
-                            lastUpdated: new Date().toISOString().split("T")[0],
-                          }
+                          ...j,
+                          priority: value as "urgent" | "high" | "medium" | "low",
+                          lastUpdated: new Date().toISOString().split("T")[0],
+                        }
                         : j,
                     )
                     setJobPostings(updatedJobs)
 
                     // Prepare data for API
                     const jobData = {
-                      priority: value === "urgent" ? "Urgent" : 
-                               value === "high" ? "High" : 
-                               value === "medium" ? "Medium" : 
-                               value === "low" ? "Low" : "Medium"
+                      priority: value === "urgent" ? "Urgent" :
+                        value === "high" ? "High" :
+                          value === "medium" ? "Medium" :
+                            value === "low" ? "Low" : "Medium"
                     }
 
                     // Call API to update job
@@ -1158,15 +1333,60 @@ export default function JobPostings() {
                     const slugify = (str: string) => str?.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '')
                     const jobSlug = `job-listings-${slugify(job.title)}-${slugify(job.experience || 'senior')}-${slugify(job.jobType || 'full-time')}-${slugify(job.company)}-${slugify(job.city)}-${job.id}`
                     const applyLink = `${window.location.origin}/apply/${jobSlug}`
-                    navigator.clipboard.writeText(applyLink)
-                    alert('Link copied to clipboard!')
+                    
+                    // Simple copy function
+                    const copyToClipboard = async (text: string) => {
+                      try {
+                        // Method 1: Modern Clipboard API
+                        if (navigator.clipboard && window.isSecureContext) {
+                          await navigator.clipboard.writeText(text)
+                          return true
+                        }
+                        
+                        // Method 2: Fallback for older browsers
+                        const textArea = document.createElement('textarea')
+                        textArea.value = text
+                        textArea.style.position = 'fixed'
+                        textArea.style.left = '-999999px'
+                        textArea.style.top = '-999999px'
+                        document.body.appendChild(textArea)
+                        textArea.focus()
+                        textArea.select()
+                        
+                        try {
+                          const successful = document.execCommand('copy')
+                          document.body.removeChild(textArea)
+                          return successful
+                        } catch (err) {
+                          document.body.removeChild(textArea)
+                          return false
+                        }
+                      } catch (err) {
+                        console.error('Failed to copy to clipboard:', err)
+                        return false
+                      }
+                    }
+                    
+                    // Attempt to copy and show single success message
+                    copyToClipboard(applyLink).then(success => {
+                      if (success) {
+                        alert('Link copied to clipboard successfully!')
+                      } else {
+                        // Silent fallback - just copy the link to console for manual copying
+                        console.log('Copy this link manually:', applyLink)
+                      }
+                    }).catch(error => {
+                      console.error('Error in copy operation:', error)
+                      // Silent fallback - just copy the link to console for manual copying
+                      console.log('Copy this link manually:', applyLink)
+                    })
                   }}
                   className="text-green-600 border-green-200 hover:bg-green-50 text-xs"
                 >
                   Copy Link
                 </Button>
               </div>
-              
+
               {/* Social Media Sharing Icons */}
               <div className="flex items-center space-x-1">
                 {/* WhatsApp */}
@@ -1178,7 +1398,7 @@ export default function JobPostings() {
                   title="Share on WhatsApp"
                 >
                   <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
-                    <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893A11.821 11.821 0 0020.885 3.488"/>
+                    <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893A11.821 11.821 0 0020.885 3.488" />
                   </svg>
                 </a>
 
@@ -1191,7 +1411,7 @@ export default function JobPostings() {
                   title="Share on Instagram"
                 >
                   <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
-                    <path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zm0-2.163c-3.259 0-3.667.014-4.947.072-4.358.2-6.78 2.618-6.98 6.98-.059 1.281-.073 1.689-.073 4.948 0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98 1.281.058 1.689.072 4.948.072 3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98-1.281-.059-1.69-.073-4.949-.073zm0 5.838c-3.403 0-6.162 2.759-6.162 6.162s2.759 6.163 6.162 6.163 6.162-2.759 6.162-6.163c0-3.403-2.759-6.162-6.162-6.162zm0 10.162c-2.209 0-4-1.79-4-4 0-2.209 1.791-4 4-4s4 1.791 4 4c0 2.21-1.791 4-4 4zm6.406-11.845c-.796 0-1.441.645-1.441 1.44s.645 1.44 1.441 1.44c.795 0 1.439-.645 1.439-1.44s-.644-1.44-1.439-1.44z"/>
+                    <path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zm0-2.163c-3.259 0-3.667.014-4.947.072-4.358.2-6.78 2.618-6.98 6.98-.059 1.281-.073 1.689-.073 4.948 0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98 1.281.058 1.689.072 4.948.072 3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98-1.281-.059-1.69-.073-4.949-.073zm0 5.838c-3.403 0-6.162 2.759-6.162 6.162s2.759 6.163 6.162 6.163 6.162-2.759 6.162-6.163c0-3.403-2.759-6.162-6.162-6.162zm0 10.162c-2.209 0-4-1.79-4-4 0-2.209 1.791-4 4-4s4 1.791 4 4c0 2.21-1.791 4-4 4zm6.406-11.845c-.796 0-1.441.645-1.441 1.44s.645 1.44 1.441 1.44c.795 0 1.439-.645 1.439-1.44s-.644-1.44-1.439-1.44z" />
                   </svg>
                 </a>
 
@@ -1204,7 +1424,7 @@ export default function JobPostings() {
                   title="Share on Facebook"
                 >
                   <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
-                    <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/>
+                    <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z" />
                   </svg>
                 </a>
 
@@ -1217,7 +1437,7 @@ export default function JobPostings() {
                   title="Share on LinkedIn"
                 >
                   <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
-                    <path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433c-1.144 0-2.063-.926-2.063-2.065 0-1.138.92-2.063 2.063-2.063 1.14 0 2.064.925 2.064 2.063 0 1.139-.925 2.065-2.064 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z"/>
+                    <path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433c-1.144 0-2.063-.926-2.063-2.065 0-1.138.92-2.063 2.063-2.063 1.14 0 2.064.925 2.064 2.063 0 1.139-.925 2.065-2.064 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z" />
                   </svg>
                 </a>
               </div>
@@ -1280,11 +1500,11 @@ export default function JobPostings() {
             )}
 
           </div>
-          
+
         </div>
         <div className="flex space-x-2">
-          <Button 
-            variant="outline" 
+          <Button
+            variant="outline"
             onClick={fetchJobs}
             disabled={isLoadingJobs}
             className="border-gray-300 hover:bg-gray-50"
@@ -1303,7 +1523,10 @@ export default function JobPostings() {
               </>
             )}
           </Button>
-          <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
+          <Dialog open={isAddDialogOpen} onOpenChange={(open) => {
+            setIsAddDialogOpen(open);
+            if (!open) resetAIStates();
+          }}>
             <DialogTrigger asChild>
               <Button className="bg-blue-600 hover:bg-blue-700">
                 <Plus className="w-4 h-4 mr-2" />
@@ -1312,37 +1535,123 @@ export default function JobPostings() {
             </DialogTrigger>
             <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
               <DialogHeader>
-                <DialogTitle>Create New Job Posting</DialogTitle>
-                <DialogDescription>
-                  Fill in the details for your new job posting
-                </DialogDescription>
+                <div>
+                  <DialogTitle>Create New Job Posting</DialogTitle>
+                  <DialogDescription>
+                    Fill in the details for your new job posting
+                  </DialogDescription>
+
+                </div>
               </DialogHeader>
 
               <div className="grid gap-6 py-4">
+                {/* AI Job Posting Generator */}
+                <div className="space-y-4 p-4 bg-gradient-to-r from-blue-50 to-purple-50 rounded-lg border border-blue-200">
+                  <div className="flex items-center space-x-2">
+                    <Sparkles className="w-5 h-5 text-blue-600" />
+                    <h3 className="text-lg font-semibold text-blue-900">AI Job Posting Generator</h3>
+                  </div>
+
+                  {aiMessage && (
+                    <div className={`p-3 rounded-lg ${aiMessage.type === 'success'
+                      ? 'bg-green-100 border border-green-300 text-green-800'
+                      : 'bg-red-100 border border-red-300 text-red-800'
+                      }`}>
+                      {aiMessage.text}
+                    </div>
+                  )}
+
+                  <div className="space-y-3">
+                    <Label htmlFor="aiPrompt" className="text-blue-900">
+                      Describe the job you want to generate:
+                    </Label>
+                    <Textarea
+                      id="aiPrompt"
+                      value={aiPrompt}
+                      onChange={(e) => setAiPrompt(e.target.value)}
+                      placeholder="Generate a job posting for an AI Specialist position..."
+                      rows={3}
+                      className="border-blue-300 focus:border-blue-500 focus:ring-blue-500"
+                    />
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center space-x-2">
+                        <p className="text-sm text-blue-700">
+                          💡 Be specific about role, location, requirements, and benefits for better results
+                        </p>
+                      </div>
+                      <div className="flex space-x-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => setAiPrompt(`
+  Create a comprehensive job posting using ONLY the following fields and values. Do not introduce any new fields. Fill every field with the detailed information exactly as provided. company: Appit Software Solutions department: Technology/AI & Machine Learning jobTitle: Senior AI Specialist internalSPOC: Dr. Priya Sharma (AI Team Lead) recruiter: Hemanth Avvaru (Senior Recruiter) email: careers@appitsoftware.com jobType: Full-time experienceLevel: Mid level (3-5 years) country: India city: Hyderabad fullLocation: HITEC City, Hyderabad, Telangana, India workType: ONSITE jobStatus: ACTIVE salaryMin: 800000 salaryMax: 1200000 priority: high description: We are seeking a talented Senior AI Specialist to join our cutting-edge AI team at Appit Software Solutions. You will be responsible for developing innovative machine learning solutions, implementing state-of-the-art algorithms, and collaborating with cross-functional teams to deliver AI-powered products that transform industries. This role offers excellent growth opportunities and the chance to work on groundbreaking projects in computer vision, natural language processing, and predictive analytics. You will lead AI initiatives, mentor junior developers, and contribute to our AI strategy and roadmap. requirements: Bachelor's degree in Computer Science, AI, or related field; 3+ years of experience in machine learning and AI development; Strong proficiency in Python, TensorFlow, PyTorch, and scikit-learn; Experience with deep learning, computer vision, and natural language processing; Knowledge of cloud platforms (AWS, Azure, GCP) and MLOps; Strong problem-solving and analytical skills; Excellent communication and teamwork abilities; Experience with Docker, Kubernetes, and CI/CD pipelines; Knowledge of SQL, NoSQL databases, and data engineering; Understanding of software development best practices and agile methodologies requiredSkills: Python, TensorFlow, PyTorch, Scikit-learn, Pandas, NumPy, OpenCV, NLTK, spaCy, AWS SageMaker, Azure ML, Docker, Kubernetes, Git, SQL, MongoDB, REST APIs, FastAPI, Flask, React, Node.js, Linux, Bash scripting, Jupyter Notebooks, MLflow, Kubeflow benefits: Health insurance with family coverage, dental insurance, vision insurance, 401K retirement plan with company match, paid time off (25 days annually), flexible working hours, professional development budget ($5000/year), gym membership reimbursement, free lunch and snacks, remote work options (2 days/week), annual performance bonus, stock options, health and wellness programs, team building events, conference attendance support, certification reimbursement, mentorship programs, career advancement opportunities Output the final as a polished job posting that clearly lists each field and its value in human-readable form, but do not add or remove fields. Ensure every field above is present in the output.
+`)}
+                          className="text-blue-600 border-gray-300 hover:bg-blue-50"
+                        >
+                          Try Complete Sample
+                        </Button>
+
+
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={clearForm}
+                          className="text-gray-600 border-gray-300 hover:bg-gray-50"
+                        >
+                          Clear All
+                        </Button>
+                        <Button
+                          onClick={generateJobPosting}
+                          disabled={isAIGenerating || !aiPrompt.trim()}
+                          className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white"
+                        >
+                          {isAIGenerating ? (
+                            <>
+                              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                              Generating...
+                            </>
+                          ) : (
+                            <>
+                              <Sparkles className="w-4 h-4 mr-2" />
+                              Generate with AI
+                            </>
+                          )}
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
                 <div className="space-y-4">
                   <h3 className="text-lg font-semibold">Basic Information</h3>
                   <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-2">
-                      <Label htmlFor="title">Job Title *</Label>
+                      <Label htmlFor="title">
+                        Job Title *
+                      </Label>
                       <Input
                         id="title"
-                        value={newJob.title}
+                        value={newJob.title || ""}
                         onChange={(e) => handleInputChange('title', e.target.value, (value) => setNewJob({ ...newJob, title: value }))}
                         placeholder="Senior Software Engineer"
                         required
                         maxLength={characterLimits.title}
+                        className={`${newJob.title ? 'bg-green-50 border-green-300 text-green-900 placeholder-green-700' : ''}`}
                       />
                       {renderCharacterCount(newJob.title, 'title')}
                     </div>
                     <div className="space-y-2">
-                      <Label htmlFor="company">Company *</Label>
+                      <Label htmlFor="company">
+                        Company *
+                      </Label>
                       <Input
                         id="company"
-                        value={newJob.company}
+                        value={newJob.company || ""}
                         onChange={(e) => handleInputChange('company', e.target.value, (value) => setNewJob({ ...newJob, company: value }))}
                         placeholder="TechCorp Inc."
                         required
                         maxLength={characterLimits.company}
+                        className={`${newJob.company ? 'bg-green-50 border-green-300 text-green-900 placeholder-green-700' : ''}`}
                       />
                       {renderCharacterCount(newJob.company, 'company')}
                     </div>
@@ -1352,10 +1661,11 @@ export default function JobPostings() {
                       <Label htmlFor="department">Department</Label>
                       <Input
                         id="department"
-                        value={newJob.department}
+                        value={newJob.department || ""}
                         onChange={(e) => handleInputChange('department', e.target.value, (value) => setNewJob({ ...newJob, department: value }))}
                         placeholder="Engineering"
                         maxLength={characterLimits.department}
+                        className={`${newJob.department ? 'bg-blue-50 border-blue-300 text-blue-900 placeholder-blue-700' : ''}`}
                       />
                       {renderCharacterCount(newJob.department, 'department')}
                     </div>
@@ -1363,11 +1673,12 @@ export default function JobPostings() {
                       <Label htmlFor="internalSPOC">Internal SPOC *</Label>
                       <Input
                         id="internalSPOC"
-                        value={newJob.internalSPOC}
+                        value={newJob.internalSPOC || ""}
                         onChange={(e) => handleInputChange('internalSPOC', e.target.value, (value) => setNewJob({ ...newJob, internalSPOC: value }))}
                         placeholder="Sarah Wilson"
                         required
                         maxLength={characterLimits.internalSPOC}
+                        className={`${newJob.internalSPOC ? 'bg-purple-50 border-purple-300 text-purple-900 placeholder-purple-700' : ''}`}
                       />
                       {renderCharacterCount(newJob.internalSPOC, 'internalSPOC')}
                     </div>
@@ -1375,10 +1686,11 @@ export default function JobPostings() {
                       <Label htmlFor="recruiter">Recruiter</Label>
                       <Input
                         id="recruiter"
-                        value={newJob.recruiter}
+                        value={newJob.recruiter || ""}
                         onChange={(e) => handleInputChange('recruiter', e.target.value, (value) => setNewJob({ ...newJob, recruiter: value }))}
                         placeholder="Sarah Wilson"
                         maxLength={characterLimits.recruiter}
+                        className={`${newJob.recruiter ? 'bg-orange-50 border-orange-300 text-orange-900 placeholder-orange-700' : ''}`}
                       />
                       {renderCharacterCount(newJob.recruiter, 'recruiter')}
                     </div>
@@ -1387,11 +1699,12 @@ export default function JobPostings() {
                       <Input
                         id="email"
                         type="email"
-                        value={newJob.email}
+                        value={newJob.email || ""}
                         onChange={(e) => handleInputChange('email', e.target.value, (value) => setNewJob({ ...newJob, email: value }))}
                         placeholder="hr@company.com"
                         required
                         maxLength={characterLimits.email}
+                        className={`${newJob.email ? 'bg-indigo-50 border-indigo-300 text-indigo-900 placeholder-indigo-700' : ''}`}
                       />
                       {renderCharacterCount(newJob.email, 'email')}
                     </div>
@@ -1402,12 +1715,14 @@ export default function JobPostings() {
                   <h3 className="text-lg font-semibold">Job Type & Location</h3>
                   <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-2">
-                      <Label htmlFor="jobType">Job Type *</Label>
+                      <Label htmlFor="jobType">
+                        Job Type *
+                      </Label>
                       <Select
-                        value={newJob.jobType}
-                        onValueChange={(value) => setNewJob({ ...newJob, jobType: value as JobType })}
+                        value={newJob.jobType || ""}
+                        onValueChange={(value) => setNewJob({ ...newJob, jobType: value as JobType | "" })}
                       >
-                        <SelectTrigger>
+                        <SelectTrigger className={`${newJob.jobType ? 'bg-rose-50 border-rose-300 text-rose-900' : ''}`}>
                           <SelectValue placeholder="Select job type" />
                         </SelectTrigger>
                         <SelectContent>
@@ -1420,12 +1735,14 @@ export default function JobPostings() {
                       </Select>
                     </div>
                     <div className="space-y-2">
-                      <Label htmlFor="experience">Experience Level</Label>
+                      <Label htmlFor="experience">
+                        Experience Level
+                      </Label>
                       <Select
-                        value={newJob.experience}
+                        value={newJob.experience || ""}
                         onValueChange={(value) => setNewJob({ ...newJob, experience: value })}
                       >
-                        <SelectTrigger>
+                        <SelectTrigger className={`${newJob.experience ? 'bg-violet-50 border-violet-300 text-violet-900' : ''}`}>
                           <SelectValue placeholder="Select experience level" />
                         </SelectTrigger>
                         <SelectContent>
@@ -1442,12 +1759,12 @@ export default function JobPostings() {
                     <div className="space-y-2">
                       <Label htmlFor="country">Country *</Label>
                       <Select
-                        value={newJob.country}
+                        value={newJob.country || ""}
                         onValueChange={(value) => {
                           setNewJob({ ...newJob, country: value, city: "", location: "" })
                         }}
                       >
-                        <SelectTrigger>
+                        <SelectTrigger className={`${newJob.country ? 'bg-blue-50 border-blue-300 text-blue-900' : ''}`}>
                           <SelectValue placeholder="Select country" />
                         </SelectTrigger>
                         <SelectContent>
@@ -1462,7 +1779,7 @@ export default function JobPostings() {
                     <div className="space-y-2">
                       <Label htmlFor="city">City *</Label>
                       <Select
-                        value={newJob.city}
+                        value={newJob.city || ""}
                         onValueChange={(value) => {
                           const fullLocation = `${value}, ${newJob.country ? COUNTRIES.find((c) => c.code === newJob.country)?.name : ""}`
                           setNewJob({
@@ -1473,7 +1790,7 @@ export default function JobPostings() {
                         }}
                         disabled={!newJob.country}
                       >
-                        <SelectTrigger>
+                        <SelectTrigger className={`${newJob.city ? 'bg-indigo-50 border-indigo-300 text-indigo-900' : ''}`}>
                           <SelectValue placeholder={newJob.country ? "Select city" : "Select country first"} />
                         </SelectTrigger>
                         <SelectContent>
@@ -1489,11 +1806,12 @@ export default function JobPostings() {
                       <Label htmlFor="location">Full Location *</Label>
                       <Input
                         id="location"
-                        value={newJob.location}
+                        value={newJob.location || ""}
                         onChange={(e) => handleInputChange('location', e.target.value, (value) => setNewJob({ ...newJob, location: value }))}
                         placeholder="Enter complete location"
                         required
                         maxLength={characterLimits.location}
+                        className={`${newJob.location ? 'bg-teal-50 border-teal-300 text-teal-900 placeholder-teal-700' : ''}`}
                       />
                       {renderCharacterCount(newJob.location, 'location')}
                     </div>
@@ -1506,10 +1824,10 @@ export default function JobPostings() {
                     <div className="space-y-2">
                       <Label htmlFor="workType">Work Type</Label>
                       <Select
-                        value={newJob.workType}
-                        onValueChange={(value) => setNewJob({ ...newJob, workType: value as "ONSITE" | "REMOTE" | "HYBRID" })}
+                        value={newJob.workType || ""}
+                        onValueChange={(value) => setNewJob({ ...newJob, workType: value as "ONSITE" | "REMOTE" | "HYBRID" | "" })}
                       >
-                        <SelectTrigger>
+                        <SelectTrigger className={`${newJob.workType ? 'bg-orange-50 border-orange-300 text-orange-900' : ''}`}>
                           <SelectValue placeholder="Select work type" />
                         </SelectTrigger>
                         <SelectContent>
@@ -1522,10 +1840,10 @@ export default function JobPostings() {
                     <div className="space-y-2">
                       <Label htmlFor="jobStatus">Job Status</Label>
                       <Select
-                        value={newJob.jobStatus}
-                        onValueChange={(value) => setNewJob({ ...newJob, jobStatus: value as "ACTIVE" | "PAUSED" | "CLOSED" | "FILLED" })}
+                        value={newJob.jobStatus || ""}
+                        onValueChange={(value) => setNewJob({ ...newJob, jobStatus: value as "ACTIVE" | "PAUSED" | "CLOSED" | "FILLED" | "" })}
                       >
-                        <SelectTrigger>
+                        <SelectTrigger className={`${newJob.jobStatus ? 'bg-purple-50 border-purple-300 text-purple-900' : ''}`}>
                           <SelectValue placeholder="Select job status" />
                         </SelectTrigger>
                         <SelectContent>
@@ -1547,9 +1865,10 @@ export default function JobPostings() {
                       <Input
                         id="salaryMin"
                         type="number"
-                        value={newJob.salaryMin}
+                        value={newJob.salaryMin || ""}
                         onChange={(e) => setNewJob({ ...newJob, salaryMin: e.target.value })}
                         placeholder="50000"
+                        className={`${newJob.salaryMin ? 'bg-pink-50 border-pink-300 text-pink-900 placeholder-pink-700' : ''}`}
                       />
                     </div>
                     <div className="space-y-2">
@@ -1557,18 +1876,19 @@ export default function JobPostings() {
                       <Input
                         id="salaryMax"
                         type="number"
-                        value={newJob.salaryMax}
+                        value={newJob.salaryMax || ""}
                         onChange={(e) => setNewJob({ ...newJob, salaryMax: e.target.value })}
                         placeholder="120000"
+                        className={`${newJob.salaryMax ? 'bg-pink-50 border-pink-300 text-pink-900 placeholder-pink-700' : ''}`}
                       />
                     </div>
                     <div className="space-y-2">
                       <Label htmlFor="priority">Priority</Label>
                       <Select
-                        value={newJob.priority}
-                        onValueChange={(value) => setNewJob({ ...newJob, priority: value as "urgent" | "high" | "medium" | "low" })}
+                        value={newJob.priority || ""}
+                        onValueChange={(value) => setNewJob({ ...newJob, priority: value as "urgent" | "high" | "medium" | "low" | "" })}
                       >
-                        <SelectTrigger>
+                        <SelectTrigger className={`${newJob.priority ? 'bg-red-50 border-red-300 text-red-900' : ''}`}>
                           <SelectValue placeholder="Select priority" />
                         </SelectTrigger>
                         <SelectContent>
@@ -1588,12 +1908,13 @@ export default function JobPostings() {
                     <Label htmlFor="description">Job Description *</Label>
                     <Textarea
                       id="description"
-                      value={newJob.description}
+                      value={newJob.description || ""}
                       onChange={(e) => handleInputChange('description', e.target.value, (value) => setNewJob({ ...newJob, description: value }))}
                       placeholder="Describe the role, responsibilities, and what makes this position exciting..."
                       rows={4}
                       required
                       maxLength={characterLimits.description}
+                      className={`${newJob.description ? 'bg-emerald-50 border-emerald-300 text-emerald-900 placeholder-emerald-700' : ''}`}
                     />
                     {renderCharacterCount(newJob.description, 'description')}
                   </div>
@@ -1601,11 +1922,12 @@ export default function JobPostings() {
                     <Label htmlFor="requirements">Requirements (one per line)</Label>
                     <Textarea
                       id="requirements"
-                      value={newJob.requirements}
+                      value={newJob.requirements || ""}
                       onChange={(e) => handleInputChange('requirements', e.target.value, (value) => setNewJob({ ...newJob, requirements: value }))}
                       placeholder="Bachelor's degree in Computer Science&#10;5+ years of experience&#10;Strong communication skills"
                       rows={4}
                       maxLength={characterLimits.requirements}
+                      className={`${newJob.requirements ? 'bg-amber-50 border-amber-300 text-amber-900 placeholder-amber-700' : ''}`}
                     />
                     {renderCharacterCount(newJob.requirements, 'requirements')}
                   </div>
@@ -1614,10 +1936,11 @@ export default function JobPostings() {
                       <Label htmlFor="skills">Required Skills (comma-separated)</Label>
                       <Input
                         id="skills"
-                        value={newJob.skills}
+                        value={newJob.skills || ""}
                         onChange={(e) => handleInputChange('skills', e.target.value, (value) => setNewJob({ ...newJob, skills: value }))}
                         placeholder="React, Node.js, TypeScript, AWS"
                         maxLength={characterLimits.skills}
+                        className={`${newJob.skills ? 'bg-cyan-50 border-cyan-300 text-cyan-900 placeholder-cyan-700' : ''}`}
                       />
                       {renderCharacterCount(newJob.skills, 'skills')}
                     </div>
@@ -1625,10 +1948,11 @@ export default function JobPostings() {
                       <Label htmlFor="benefits">Benefits (comma-separated)</Label>
                       <Input
                         id="benefits"
-                        value={newJob.benefits}
+                        value={newJob.benefits || ""}
                         onChange={(e) => handleInputChange('benefits', e.target.value, (value) => setNewJob({ ...newJob, benefits: value }))}
                         placeholder="Health Insurance, 401k, Flexible PTO"
                         maxLength={characterLimits.benefits}
+                        className={`${newJob.benefits ? 'bg-lime-50 border-lime-300 text-lime-900 placeholder-lime-700' : ''}`}
                       />
                       {renderCharacterCount(newJob.benefits, 'benefits')}
                     </div>
@@ -1636,6 +1960,9 @@ export default function JobPostings() {
                 </div>
               </div>
               <div className="flex justify-end space-x-2">
+                <Button variant="outline" onClick={clearForm} className="text-gray-600 border-gray-300 hover:bg-gray-50">
+                  Clear Form
+                </Button>
                 <Button variant="outline" onClick={() => setIsAddDialogOpen(false)}>
                   Cancel
                 </Button>
@@ -2031,7 +2358,7 @@ export default function JobPostings() {
                       ? "No job postings have been created yet."
                       : "Try adjusting your search filters to see more results."}
                   </p>
-                  <Button onClick={() => setIsAddDialogOpen(true)} className="bg-blue-600 hover:bg-blue-700">
+                  <Button onClick={() => { setIsAddDialogOpen(true); resetAIStates(); }} className="bg-blue-600 hover:bg-blue-700">
                     <Plus className="w-4 h-4 mr-2" />
                     Create First Job Posting
                   </Button>

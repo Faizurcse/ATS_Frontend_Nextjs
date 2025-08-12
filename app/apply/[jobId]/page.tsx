@@ -24,9 +24,12 @@ import {
   Briefcase,
   Globe,
   X,
+  Loader2,
+  Sparkles,
 } from "lucide-react"
 import { formatSalary, JOB_TYPES, COUNTRIES } from "../../../lib/location-data"
 import BASE_API_URL from '../../../BaseUrlApi';
+import PYTHON_API_URL from '../../../PythonApi';
 import { useToast } from "@/components/ui/use-toast";
 
 interface JobPosting {
@@ -83,6 +86,38 @@ interface ApplicationData {
   resumeFilePath?: string
 }
 
+interface ParsedResumeData {
+  Name?: string
+  Email?: string
+  Phone?: string
+  Address?: string
+  GitHub?: string
+  LinkedIn?: string
+  Portfolio?: string
+  Summary?: string
+  TotalExperience?: string
+  Experience?: Array<{
+    Company: string
+    Position: string
+    Duration: string
+    Description: string
+  }>
+  Education?: Array<{
+    Institution: string
+    Degree: string
+    Field: string
+    Year: string
+  }>
+  Skills?: string[]
+  Certifications?: string[]
+  Languages?: string[]
+  Projects?: Array<{
+    Name: string
+    Description: string
+    Technologies: string[]
+  }>
+}
+
 export default function ApplyJobPage() {
   const params = useParams()
   const router = useRouter()
@@ -95,6 +130,9 @@ export default function ApplyJobPage() {
   const [error, setError] = useState("")
   const [uploadProgress, setUploadProgress] = useState(0)
   const [isUploading, setIsUploading] = useState(false)
+  const [isParsing, setIsParsing] = useState(false)
+  const [parsedData, setParsedData] = useState<ParsedResumeData | null>(null)
+  const [autoFilledFields, setAutoFilledFields] = useState<Set<string>>(new Set())
 
   const [applicationData, setApplicationData] = useState<ApplicationData>({
     firstName: "",
@@ -217,13 +255,13 @@ export default function ApplyJobPage() {
                 required: true,
                 options: ["Immediate", "2 weeks", "1 month", "2 months", "3 months"],
               },
-              {
-                id: "yearsOfExperience",
-                question: "How many years of experience do you have?",
-                type: "select",
-                required: true,
-                options: ["0-1 years", "2-3 years", "4-5 years", "6-10 years", "10+ years"],
-              },
+                             {
+                 id: "yearsOfExperience",
+                 question: "How many years of experience do you have?",
+                 type: "select",
+                 required: true,
+                 options: ["0-1 years", "2-3 years", "4-5 years", "6-10 years", "10+ years"],
+               },
               {
                 id: "remoteWork",
                 question: "Are you open to remote work?",
@@ -296,23 +334,28 @@ export default function ApplyJobPage() {
     }))
   }
 
-  const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0]
     if (file) {
-      // Validate file type and size
-      const allowedTypes = [
-        "application/pdf",
-        "application/msword",
-        "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-      ]
+             // Validate file type and size
+       const allowedTypes = [
+         "application/pdf",
+         "application/msword",
+         "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+         "text/plain",
+         "application/rtf",
+         "image/png",
+         "image/jpeg",
+         "image/jpg"
+       ]
       const maxSize = 5 * 1024 * 1024 // 5MB
 
       if (!allowedTypes.includes(file.type)) {
-        toast({
-          title: "Invalid File Type",
-          description: "Please upload a PDF or Word document.",
-          variant: "destructive",
-        });
+                 toast({
+           title: "Invalid File Type",
+           description: "Please upload a supported file format: PDF, DOCX, DOC, TXT, RTF, PNG, JPG, or JPEG.",
+           variant: "destructive",
+         });
         return
       }
 
@@ -342,7 +385,7 @@ export default function ApplyJobPage() {
       }, 100)
       
       // Complete upload after 1 second
-      setTimeout(() => {
+      setTimeout(async () => {
         setUploadProgress(100)
         setIsUploading(false)
         setApplicationData((prev) => ({
@@ -350,12 +393,278 @@ export default function ApplyJobPage() {
           resumeFile: file,
         }))
         setError("")
+        
+        // Start parsing the resume
+        await parseResume(file)
+        
         toast({
           title: "Resume Uploaded Successfully",
           description: `${file.name} has been uploaded successfully.`,
         });
       }, 1000)
     }
+  }
+
+  const parseResume = async (file: File) => {
+    try {
+      setIsParsing(true)
+      
+      const formData = new FormData()
+      formData.append('files', file)
+      
+      const response = await fetch(`${PYTHON_API_URL}/parse-resume`, {
+        method: 'POST',
+        body: formData,
+      })
+      
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`)
+      }
+      
+      const result = await response.json()
+      
+      if (result.successful_files > 0 && result.results && result.results.length > 0) {
+        const firstResult = result.results[0]
+        if (firstResult.status === 'success' && firstResult.parsed_data) {
+          setParsedData(firstResult.parsed_data)
+          
+          // Auto-fill form fields with parsed data
+          autoFillFormFields(firstResult.parsed_data)
+          
+          toast({
+            title: "Resume Parsed Successfully! ✨",
+            description: "Form fields have been automatically filled with information from your resume.",
+          });
+        } else {
+          throw new Error(firstResult.error || 'Failed to parse resume')
+        }
+      } else {
+        throw new Error('No successful parsing results')
+      }
+      
+    } catch (error) {
+      console.error('Error parsing resume:', error)
+      toast({
+        title: "Resume Parsing Failed",
+        description: "Could not extract information from your resume. Please fill the form manually.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsParsing(false)
+    }
+  }
+
+  const autoFillFormFields = (data: ParsedResumeData) => {
+    const newAutoFilledFields = new Set<string>()
+    
+    // Auto-fill basic information
+    if (data.Name) {
+      const nameParts = data.Name.trim().split(' ')
+      if (nameParts.length >= 2) {
+        setApplicationData(prev => ({
+          ...prev,
+          firstName: nameParts[0],
+          lastName: nameParts.slice(1).join(' ')
+        }))
+        newAutoFilledFields.add('firstName')
+        newAutoFilledFields.add('lastName')
+      } else if (nameParts.length === 1) {
+        setApplicationData(prev => ({
+          ...prev,
+          firstName: nameParts[0]
+        }))
+        newAutoFilledFields.add('firstName')
+      }
+    }
+    
+    if (data.Email) {
+      setApplicationData(prev => ({
+        ...prev,
+        email: data.Email || ''
+      }))
+      newAutoFilledFields.add('email')
+    }
+    
+    if (data.Phone) {
+      setApplicationData(prev => ({
+        ...prev,
+        phone: data.Phone || ''
+      }))
+      newAutoFilledFields.add('phone')
+    }
+    
+    if (data.Address) {
+      setApplicationData(prev => ({
+        ...prev,
+        currentLocation: data.Address || ''
+      }))
+      newAutoFilledFields.add('currentLocation')
+    }
+    
+         // Auto-fill cover letter with comprehensive parsed data in professional format
+     let coverLetterContent = ""
+     
+     // Add summary if available
+     if (data.Summary) {
+       coverLetterContent += `${data.Summary}\n\n`
+     }
+     
+     // Add experience details in professional format
+     if (data.Experience && data.Experience.length > 0) {
+       coverLetterContent += `I have ${data.Experience.length} year${data.Experience.length > 1 ? 's' : ''} of professional experience in software development. `
+       
+       data.Experience.forEach((exp, index) => {
+         if (index === 0) {
+           coverLetterContent += `Currently, I work as a ${exp.Position} at ${exp.Company}, where I ${exp.Description.toLowerCase().replace(/^./, exp.Description.charAt(0).toLowerCase())}`
+         } else {
+           coverLetterContent += ` Previously, I worked as a ${exp.Position} at ${exp.Company}, where I ${exp.Description.toLowerCase().replace(/^./, exp.Description.charAt(0).toLowerCase())}`
+         }
+       })
+       coverLetterContent += "\n\n"
+     }
+     
+     // Add education in professional format
+     if (data.Education && data.Education.length > 0) {
+       data.Education.forEach((edu, index) => {
+         coverLetterContent += `I hold a ${edu.Degree} in ${edu.Field} from ${edu.Institution}, graduating in ${edu.Year}. `
+       })
+       coverLetterContent += "\n\n"
+     }
+     
+     // Add skills in professional format
+     if (data.Skills && data.Skills.length > 0) {
+       const topSkills = data.Skills.slice(0, 6) // Show top 6 skills
+       coverLetterContent += `My technical expertise includes ${topSkills.slice(0, -1).join(', ')}, and ${topSkills.slice(-1)[0]}. `
+       if (data.Skills.length > 6) {
+         coverLetterContent += `I also have experience with ${data.Skills.slice(6, 9).join(', ')} and other technologies.`
+       }
+       coverLetterContent += "\n\n"
+     }
+     
+     // Add projects in professional format
+     if (data.Projects && data.Projects.length > 0) {
+       coverLetterContent += `Throughout my career, I have successfully delivered several projects including `
+       data.Projects.forEach((project, index) => {
+         if (index === 0) {
+           coverLetterContent += `${project.Name}, a ${project.Description.toLowerCase().replace(/^./, project.Description.charAt(0).toLowerCase())}`
+         } else if (index === data.Projects!.length - 1) {
+           coverLetterContent += `, and ${project.Name}, where I ${project.Description.toLowerCase().replace(/^./, project.Description.charAt(0).toLowerCase())}`
+         } else {
+           coverLetterContent += `, ${project.Name}, which involved ${project.Description.toLowerCase().replace(/^./, project.Description.charAt(0).toLowerCase())}`
+         }
+       })
+       coverLetterContent += "\n\n"
+     }
+     
+     // Add languages in professional format
+     if (data.Languages && data.Languages.length > 0) {
+       coverLetterContent += `I am proficient in ${data.Languages.slice(0, -1).join(', ')}, and ${data.Languages.slice(-1)[0]}, which enables me to communicate effectively in diverse environments.\n\n`
+     }
+     
+     // Add professional statement
+     coverLetterContent += `I am passionate about creating innovative solutions and continuously learning new technologies. I believe my technical skills, project experience, and collaborative approach make me an excellent fit for this position. I am excited about the opportunity to contribute to your team and help drive the success of your projects.\n\n`
+     
+     // Add contact information
+     if (data.GitHub || data.LinkedIn || data.Portfolio) {
+       coverLetterContent += `You can review my work and professional background through my online profiles: `
+       const links = []
+       if (data.GitHub) links.push(`GitHub (${data.GitHub})`)
+       if (data.LinkedIn) links.push(`LinkedIn (${data.LinkedIn})`)
+       if (data.Portfolio) links.push(`Portfolio (${data.Portfolio})`)
+       coverLetterContent += links.join(', ') + "."
+     }
+     
+     // Set the cover letter content
+     if (coverLetterContent.trim()) {
+       setApplicationData(prev => ({
+         ...prev,
+         coverLetter: coverLetterContent.trim()
+       }))
+       newAutoFilledFields.add('coverLetter')
+     }
+    
+    // Auto-fill custom answers
+    if (data.Skills && data.Skills.length > 0) {
+      setApplicationData(prev => ({
+        ...prev,
+        customAnswers: {
+          ...prev.customAnswers,
+          keySkills: data.Skills!.join(', ')
+        }
+      }))
+      newAutoFilledFields.add('keySkills')
+    }
+    
+    // Auto-fill portfolio URL with GitHub if available
+    if (data.GitHub && !applicationData.customAnswers.portfolioUrl) {
+      setApplicationData(prev => ({
+        ...prev,
+        customAnswers: {
+          ...prev.customAnswers,
+          portfolioUrl: data.GitHub
+        }
+      }))
+      newAutoFilledFields.add('portfolioUrl')
+    }
+    
+              // Auto-fill experience with better parsing
+     if (data.TotalExperience) {
+       const experienceText = data.TotalExperience.toLowerCase()
+       
+       // Parse years from experience text
+       let years = "0-1 years"
+       
+       // First check for months only (like "11 months")
+       if (experienceText.includes("month") && !experienceText.includes("year")) {
+         const monthMatch = experienceText.match(/(\d+)\s*month/)
+         if (monthMatch) {
+           const monthNum = parseInt(monthMatch[1])
+           if (monthNum >= 1 && monthNum <= 11) {
+             years = "0-1 years" // If only months, set years to 0-1
+           }
+         }
+       }
+       // Check for years
+       else if (experienceText.includes("year") || experienceText.includes("yr")) {
+         const yearMatch = experienceText.match(/(\d+)\s*year/)
+         if (yearMatch) {
+           const yearNum = parseInt(yearMatch[1])
+           if (yearNum === 1) {
+             years = "0-1 years"
+           } else if (yearNum >= 2 && yearNum <= 3) {
+             years = "2-3 years"
+           } else if (yearNum >= 4 && yearNum <= 5) {
+             years = "4-5 years"
+           } else if (yearNum >= 6 && yearNum <= 10) {
+             years = "6-10 years"
+           } else if (yearNum > 10) {
+             years = "10+ years"
+           }
+         }
+       }
+       
+       setApplicationData(prev => ({
+         ...prev,
+         customAnswers: {
+           ...prev.customAnswers,
+           yearsOfExperience: years
+         }
+       }))
+       newAutoFilledFields.add('yearsOfExperience')
+     }
+    
+    setAutoFilledFields(newAutoFilledFields)
+  }
+
+  const isFieldAutoFilled = (fieldName: string) => {
+    return autoFilledFields.has(fieldName)
+  }
+
+  const getInputClassName = (fieldName: string, baseClassName: string) => {
+    if (isFieldAutoFilled(fieldName)) {
+      return `${baseClassName} border-green-500 bg-green-50 focus:border-green-600 focus:ring-green-600`
+    }
+    return baseClassName
   }
 
   const validateForm = () => {
@@ -406,21 +715,21 @@ export default function ApplyJobPage() {
     try {
       
       // Prepare the application data according to the API format
-      const applicationPayload = {
-        firstName: applicationData.firstName,
-        lastName: applicationData.lastName,
-        email: applicationData.email,
-        phone: applicationData.phone,
-        currentLocation: applicationData.currentLocation,
-        coverLetter: applicationData.coverLetter,
-        keySkills: applicationData.customAnswers.keySkills || "",
-        salaryExpectation: applicationData.customAnswers.salaryExpectation || "",
-        noticePeriod: applicationData.customAnswers.noticePeriod || "",
-        yearsOfExperience: applicationData.customAnswers.yearsOfExperience || "",
-        remoteWork: applicationData.customAnswers.remoteWork || false,
-        startDate: applicationData.customAnswers.startDate || "",
-        portfolioUrl: applicationData.customAnswers.portfolioUrl || "",
-      }
+             const applicationPayload = {
+         firstName: applicationData.firstName,
+         lastName: applicationData.lastName,
+         email: applicationData.email,
+         phone: applicationData.phone,
+         currentLocation: applicationData.currentLocation,
+         coverLetter: applicationData.coverLetter,
+         keySkills: applicationData.customAnswers.keySkills || "",
+         salaryExpectation: applicationData.customAnswers.salaryExpectation || "",
+         noticePeriod: applicationData.customAnswers.noticePeriod || "",
+         yearsOfExperience: applicationData.customAnswers.yearsOfExperience || "",
+         remoteWork: applicationData.customAnswers.remoteWork || false,
+         startDate: applicationData.customAnswers.startDate || "",
+         portfolioUrl: applicationData.customAnswers.portfolioUrl || "",
+       }
 
       // Construct the URL properly based on the API format
       const titleSlug = job?.title.toLowerCase().replace(/[^a-z0-9]/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '')
@@ -728,157 +1037,270 @@ export default function ApplyJobPage() {
               <FileText className="w-5 h-5" />
               <span>Apply for this position</span>
             </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <form onSubmit={handleSubmit} className="space-y-6">
-              {/* Basic Information */}
-              <div className="space-y-4">
-                <h3 className="text-lg font-semibold text-gray-900">Personal Information</h3>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="firstName">First Name *</Label>
-                    <Input
-                      id="firstName"
-                      value={applicationData.firstName}
-                      onChange={(e) => handleInputChange("firstName", e.target.value)}
-                      placeholder="John"
-                      required
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="lastName">Last Name *</Label>
-                    <Input
-                      id="lastName"
-                      value={applicationData.lastName}
-                      onChange={(e) => handleInputChange("lastName", e.target.value)}
-                      placeholder="Smith"
-                      required
-                    />
-                  </div>
-                </div>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="email">Email Address *</Label>
-                    <Input
-                      id="email"
-                      type="email"
-                      value={applicationData.email}
-                      onChange={(e) => handleInputChange("email", e.target.value)}
-                      placeholder="john.smith@email.com"
-                      required
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="phone">Phone Number *</Label>
-                    <Input
-                      id="phone"
-                      value={applicationData.phone}
-                      onChange={(e) => handleInputChange("phone", e.target.value)}
-                      placeholder="+1 (555) 123-4567"
-                      required
-                    />
-                  </div>
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="currentLocation">Current Location</Label>
-                  <Input
-                    id="currentLocation"
-                    value={applicationData.currentLocation}
-                    onChange={(e) => handleInputChange("currentLocation", e.target.value)}
-                    placeholder="San Francisco, CA"
-                  />
+            <div className="text-sm text-gray-600 mt-2 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+              <div className="flex items-start space-x-2">
+                <Sparkles className="w-4 h-4 text-blue-600 mt-0.5 flex-shrink-0" />
+                <div>
+                  <p className="font-medium text-blue-800">AI-Powered Resume Parsing</p>
+                  <p className="text-blue-700">Upload your resume and we'll automatically fill in your information using AI. You can still edit any field after auto-filling.</p>
                 </div>
               </div>
-
-              {/* Resume Upload */}
-              <div className="space-y-4">
-                <h3 className="text-lg font-semibold text-gray-900">Resume & Cover Letter</h3>
-                <div className="space-y-2">
-                  <Label htmlFor="resume">Resume *</Label>
-                  <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center hover:border-gray-400 transition-colors">
-                    <Upload className="w-8 h-8 text-gray-400 mx-auto mb-2" />
-                    <div className="space-y-2">
-                      <p className="text-sm text-gray-600">
-                        {applicationData.resumeFile ? applicationData.resumeFile.name : "Upload your resume"}
-                      </p>
-                      <p className="text-xs text-gray-500">PDF, DOC, or DOCX (max 5MB)</p>
-                      
-                      {/* Progress Bar */}
-                      {isUploading && (
-                        <div className="w-full bg-gray-100 rounded-full h-3 mt-3 overflow-hidden shadow-inner">
-                          <div 
-                            className="h-3 rounded-full transition-all duration-300 ease-out bg-gradient-to-r from-blue-500 via-purple-500 to-pink-500 relative"
-                            style={{ width: `${uploadProgress}%` }}
-                          >
-                            <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white to-transparent opacity-30 animate-pulse"></div>
+            </div>
+          </CardHeader>
+          <CardContent>
+                         <form onSubmit={handleSubmit} className="space-y-6">
+                               {/* Resume Upload - Compact Professional Design */}
+                <div className="space-y-4">
+                  <div className="space-y-3">
+                    <Label htmlFor="resume" className="text-base font-semibold text-gray-900">Resume *</Label>
+                    <div className="relative">
+                      <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center hover:border-blue-400 transition-all duration-300 hover:shadow-md bg-gradient-to-br from-gray-50 to-white">
+                        {/* File Upload Area */}
+                        <div className="space-y-3">
+                          {/* Upload Icon */}
+                          <div className="flex justify-center">
+                            <div className="w-12 h-12 bg-gradient-to-br from-blue-100 to-purple-100 rounded-full flex items-center justify-center">
+                              <Upload className="w-6 h-6 text-blue-600" />
+                            </div>
                           </div>
+                          
+                                                     {/* File Info */}
+                           <div className="space-y-2">
+                             {applicationData.resumeFile ? (
+                               <div className="space-y-2">
+                                 <div className="flex items-center justify-center space-x-2 text-green-600">
+                                   <CheckCircle className="w-4 h-4" />
+                                   <span className="font-medium text-sm">Resume uploaded</span>
+                                 </div>
+                                 <p className="text-xs text-gray-500">Processing with AI...</p>
+                               </div>
+                             ) : (
+                               <div className="space-y-1">
+                                 <p className="text-sm font-medium text-gray-900">Drop your resume here</p>
+                                 <p className="text-xs text-gray-500">or click to browse</p>
+                                 <p className="text-xs text-gray-400">Supports various file formats: PDF, DOCX, DOC, TXT, RTF, PNG, JPG, JPEG (max 5MB)</p>
+                               </div>
+                             )}
+                           </div>
+                          
+                          {/* Progress Bar */}
+                          {isUploading && (
+                            <div className="w-full max-w-xs mx-auto">
+                              <div className="w-full bg-gray-200 rounded-full h-2 overflow-hidden shadow-inner">
+                                <div 
+                                  className="h-2 rounded-full transition-all duration-500 ease-out bg-gradient-to-r from-blue-500 via-purple-500 to-pink-500 relative"
+                                  style={{ width: `${uploadProgress}%` }}
+                                >
+                                  <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white to-transparent opacity-30 animate-pulse"></div>
+                                </div>
+                              </div>
+                              <p className="text-xs text-blue-600 font-medium mt-1 animate-pulse">
+                                Uploading... {uploadProgress}%
+                              </p>
+                            </div>
+                          )}
+                          
+                          {/* Parsing Status */}
+                          {isParsing && (
+                            <div className="flex items-center justify-center space-x-2 text-purple-600 bg-purple-50 border border-purple-200 rounded-lg p-3 max-w-sm mx-auto">
+                              <Loader2 className="w-4 h-4 animate-spin" />
+                              <div>
+                                <p className="text-sm font-medium">Parsing resume with AI...</p>
+                                <p className="text-xs text-purple-500">Extracting information...</p>
+                              </div>
+                            </div>
+                          )}
+                          
+                          {/* Parsed Data Success */}
+                          {parsedData && !isParsing && (
+                            <div className="max-w-md mx-auto">
+                              <div className="flex items-center justify-center space-x-2 text-green-600 bg-green-50 border border-green-200 rounded-lg p-3">
+                                <CheckCircle className="w-4 h-4" />
+                                <div className="text-center">
+                                  <p className="text-sm font-medium text-green-800">Successfully extracted!</p>
+                                  <p className="text-xs text-green-700">Form fields have been auto-filled</p>
+                                </div>
+                              </div>
+                            </div>
+                          )}
+                          
+                                                     {/* Action Buttons */}
+                           <div className="flex justify-center space-x-3">
+                             <input
+                               type="file"
+                               id="resume"
+                               accept=".pdf,.doc,.docx,.txt,.rtf,.png,.jpg,.jpeg"
+                               onChange={handleFileUpload}
+                               className="hidden"
+                             />
+                             <Button
+                               type="button"
+                               onClick={() => document.getElementById("resume")?.click()}
+                               disabled={isUploading || isParsing}
+                               className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 hover:shadow-md disabled:opacity-50"
+                             >
+                               {isUploading ? "Uploading..." : isParsing ? "Parsing..." : "Choose File"}
+                             </Button>
+                             
+                             {/* Cancel Button - Show after resume is loaded */}
+                             {applicationData.resumeFile && (
+                               <Button
+                                 type="button"
+                                 variant="outline"
+                                 onClick={() => {
+                                   setApplicationData(prev => ({
+                                     ...prev,
+                                     resumeFile: null
+                                   }))
+                                   setParsedData(null)
+                                   setAutoFilledFields(new Set())
+                                   // Clear all auto-filled form fields
+                                   setApplicationData(prev => ({
+                                     ...prev,
+                                     firstName: "",
+                                     lastName: "",
+                                     email: "",
+                                     phone: "",
+                                     currentLocation: "",
+                                     coverLetter: "",
+                                     customAnswers: {
+                                       keySkills: "",
+                                       salaryExpectation: "",
+                                       noticePeriod: "",
+                                       yearsOfExperience: "",
+                                       remoteWork: false,
+                                       startDate: "",
+                                       portfolioUrl: ""
+                                     }
+                                   }))
+                                 }}
+                                 className="border-red-300 text-red-600 hover:bg-red-50 hover:border-red-400 px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200"
+                               >
+                                 Cancel & Clear
+                               </Button>
+                             )}
+                           </div>
                         </div>
-                      )}
-                      
-                      {/* Upload Status */}
-                      {isUploading && (
-                        <p className="text-sm text-blue-600 font-medium animate-pulse">
-                          Uploading... {uploadProgress}%
-                        </p>
-                      )}
-                      
-                      {uploadProgress === 100 && !isUploading && applicationData.resumeFile && (
-                        <div className="flex items-center justify-center space-x-2 text-green-600 bg-green-50 border border-green-200 rounded-lg p-2">
-                          <CheckCircle className="w-4 h-4" />
-                          <p className="text-sm font-medium">Resume uploaded successfully!</p>
-                        </div>
-                      )}
-                      
-                      {/* Remove Resume Button */}
-                      {applicationData.resumeFile && !isUploading && (
-                        <div className="flex items-center justify-center space-x-2 mt-2">
-                          <Button
-                            type="button"
-                            variant="outline"
-                            size="sm"
-                            onClick={() => {
-                              setApplicationData(prev => ({ ...prev, resumeFile: null }))
-                              setUploadProgress(0)
-                              setError("")
-                            }}
-                            className="text-red-600 border-red-200 hover:bg-red-50 hover:border-red-300"
-                          >
-                            <X className="w-3 h-3 mr-1" />
-                            Remove Resume
-                          </Button>
-                        </div>
-                      )}
-                      
-                      <input
-                        type="file"
-                        id="resume"
-                        accept=".pdf,.doc,.docx"
-                        onChange={handleFileUpload}
-                        className="hidden"
-                      />
-                      <Button
-                        type="button"
-                        variant="outline"
-                        onClick={() => document.getElementById("resume")?.click()}
-                        className="mt-2"
-                        disabled={isUploading}
-                      >
-                        {isUploading ? "Uploading..." : applicationData.resumeFile ? "Replace Resume" : "Choose File"}
-                      </Button>
+                      </div>
                     </div>
                   </div>
                 </div>
-                <div className="space-y-2">
-                  <Label htmlFor="coverLetter">Cover Letter (Optional)</Label>
-                  <Textarea
-                    id="coverLetter"
-                    value={applicationData.coverLetter}
-                    onChange={(e) => handleInputChange("coverLetter", e.target.value)}
-                    placeholder="Tell us why you're interested in this position..."
-                    rows={4}
-                  />
-                </div>
-              </div>
+
+               {/* Personal Information */}
+               <div className="space-y-4">
+                 <h3 className="text-lg font-semibold text-gray-900">Personal Information</h3>
+                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                   <div className="space-y-2">
+                     <Label htmlFor="firstName">First Name *</Label>
+                     <Input
+                       id="firstName"
+                       value={applicationData.firstName}
+                       onChange={(e) => handleInputChange("firstName", e.target.value)}
+                       placeholder="John"
+                       required
+                       className={getInputClassName('firstName', '')}
+                     />
+                     {isFieldAutoFilled('firstName') && (
+                       <p className="text-xs text-green-600 flex items-center space-x-1">
+                         <Sparkles className="w-3 h-3" />
+                         <span>Auto-filled from resume</span>
+                       </p>
+                     )}
+                   </div>
+                   <div className="space-y-2">
+                     <Label htmlFor="lastName">Last Name *</Label>
+                     <Input
+                       id="lastName"
+                       value={applicationData.lastName}
+                       onChange={(e) => handleInputChange("lastName", e.target.value)}
+                       placeholder="Smith"
+                       required
+                       className={getInputClassName('lastName', '')}
+                     />
+                     {isFieldAutoFilled('lastName') && (
+                       <p className="text-xs text-green-600 flex items-center space-x-1">
+                         <Sparkles className="w-3 h-3" />
+                         <span>Auto-filled from resume</span>
+                       </p>
+                     )}
+                   </div>
+                 </div>
+                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                   <div className="space-y-2">
+                     <Label htmlFor="email">Email Address *</Label>
+                     <Input
+                       id="email"
+                       type="email"
+                       value={applicationData.email}
+                       onChange={(e) => handleInputChange("email", e.target.value)}
+                       placeholder="john.smith@email.com"
+                       required
+                       className={getInputClassName('email', '')}
+                     />
+                     {isFieldAutoFilled('email') && (
+                       <p className="text-xs text-green-600 flex items-center space-x-1">
+                         <Sparkles className="w-3 h-3" />
+                         <span>Auto-filled from resume</span>
+                       </p>
+                     )}
+                   </div>
+                   <div className="space-y-2">
+                     <Label htmlFor="phone">Phone Number *</Label>
+                     <Input
+                       id="phone"
+                       value={applicationData.phone}
+                       onChange={(e) => handleInputChange("phone", e.target.value)}
+                       placeholder="+1 (555) 123-4567"
+                       required
+                       className={getInputClassName('phone', '')}
+                     />
+                     {isFieldAutoFilled('phone') && (
+                       <p className="text-xs text-green-600 flex items-center space-x-1">
+                         <Sparkles className="w-3 h-3" />
+                         <span>Auto-filled from resume</span>
+                       </p>
+                     )}
+                   </div>
+                 </div>
+                 <div className="space-y-2">
+                   <Label htmlFor="currentLocation">Current Location</Label>
+                   <Input
+                     id="currentLocation"
+                     value={applicationData.currentLocation}
+                     onChange={(e) => handleInputChange("currentLocation", e.target.value)}
+                     placeholder="San Francisco, CA"
+                     className={getInputClassName('currentLocation', '')}
+                   />
+                   {isFieldAutoFilled('currentLocation') && (
+                     <p className="text-xs text-green-600 flex items-center space-x-1">
+                       <Sparkles className="w-3 h-3" />
+                       <span>Auto-filled from resume</span>
+                     </p>
+                   )}
+                 </div>
+               </div>
+
+               {/* Cover Letter */}
+               <div className="space-y-4">
+                 <h3 className="text-lg font-semibold text-gray-900">Cover Letter</h3>
+                 <div className="space-y-2">
+                   <Label htmlFor="coverLetter">Cover Letter (Professional format from resume)</Label>
+                   <Textarea
+                     id="coverLetter"
+                     value={applicationData.coverLetter}
+                     onChange={(e) => handleInputChange("coverLetter", e.target.value)}
+                     placeholder="Tell us why you're interested in this position..."
+                     rows={4}
+                     className={getInputClassName('coverLetter', 'min-h-[100px] resize-none')}
+                   />
+                   {isFieldAutoFilled('coverLetter') && (
+                     <p className="text-xs text-green-600 flex items-center space-x-1">
+                       <Sparkles className="w-3 h-3" />
+                       <span>Auto-filled in professional cover letter format</span>
+                     </p>
+                   )}
+                 </div>
+               </div>
 
               {/* Custom Questions */}
               {job.customQuestions && job.customQuestions.length > 0 && (
@@ -893,54 +1315,88 @@ export default function ApplyJobPage() {
                         </Label>
 
                         {question.type === "text" && (
-                          <Input
-                            id={question.id}
-                            value={applicationData.customAnswers[question.id] || ""}
-                            onChange={(e) => handleCustomAnswerChange(question.id, e.target.value)}
-                            placeholder="Your answer..."
-                            required={question.required}
-                          />
+                          <div className="space-y-2">
+                            <Input
+                              id={question.id}
+                              value={applicationData.customAnswers[question.id] || ""}
+                              onChange={(e) => handleCustomAnswerChange(question.id, e.target.value)}
+                              placeholder="Your answer..."
+                              required={question.required}
+                              className={getInputClassName(question.id, '')}
+                            />
+                            {isFieldAutoFilled(question.id) && (
+                              <p className="text-xs text-green-600 flex items-center space-x-1">
+                                <Sparkles className="w-3 h-3" />
+                                <span>Auto-filled from resume</span>
+                              </p>
+                            )}
+                          </div>
                         )}
 
                         {question.type === "number" && (
-                          <Input
-                            id={question.id}
-                            type="number"
-                            value={applicationData.customAnswers[question.id] || ""}
-                            onChange={(e) => handleCustomAnswerChange(question.id, e.target.value)}
-                            placeholder="Enter amount..."
-                            required={question.required}
-                          />
+                          <div className="space-y-2">
+                            <Input
+                              id={question.id}
+                              type="number"
+                              value={applicationData.customAnswers[question.id] || ""}
+                              onChange={(e) => handleCustomAnswerChange(question.id, e.target.value)}
+                              placeholder="Enter amount..."
+                              required={question.required}
+                              className={getInputClassName(question.id, '')}
+                            />
+                            {isFieldAutoFilled(question.id) && (
+                              <p className="text-xs text-green-600 flex items-center space-x-1">
+                                <Sparkles className="w-3 h-3" />
+                                <span>Auto-filled from resume</span>
+                              </p>
+                            )}
+                          </div>
                         )}
 
                         {question.type === "select" && question.options && (
-                          <Select
-                            value={applicationData.customAnswers[question.id] || ""}
-                            onValueChange={(value) => handleCustomAnswerChange(question.id, value)}
-                          >
-                            <SelectTrigger>
-                              <SelectValue placeholder="Select an option..." />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {question.options.map((option) => (
-                                <SelectItem key={option} value={option}>
-                                  {option}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
+                          <div className="space-y-2">
+                            <Select
+                              value={applicationData.customAnswers[question.id] || ""}
+                              onValueChange={(value) => handleCustomAnswerChange(question.id, value)}
+                            >
+                              <SelectTrigger className={getInputClassName(question.id, '')}>
+                                <SelectValue placeholder="Select an option..." />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {question.options.map((option) => (
+                                  <SelectItem key={option} value={option}>
+                                    {option}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                            {isFieldAutoFilled(question.id) && (
+                              <p className="text-xs text-green-600 flex items-center space-x-1">
+                                <Sparkles className="w-3 h-3" />
+                                <span>Auto-filled from resume</span>
+                              </p>
+                            )}
+                          </div>
                         )}
 
                         {question.type === "boolean" && (
-                          <div className="flex items-center space-x-2">
-                            <Checkbox
-                              id={question.id}
-                              checked={applicationData.customAnswers[question.id] || false}
-                              onCheckedChange={(checked) => handleCustomAnswerChange(question.id, checked)}
-                            />
-                            <Label htmlFor={question.id} className="text-sm font-normal">
-                              Yes
-                            </Label>
+                          <div className="space-y-2">
+                            <div className="flex items-center space-x-2">
+                              <Checkbox
+                                id={question.id}
+                                checked={applicationData.customAnswers[question.id] || false}
+                                onCheckedChange={(checked) => handleCustomAnswerChange(question.id, checked)}
+                              />
+                              <Label htmlFor={question.id} className="text-sm font-normal">
+                                Yes
+                              </Label>
+                            </div>
+                            {isFieldAutoFilled(question.id) && (
+                              <p className="text-xs text-green-600 flex items-center space-x-1">
+                                <Sparkles className="w-3 h-3" />
+                                <span>Auto-filled from resume</span>
+                              </p>
+                            )}
                           </div>
                         )}
                       </div>
