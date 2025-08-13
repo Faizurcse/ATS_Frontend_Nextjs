@@ -47,8 +47,8 @@ import {
   getSalaryPlaceholder,
 } from "../../lib/location-data"
 import BASE_API_URL_AI from '../../PythonApi';
-import BASE_API_URL from '../../BaseUrlApi';
 import { useToast } from "@/components/ui/use-toast";
+import BASE_API_URL from '../../BaseUrlApi';
 
 // SearchFilters interface definition
 interface SearchFilters {

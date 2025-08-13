@@ -1,30 +1,80 @@
-# APPIT Status Report
-
-*Automatically synced with your [v0.dev](https://v0.dev) deployments*
-
-[![Deployed on Vercel](https://img.shields.io/badge/Deployed%20on-Vercel-black?style=for-the-badge&logo=vercel)](https://vercel.com/arag-5581s-projects/v0-appit-status-report)
-[![Built with v0](https://img.shields.io/badge/Built%20with-v0.dev-black?style=for-the-badge)](https://v0.dev/chat/projects/jRdYDQ5O4MP)
+# ATS Frontend Next.js
 
 ## Overview
+Frontend application for the Applicant Tracking System (ATS) built with Next.js 14, React, and TypeScript.
 
-This repository will stay in sync with your deployed chats on [v0.dev](https://v0.dev).
-Any changes you make to your deployed app will be automatically pushed to this repository from [v0.dev](https://v0.dev).
+## Features
+- Job posting management and display
+- Candidate application forms with resume upload
+- Admin dashboard for recruiters and HR
+- Responsive design with mobile support
+- Real-time updates and notifications
 
-## Deployment
+## Tech Stack
+- **Framework**: Next.js 14 (App Router)
+- **Language**: TypeScript
+- **Styling**: Tailwind CSS
+- **UI Components**: Shadcn/ui
+- **State Management**: React hooks
+- **Forms**: React Hook Form
 
-Your project is live at:
+## Quick Start
 
-**[https://vercel.com/arag-5581s-projects/v0-appit-status-report](https://vercel.com/arag-5581s-projects/v0-appit-status-report)**
+### Prerequisites
+- Node.js 18+
+- npm, yarn, or pnpm
 
-## Build your app
+### Installation
+```bash
+npm install
+# or
+yarn install
+# or
+pnpm install
+```
 
-Continue building your app on:
+### Development
+```bash
+npm run dev
+# or
+yarn dev
+# or
+pnpm dev
+```
 
-**[https://v0.dev/chat/projects/jRdYDQ5O4MP](https://v0.dev/chat/projects/jRdYDQ5O4MP)**
+Open [http://localhost:3000](http://localhost:3000) in your browser.
 
-## How It Works
+### Build
+```bash
+npm run build
+npm start
+```
 
-1. Create and modify your project using [v0.dev](https://v0.dev)
-2. Deploy your chats from the v0 interface
-3. Changes are automatically pushed to this repository
-4. Vercel deploys the latest version from this repository
+## Project Structure
+```
+├── app/                    # Next.js app router pages
+│   ├── apply/             # Job application forms
+│   ├── components/        # Reusable UI components
+│   ├── auth/              # Authentication pages
+│   └── layout.tsx         # Root layout
+├── components/             # Shared components
+│   ├── ui/                # Base UI components
+│   └── admin/             # Admin-specific components
+├── lib/                    # Utility functions and data
+├── hooks/                  # Custom React hooks
+└── public/                 # Static assets
+```
+
+## Configuration
+- **Backend API**: Configured in `BaseUrlApi.js`
+- **Python API**: Configured in `PythonApi.js`
+- **Environment**: Automatically detects development/production
+
+## Key Components
+- **Job Postings**: Display and manage job listings
+- **Application Forms**: Handle candidate applications
+- **Admin Dashboard**: Manage candidates, jobs, and analytics
+- **Resume Upload**: File upload with validation
+
+## License
+MIT
