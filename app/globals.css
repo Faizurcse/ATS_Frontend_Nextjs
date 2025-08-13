@@ -92,3 +92,42 @@ body {
     @apply bg-background text-foreground;
   }
 }
+
+/* Custom slider styling for file reduction */
+.slider-orange::-webkit-slider-thumb {
+  appearance: none;
+  height: 16px;
+  width: 16px;
+  border-radius: 50%;
+  background: #f97316;
+  cursor: pointer;
+  border: 2px solid #ea580c;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.slider-orange::-webkit-slider-thumb:hover {
+  background: #ea580c;
+  transform: scale(1.1);
+}
+
+.slider-orange::-webkit-slider-track {
+  background: #fed7aa;
+  border-radius: 8px;
+  height: 8px;
+}
+
+.slider-orange::-moz-range-thumb {
+  height: 16px;
+  width: 16px;
+  border-radius: 50%;
+  background: #f97316;
+  cursor: pointer;
+  border: 2px solid #ea580c;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.slider-orange::-moz-range-track {
+  background: #fed7aa;
+  border-radius: 8px;
+  height: 8px;
+}

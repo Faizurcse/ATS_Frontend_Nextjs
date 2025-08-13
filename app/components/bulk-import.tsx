@@ -2,7 +2,7 @@
 
 import type React from "react"
 import { useState, useCallback, useRef, useEffect } from "react"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Progress } from "@/components/ui/progress"
@@ -38,9 +38,11 @@ import {
   Filter,
   Download,
   Trash2,
+  Settings,
 } from "lucide-react"
 import BASE_API_URL from "@/PythonApi"
 import { useToast } from "@/hooks/use-toast"
+import { Switch } from "@/components/ui/switch"
 
 interface ParsedResumeData {
   Name: string
@@ -78,7 +80,7 @@ interface ResumeData {
   candidate_name: string
   candidate_email: string
   total_experience: string
-  parsed_data: string // JSON string that needs to be parsed
+  parsed_data?: string | null // JSON string that needs to be parsed, can be undefined
   created_at: string
   updated_at?: string
 }
@@ -107,6 +109,519 @@ interface ProcessingResult {
   processing_time?: number
 }
 
+// Resume Files List Component
+function ResumeFilesList() {
+  const { toast } = useToast()
+  const [resumeFiles, setResumeFiles] = useState<any[]>([])
+  const [loading, setLoading] = useState(false)
+  const [searchTerm, setSearchTerm] = useState("")
+  const [activeFileTypeTab, setActiveFileTypeTab] = useState<string>("all")
+  const [dateFilter, setDateFilter] = useState<string>("all")
+  const [startDate, setStartDate] = useState<string>("")
+  const [endDate, setEndDate] = useState<string>("")
+  const [selectedFiles, setSelectedFiles] = useState<Set<number>>(new Set())
+
+  const fetchResumeFiles = async () => {
+    setLoading(true)
+    try {
+      const response = await fetch('http://localhost:8000/api/v1/download/resumes/with-files')
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`)
+      }
+      const data = await response.json()
+      setResumeFiles(data.resumes || [])
+    } catch (error) {
+      console.error('Error fetching resume files:', error)
+      toast({
+        title: "Error",
+        description: "Failed to fetch resume files. Please try again.",
+        variant: "destructive",
+      })
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleDownload = async (downloadUrl: string, filename: string) => {
+    try {
+      const response = await fetch(`http://localhost:8000${downloadUrl}`)
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`)
+      }
+      
+      const blob = await response.blob()
+      const url = window.URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = filename
+      document.body.appendChild(a)
+      a.click()
+      window.URL.revokeObjectURL(url)
+      document.body.removeChild(a)
+      
+      toast({
+        title: "Download Started",
+        description: `${filename} is being downloaded.`,
+      })
+    } catch (error) {
+      console.error('Error downloading file:', error)
+      toast({
+        title: "Download Failed",
+        description: "Failed to download the file. Please try again.",
+        variant: "destructive",
+      })
+    }
+  }
+
+  const handleFileSelection = (fileId: number, checked: boolean) => {
+    const newSelectedFiles = new Set(selectedFiles)
+    if (checked) {
+      newSelectedFiles.add(fileId)
+    } else {
+      newSelectedFiles.delete(fileId)
+    }
+    setSelectedFiles(newSelectedFiles)
+  }
+
+  const handleSelectAll = () => {
+    if (selectedFiles.size === filteredFiles.length) {
+      // If all are selected, deselect all
+      setSelectedFiles(new Set())
+    } else {
+      // Select all filtered files
+      const allFileIds = new Set(filteredFiles.map(file => file.id))
+      setSelectedFiles(allFileIds)
+    }
+  }
+
+  const handleBulkDownload = async () => {
+    if (selectedFiles.size === 0) {
+      toast({
+        title: "No Files Selected",
+        description: "Please select at least one file to download.",
+        variant: "destructive",
+      })
+      return
+    }
+
+    const selectedFileData = filteredFiles.filter(file => selectedFiles.has(file.id))
+    
+    try {
+      // Download each selected file
+      for (const file of selectedFileData) {
+        await handleDownload(file.download_url, file.filename)
+        // Add a small delay between downloads to avoid overwhelming the browser
+        await new Promise(resolve => setTimeout(resolve, 100))
+      }
+      
+      toast({
+        title: "Bulk Download Complete",
+        description: `Successfully downloaded ${selectedFiles.size} file(s).`,
+      })
+      
+      // Clear selection after successful download
+      setSelectedFiles(new Set())
+    } catch (error) {
+      console.error('Error during bulk download:', error)
+      toast({
+        title: "Bulk Download Failed",
+        description: "Some files failed to download. Please try again.",
+        variant: "destructive",
+      })
+    }
+  }
+
+  // Clear selection when filters change
+  useEffect(() => {
+    setSelectedFiles(new Set())
+  }, [searchTerm, activeFileTypeTab, dateFilter, startDate, endDate])
+
+  useEffect(() => {
+    fetchResumeFiles()
+  }, [])
+
+  // Filter files by search term, file type, and date
+  const filteredFiles = resumeFiles.filter(file => {
+    const matchesSearch = file.candidate_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                         file.candidate_email.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                         file.filename.toLowerCase().includes(searchTerm.toLowerCase())
+    
+    const matchesFileType = activeFileTypeTab === "all" || file.file_type.toLowerCase() === activeFileTypeTab.toLowerCase()
+    
+    // Date filtering logic
+    let matchesDate = true
+    if (dateFilter !== "all") {
+      const fileDate = new Date(file.upload_date)
+      const today = new Date()
+      
+      switch (dateFilter) {
+        case "today":
+          matchesDate = fileDate.toDateString() === today.toDateString()
+          break
+        case "yesterday":
+          const yesterday = new Date(today)
+          yesterday.setDate(yesterday.getDate() - 1)
+          matchesDate = fileDate.toDateString() === yesterday.toDateString()
+          break
+        case "this_week":
+          const startOfWeek = new Date(today)
+          startOfWeek.setDate(today.getDate() - today.getDay())
+          startOfWeek.setHours(0, 0, 0, 0)
+          matchesDate = fileDate >= startOfWeek
+          break
+        case "this_month":
+          matchesDate = fileDate.getMonth() === today.getMonth() && fileDate.getFullYear() === today.getFullYear()
+          break
+        case "last_month":
+          const lastMonth = new Date(today)
+          lastMonth.setMonth(lastMonth.getMonth() - 1)
+          matchesDate = fileDate.getMonth() === lastMonth.getMonth() && fileDate.getFullYear() === lastMonth.getFullYear()
+          break
+        case "custom":
+          if (startDate && endDate) {
+            const start = new Date(startDate)
+            const end = new Date(endDate)
+            end.setHours(23, 59, 59, 999) // Include end date
+            matchesDate = fileDate >= start && fileDate <= end
+          }
+          break
+      }
+    }
+    
+    return matchesSearch && matchesFileType && matchesDate
+  })
+
+  // Get unique file types for tabs
+  const fileTypes = ["all", ...Array.from(new Set(resumeFiles.map(file => file.file_type.toLowerCase())))]
+
+  // Get file type icon
+  const getFileTypeIcon = (fileType: string) => {
+    switch (fileType.toLowerCase()) {
+      case 'pdf':
+        return <FileText className="w-4 h-4 text-red-500" />
+      case 'docx':
+      case 'doc':
+        return <FileText className="w-4 h-4 text-blue-500" />
+      case 'txt':
+        return <FileText className="w-4 h-4 text-gray-500" />
+      case 'rtf':
+        return <FileText className="w-4 h-4 text-green-500" />
+      case 'png':
+      case 'jpg':
+      case 'jpeg':
+      case 'webp':
+        return <FileText className="w-4 h-4 text-purple-500" />
+      default:
+        return <FileText className="w-4 h-4 text-gray-500" />
+    }
+  }
+
+  // Get file type count
+  const getFileTypeCount = (fileType: string) => {
+    if (fileType === "all") {
+      return resumeFiles.length
+    }
+    return resumeFiles.filter(file => file.file_type.toLowerCase() === fileType.toLowerCase()).length
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center space-x-2">
+          <Search className="w-4 h-4 text-gray-400" />
+          <Input
+            placeholder="Search by name, email, or filename..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="w-64"
+          />
+        </div>
+        <Button 
+          onClick={() => {
+            fetchResumeFiles()
+            setSelectedFiles(new Set())
+          }} 
+          disabled={loading} 
+          variant="outline"
+        >
+          <RefreshCw className={`w-4 h-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
+          Refresh
+        </Button>
+      </div>
+
+      {/* Date Filters */}
+      <div className="bg-gray-50 p-4 rounded-lg border border-gray-200">
+        <div className="flex items-center justify-between mb-3">
+          <h3 className="text-sm font-medium text-gray-700">Date Filters</h3>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => {
+              setDateFilter("all")
+              setStartDate("")
+              setEndDate("")
+              setSelectedFiles(new Set())
+            }}
+            className="text-xs text-gray-500 hover:text-gray-700"
+          >
+            Clear Filters
+          </Button>
+        </div>
+        
+        <div className="flex flex-wrap items-center gap-4">
+          {/* Quick Date Filters */}
+          <div className="flex items-center space-x-2">
+            <span className="text-xs text-gray-600">Quick:</span>
+            <div className="flex space-x-1">
+              {[
+                { value: "all", label: "All" },
+                { value: "today", label: "Today" },
+                { value: "yesterday", label: "Yesterday" },
+                { value: "this_week", label: "This Week" },
+                { value: "this_month", label: "This Month" },
+                { value: "last_month", label: "Last Month" }
+              ].map((filter) => (
+                <button
+                  key={filter.value}
+                  onClick={() => {
+                    setDateFilter(filter.value)
+                    setSelectedFiles(new Set())
+                  }}
+                  className={`px-2 py-1 text-xs rounded-md transition-colors ${
+                    dateFilter === filter.value
+                      ? 'bg-blue-100 text-blue-700 border border-blue-200'
+                      : 'bg-white text-gray-600 border border-gray-200 hover:bg-gray-50'
+                  }`}
+                >
+                  {filter.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Custom Date Range */}
+          <div className="flex items-center space-x-2">
+            <span className="text-xs text-gray-600">Custom:</span>
+            <input
+              type="date"
+              value={startDate}
+              onChange={(e) => {
+                setStartDate(e.target.value)
+                setDateFilter("custom")
+              }}
+              className="px-2 py-1 text-xs border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500"
+            />
+            <span className="text-xs text-gray-500">to</span>
+            <input
+              type="date"
+              value={endDate}
+              onChange={(e) => {
+                setEndDate(e.target.value)
+                setDateFilter("custom")
+              }}
+              className="px-2 py-1 text-xs border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500"
+            />
+            <button
+              onClick={() => setDateFilter("custom")}
+              className={`px-3 py-1 text-xs rounded-md transition-colors ${
+                dateFilter === "custom" && (startDate || endDate)
+                  ? 'bg-blue-100 text-blue-700 border border-blue-200'
+                  : 'bg-white text-gray-600 border border-gray-200 hover:bg-gray-50'
+              }`}
+            >
+              Apply
+            </button>
+          </div>
+        </div>
+
+        {/* Active Filter Display */}
+        {dateFilter !== "all" && (
+          <div className="mt-3 pt-3 border-t border-gray-200">
+            <div className="flex items-center space-x-2">
+              <span className="text-xs text-gray-500">Active filter:</span>
+              <Badge variant="outline" className="text-xs">
+                {dateFilter === "custom" 
+                  ? `Custom: ${startDate} to ${endDate}`
+                  : dateFilter.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase())
+                }
+              </Badge>
+              <span className="text-xs text-gray-500">
+                ({filteredFiles.length} of {resumeFiles.length} files)
+              </span>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* File Type Tabs */}
+      <div className="border-b border-gray-200">
+        <nav className="-mb-px flex space-x-8">
+          {fileTypes.map((fileType) => (
+            <button
+              key={fileType}
+              onClick={() => {
+                setActiveFileTypeTab(fileType)
+                setSelectedFiles(new Set())
+              }}
+              className={`py-2 px-1 border-b-2 font-medium text-sm flex items-center space-x-2 ${
+                activeFileTypeTab === fileType
+                  ? 'border-blue-500 text-blue-600'
+                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+              }`}
+            >
+              {getFileTypeIcon(fileType)}
+              <span className="capitalize">{fileType === "all" ? "All Files" : fileType}</span>
+              <Badge variant="secondary" className="text-xs">
+                {getFileTypeCount(fileType)}
+              </Badge>
+            </button>
+          ))}
+        </nav>
+      </div>
+
+      {/* Selection Controls */}
+      {filteredFiles.length > 0 && (
+        <div className="flex items-center justify-between p-4 bg-gray-50 border border-gray-200 rounded-lg">
+          <div className="flex items-center space-x-3">
+            <div className="flex items-center space-x-2">
+              <Checkbox
+                id="select-all"
+                checked={selectedFiles.size === filteredFiles.length && filteredFiles.length > 0}
+                onCheckedChange={handleSelectAll}
+                className="data-[state=checked]:bg-blue-600 data-[state=checked]:border-blue-600"
+              />
+              <Label htmlFor="select-all" className="text-sm font-medium text-gray-700">
+                Select All ({selectedFiles.size} of {filteredFiles.length})
+              </Label>
+            </div>
+          </div>
+          {selectedFiles.size > 0 && (
+            <Button
+              onClick={handleBulkDownload}
+              className="bg-green-600 hover:bg-green-700 text-white"
+              size="sm"
+            >
+              <Download className="w-4 h-4 mr-2" />
+              Download Selected ({selectedFiles.size})
+            </Button>
+          )}
+        </div>
+      )}
+
+      {loading ? (
+        <div className="text-center py-8">
+          <RefreshCw className="w-8 h-8 text-blue-600 animate-spin mx-auto mb-2" />
+          <p className="text-gray-600">Loading resume files...</p>
+        </div>
+      ) : filteredFiles.length > 0 ? (
+        <div className="space-y-3">
+          {/* Active Filters Summary */}
+          {(searchTerm || activeFileTypeTab !== "all" || dateFilter !== "all") && (
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center space-x-2">
+                  <Filter className="w-4 h-4 text-blue-600" />
+                  <span className="text-sm font-medium text-blue-800">Active Filters:</span>
+                </div>
+                <span className="text-sm text-blue-600">
+                  Showing {filteredFiles.length} of {resumeFiles.length} files
+                </span>
+              </div>
+              <div className="flex flex-wrap gap-2 mt-2">
+                {searchTerm && (
+                  <Badge variant="secondary" className="text-xs">
+                    Search: "{searchTerm}"
+                  </Badge>
+                )}
+                {activeFileTypeTab !== "all" && (
+                  <Badge variant="secondary" className="text-xs">
+                    File Type: {activeFileTypeTab.toUpperCase()}
+                  </Badge>
+                )}
+                {dateFilter !== "all" && (
+                  <Badge variant="secondary" className="text-xs">
+                    Date: {dateFilter === "custom" 
+                      ? `Custom (${startDate} to ${endDate})`
+                      : dateFilter.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase())
+                    }
+                  </Badge>
+                )}
+              </div>
+            </div>
+          )}
+          
+          {filteredFiles.map((file) => (
+            <div key={file.id} className="flex items-center justify-between p-4 bg-white border border-gray-200 rounded-lg hover:border-blue-300 transition-colors">
+              <div className="flex items-center space-x-3">
+                <Checkbox
+                  id={`file-${file.id}`}
+                  checked={selectedFiles.has(file.id)}
+                  onCheckedChange={(checked) => handleFileSelection(file.id, checked as boolean)}
+                  className="data-[state=checked]:bg-blue-600 data-[state=checked]:border-blue-600"
+                />
+                <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center">
+                  {getFileTypeIcon(file.file_type)}
+                </div>
+                <div>
+                  <h4 className="font-medium text-gray-900">{file.candidate_name}</h4>
+                  <p className="text-sm text-gray-600">{file.candidate_email}</p>
+                  <div className="flex items-center space-x-2 mt-1">
+                    <Badge variant="outline" className="text-xs">
+                      {file.file_type.toUpperCase()}
+                    </Badge>
+                    <span className="text-xs text-gray-500">{file.filename}</span>
+                  </div>
+                </div>
+              </div>
+              <div className="flex items-center space-x-2">
+                <span className="text-xs text-gray-500">
+                  {new Date(file.upload_date).toLocaleDateString()}
+                </span>
+                <Button
+                  onClick={() => handleDownload(file.download_url, file.filename)}
+                  size="sm"
+                  className="bg-blue-600 hover:bg-blue-700 text-white"
+                >
+                  <Download className="w-4 h-4 mr-2" />
+                  Download
+                </Button>
+              </div>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <div className="text-center py-8">
+          <FileText className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+          <p className="text-gray-600">
+            {(() => {
+              const filters = []
+              if (searchTerm) filters.push('search term')
+              if (activeFileTypeTab !== "all") filters.push(`${activeFileTypeTab.toUpperCase()} file type`)
+              if (dateFilter !== "all") {
+                if (dateFilter === "custom") {
+                  filters.push(`date range (${startDate} to ${endDate})`)
+                } else {
+                  filters.push(dateFilter.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase()))
+                }
+              }
+              
+              if (filters.length > 0) {
+                return `No files found matching your ${filters.join(', ')} criteria.`
+              }
+              return 'No resume files available for download.'
+            })()}
+          </p>
+          {(searchTerm || activeFileTypeTab !== "all" || dateFilter !== "all") && (
+            <p className="text-sm text-gray-500 mt-2">
+              Try adjusting your filters or search terms.
+            </p>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
 export default function BulkImport() {
   const { toast } = useToast()
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -121,14 +636,30 @@ export default function BulkImport() {
   const [loading, setLoading] = useState(false)
   const [processingResults, setProcessingResults] = useState<ProcessingResult[]>([])
   
+  // Add AbortController for API cancellation
+  const abortControllerRef = useRef<AbortController | null>(null)
+  
   // Filters
   const [searchTerm, setSearchTerm] = useState("")
   const [fileTypeFilter, setFileTypeFilter] = useState<string>("all")
   const [dateFilter, setDateFilter] = useState<string>("all")
+  const [startDate, setStartDate] = useState<string>("")
+  const [endDate, setEndDate] = useState<string>("")
 
   // Helper function to parse JSON string safely
-  const parseResumeData = (jsonString: string): ParsedResumeData | null => {
+  const parseResumeData = (jsonString: string | undefined | null): ParsedResumeData | null => {
     try {
+      // Handle undefined, null, or empty string cases
+      if (!jsonString || jsonString === 'undefined' || jsonString === 'null') {
+        return null
+      }
+      
+      // If it's already an object, return it directly
+      if (typeof jsonString === 'object') {
+        return jsonString as ParsedResumeData
+      }
+      
+      // Parse JSON string
       return JSON.parse(jsonString)
     } catch (error) {
       console.error('Error parsing resume data:', error)
@@ -152,7 +683,20 @@ export default function BulkImport() {
       }
 
       const data = await response.json()
-      setResumeData(data.resumes || data || [])
+      console.log('API Response:', data)
+      
+      // Ensure we have valid data and handle potential undefined parsed_data
+      const resumes = data.resumes || data || []
+      const validatedResumes = resumes.map((resume: any) => ({
+        ...resume,
+        parsed_data: resume.parsed_data || null, // Ensure parsed_data is never undefined
+        candidate_name: resume.candidate_name || 'N/A',
+        candidate_email: resume.candidate_email || 'N/A',
+        total_experience: resume.total_experience || 'N/A'
+      }))
+      
+      console.log('Validated Resumes:', validatedResumes)
+      setResumeData(validatedResumes)
     } catch (error) {
       console.error('Error fetching resumes:', error)
       // Fallback to mock data
@@ -213,6 +757,20 @@ export default function BulkImport() {
   const handleFileUpload = useCallback((files: FileList | null) => {
     if (!files) return
 
+    // Check if adding these files would exceed the 10 file limit
+    const currentFileCount = uploadedFiles.length
+    const newFileCount = files.length
+    const totalFileCount = currentFileCount + newFileCount
+    
+    if (totalFileCount > 10) {
+      toast({
+        title: "File Limit Exceeded",
+        description: `You can only upload a maximum of 10 files at a time. You currently have ${currentFileCount} files and trying to add ${newFileCount} more.`,
+        variant: "destructive",
+      })
+      return
+    }
+
     const newFiles = Array.from(files).filter(
       (file) => {
         const validTypes = [
@@ -240,7 +798,7 @@ export default function BulkImport() {
     )
 
     setUploadedFiles((prev) => [...prev, ...newFiles])
-  }, [])
+  }, [uploadedFiles.length, toast])
 
   const handleDragOver = useCallback((e: React.DragEvent) => {
     e.preventDefault()
@@ -263,6 +821,9 @@ export default function BulkImport() {
 
     setIsProcessing(true)
     setProcessingProgress(0)
+    
+    // Create new AbortController for this request
+    abortControllerRef.current = new AbortController()
 
     try {
       const formData = new FormData()
@@ -284,6 +845,7 @@ export default function BulkImport() {
       const response = await fetch(`${BASE_API_URL}/parse-resume`, {
         method: 'POST',
         body: formData,
+        signal: abortControllerRef.current.signal, // Add abort signal
       })
 
       if (!response.ok) {
@@ -303,6 +865,16 @@ export default function BulkImport() {
       await fetchResumes()
 
     } catch (error) {
+      // Check if it's an abort error
+      if (error instanceof Error && error.name === 'AbortError') {
+        console.log('API request was cancelled')
+        toast({
+          title: "Processing Cancelled",
+          description: "Resume processing has been cancelled.",
+        })
+        return
+      }
+      
       console.error('Error processing resumes:', error)
       // Fallback to mock data for demonstration
       const mockData: ResumeParseResponse = {
@@ -360,6 +932,8 @@ export default function BulkImport() {
       setActiveTab("results")
     } finally {
       setIsProcessing(false)
+      // Clear the AbortController reference
+      abortControllerRef.current = null
     }
   }
 
@@ -397,16 +971,28 @@ export default function BulkImport() {
     const csvContent = [
       headers.join(','),
       ...selectedData.map(resume => {
-        const parsedData = parseResumeData(resume.parsed_data)
+          // Ensure resume has all required fields with fallbacks
+          const safeResume = {
+            id: resume.id || 0,
+            filename: resume.filename || 'Unknown',
+            file_type: resume.file_type || 'unknown',
+            candidate_name: resume.candidate_name || 'N/A',
+            candidate_email: resume.candidate_email || 'N/A',
+            total_experience: resume.total_experience || 'N/A',
+            created_at: resume.created_at || new Date().toISOString(),
+            parsed_data: resume.parsed_data || null
+          }
+          
+          const parsedData = parseResumeData(safeResume.parsed_data)
         return [
-          parsedData?.Name || resume.candidate_name || '',
-          parsedData?.Email || resume.candidate_email || '',
+            parsedData?.Name || safeResume.candidate_name || '',
+            parsedData?.Email || safeResume.candidate_email || '',
           parsedData?.Phone || '',
           parsedData?.Address || '',
-          parsedData?.TotalExperience || resume.total_experience || '',
+            parsedData?.TotalExperience || safeResume.total_experience || '',
           parsedData?.Skills?.join('; ') || '',
-          resume.file_type,
-          new Date(resume.created_at).toLocaleDateString()
+            safeResume.file_type,
+            new Date(safeResume.created_at).toLocaleDateString()
         ].join(',')
       })
     ].join('\n')
@@ -478,7 +1064,7 @@ export default function BulkImport() {
     }
   }
 
-  // Filter resumes based on search and filters
+  // Filter resumes based on search, file type, and date
   const filteredResumes = resumeData.filter(resume => {
     const matchesSearch = searchTerm === "" || 
       resume.filename.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -487,167 +1073,108 @@ export default function BulkImport() {
     
     const matchesFileType = fileTypeFilter === "all" || resume.file_type === fileTypeFilter
     
-    return matchesSearch && matchesFileType
+    // Date filtering logic
+    let matchesDate = true
+    if (dateFilter !== "all") {
+      const fileDate = new Date(resume.created_at)
+      const today = new Date()
+      
+      switch (dateFilter) {
+        case "today":
+          matchesDate = fileDate.toDateString() === today.toDateString()
+          break
+        case "yesterday":
+          const yesterday = new Date(today)
+          yesterday.setDate(yesterday.getDate() - 1)
+          matchesDate = fileDate.toDateString() === yesterday.toDateString()
+          break
+        case "this_week":
+          const startOfWeek = new Date(today)
+          startOfWeek.setDate(today.getDate() - today.getDay())
+          startOfWeek.setHours(0, 0, 0, 0)
+          matchesDate = fileDate >= startOfWeek
+          break
+        case "this_month":
+          matchesDate = fileDate.getMonth() === today.getMonth() && fileDate.getFullYear() === today.getFullYear()
+          break
+        case "last_month":
+          const lastMonth = new Date(today)
+          lastMonth.setMonth(lastMonth.getMonth() - 1)
+          matchesDate = fileDate.getMonth() === lastMonth.getMonth() && fileDate.getFullYear() === lastMonth.getFullYear()
+          break
+        case "custom":
+          if (startDate && endDate) {
+            const start = new Date(startDate)
+            const end = new Date(endDate)
+            end.setHours(23, 59, 59, 999) // Include end date
+            matchesDate = fileDate >= start && fileDate <= end
+          }
+          break
+      }
+    }
+    
+    return matchesSearch && matchesFileType && matchesDate
   })
 
   return (
     <div className="space-y-8">
-      <div>
-        <h2 className="text-3xl font-bold text-gray-900">Bulk Resume Import</h2>
-        <p className="text-gray-600">Upload and parse multiple resumes with AI-powered extraction</p>
+      {/* Progress Overlay - Centered */}
+      {isProcessing && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center">
+          <div className="bg-white rounded-lg p-8 shadow-2xl max-w-md w-full mx-4">
+            <div className="text-center space-y-6">
+              <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto">
+                <RefreshCw className="w-8 h-8 text-blue-600 animate-spin" />
+              </div>
+              <div>
+                <h3 className="text-xl font-semibold text-gray-900 mb-2">Processing Resumes</h3>
+                <p className="text-gray-600 mb-4">AI is extracting candidate information</p>
+                <Progress value={processingProgress} className="w-full mb-4" />
+                <p className="text-sm font-medium text-blue-600">{processingProgress}%</p>
+              </div>
+              <Button
+                variant="outline"
+                onClick={() => {
+                  if (abortControllerRef.current) {
+                    abortControllerRef.current.abort() // Abort the API call
+                  }
+                  setIsProcessing(false)
+                  setProcessingProgress(0)
+                }}
+                className="border-red-300 text-red-600 hover:bg-red-50 hover:border-red-400"
+              >
+                Cancel Processing
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Refresh Button - Top of Page */}
+      <div className="flex justify-end">
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={fetchResumes}
+          className="text-blue-600 hover:text-blue-700 border-blue-300 hover:border-blue-400"
+          title="Refresh Data"
+        >
+          <RefreshCw className="w-4 h-4 mr-2" />
+          Refresh
+        </Button>
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-        <TabsList className="grid w-full grid-cols-3">
+        <TabsList className="grid w-full grid-cols-5">
           <TabsTrigger value="upload">Bulk Import Files</TabsTrigger>
           <TabsTrigger value="results">Processing Results</TabsTrigger>
           <TabsTrigger value="parsed">Parsed Data</TabsTrigger>
+          <TabsTrigger value="download">Download Resume</TabsTrigger>
+          <TabsTrigger value="history">History</TabsTrigger>
         </TabsList>
 
         <TabsContent value="upload" className="space-y-6">
-          {/* Upload Section */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center space-x-2">
-                  <Upload className="w-5 h-5" />
-                  <span>Resume Upload</span>
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div
-                  className="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center hover:border-gray-400 transition-colors"
-                  onDragOver={handleDragOver}
-                  onDrop={handleDrop}
-                >
-                  <Upload className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-                  <p className="text-lg font-medium text-gray-900 mb-2">Drag and drop resume files here, or click to browse</p>
-                  <p className="text-sm text-gray-600 mb-4">Supports PDF, DOC, DOCX, TXT, RTF, PNG, JPG, JPEG, WEBP files</p>
-                  <input
-                    ref={fileInputRef}
-                    type="file"
-                    multiple
-                    accept=".pdf,.doc,.docx,.txt,.rtf,.png,.jpg,.jpeg,.webp"
-                    onChange={(e) => handleFileUpload(e.target.files)}
-                    className="hidden"
-                    id="file-upload"
-                  />
-                  <Button 
-                    variant="outline" 
-                    className="bg-transparent"
-                    onClick={() => {
-                      if (fileInputRef.current) {
-                        fileInputRef.current.click();
-                      }
-                    }}
-                  >
-                    Browse Files
-                  </Button>
-                </div>
-
-                {uploadedFiles.length > 0 && (
-                  <div className="mt-6">
-                    <h4 className="font-medium text-gray-900 mb-3">Uploaded Files ({uploadedFiles.length})</h4>
-                    <div className="space-y-2 max-h-40 overflow-y-auto">
-                      {uploadedFiles.map((file, index) => (
-                        <div key={index} className="flex items-center justify-between p-2 bg-gray-50 rounded">
-                          <div className="flex items-center space-x-2">
-                            {getFileIcon(file.name.split('.').pop() || '')}
-                            <span className="text-sm text-gray-900 truncate">{file.name}</span>
-                            <span className="text-xs text-gray-500">({(file.size / 1024).toFixed(1)} KB)</span>
-                          </div>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => removeFile(index)}
-                            className="text-red-600 hover:text-red-700"
-                          >
-                            <X className="w-4 h-4" />
-                          </Button>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                {uploadedFiles.length > 0 && (
-                  <div className="mt-6">
-                    <Button onClick={processResumes} disabled={isProcessing} className="w-full">
-                      {isProcessing ? (
-                        <>
-                          <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
-                          Processing Resumes...
-                        </>
-                      ) : (
-                        <>
-                          <Upload className="w-4 h-4 mr-2" />
-                          Parse Resumes ({uploadedFiles.length})
-                        </>
-                      )}
-                    </Button>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center space-x-2">
-                  <FileSpreadsheet className="w-5 h-5" />
-                  <span>Supported Formats</span>
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <p className="text-sm text-gray-600 mb-4">
-                  Our AI can parse and extract information from various resume formats.
-                </p>
-                <div className="space-y-3">
-                  <div className="flex items-center space-x-2">
-                    <Badge variant="outline" className="bg-red-50 text-red-700 border-red-200">
-                      PDF
-                    </Badge>
-                    <span className="text-sm text-gray-600">Most common format</span>
-                  </div>
-                  <div className="flex items-center space-x-2">
-                    <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200">
-                      DOC/DOCX
-                    </Badge>
-                    <span className="text-sm text-gray-600">Microsoft Word documents</span>
-                  </div>
-                  <div className="flex items-center space-x-2">
-                    <Badge variant="outline" className="bg-gray-50 text-gray-700 border-gray-200">
-                      TXT/RTF
-                    </Badge>
-                    <span className="text-sm text-gray-600">Plain text formats</span>
-                  </div>
-                  <div className="flex items-center space-x-2">
-                    <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
-                      Images
-                    </Badge>
-                    <span className="text-sm text-gray-600">PNG, JPG, JPEG, WEBP</span>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-
-          {isProcessing && (
-            <Card>
-              <CardContent className="p-6">
-                <div className="flex items-center space-x-4">
-                  <RefreshCw className="w-6 h-6 text-blue-600 animate-spin" />
-                  <div className="flex-1">
-                    <p className="font-medium text-gray-900">Processing resumes...</p>
-                    <p className="text-sm text-gray-600">AI is extracting candidate information</p>
-                    <Progress value={processingProgress} className="mt-2" />
-                  </div>
-                  <span className="text-sm font-medium text-gray-900">{processingProgress}%</span>
-                </div>
-              </CardContent>
-            </Card>
-          )}
-
-          {/* Results Section */}
+          {/* Status Cards - Moved to top */}
           {parseResults && (
             <div className="space-y-6">
               <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
@@ -698,6 +1225,182 @@ export default function BulkImport() {
               </div>
             </div>
           )}
+
+          {/* Upload Section */}
+          <div className="w-full">
+            <Card className="bg-gradient-to-br from-blue-50 to-white border-2 border-blue-200 shadow-lg hover:shadow-xl transition-all duration-300">
+              <CardHeader className="text-center pb-3">
+                <CardTitle className="flex items-center justify-center space-x-2 text-xl text-blue-800">
+                  <Upload className="w-5 h-5 text-blue-600" />
+                  <span>Resume Upload</span>
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="p-4">
+                <div
+                  className="border-2 border-dashed border-blue-300 rounded-lg p-4 text-center hover:border-blue-400 transition-colors bg-white/50 hover:bg-white/70"
+                  onDragOver={handleDragOver}
+                  onDrop={handleDrop}
+                >
+                  <Upload className="w-8 h-8 text-blue-400 mx-auto mb-2" />
+                  <p className="text-base font-medium text-blue-900 mb-1">Drag and drop resume files here, or click to browse</p>
+                  <p className="text-xs text-blue-600 mb-3">Supports PDF, DOC, DOCX, TXT, RTF, PNG, JPG, JPEG, WEBP files</p>
+                  <p className="text-xs text-orange-600 mb-3 font-medium">Maximum 10 files per batch</p>
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    multiple
+                    accept=".pdf,.doc,.docx,.txt,.rtf,.png,.jpg,.jpeg,.webp"
+                    onChange={(e) => handleFileUpload(e.target.files)}
+                    className="hidden"
+                    id="file-upload"
+                  />
+                  <Button 
+                    variant="outline" 
+                    className={`px-6 py-2 ${
+                      uploadedFiles.length >= 10 
+                        ? 'bg-gray-400 text-gray-600 border-gray-400 cursor-not-allowed' 
+                        : 'bg-blue-600 hover:bg-blue-700 text-white border-blue-600 hover:border-blue-700'
+                    }`}
+                    onClick={() => {
+                      if (fileInputRef.current && uploadedFiles.length < 10) {
+                        fileInputRef.current.click();
+                      }
+                    }}
+                    disabled={uploadedFiles.length >= 10}
+                  >
+                    {uploadedFiles.length >= 10 ? 'Limit Reached' : 'Browse Files'}
+                  </Button>
+                </div>
+
+                {uploadedFiles.length > 0 && (
+                  <div className="mt-4">
+                    <h4 className="font-medium text-blue-900 mb-2 text-center">
+                      Uploaded Files ({uploadedFiles.length}/10)
+                    </h4>
+                    
+                    {/* File limit progress indicator */}
+                    <div className="mb-3">
+                      <div className="flex justify-between text-xs text-blue-600 mb-1">
+                        <span>Files used</span>
+                        <span>{uploadedFiles.length}/10</span>
+                      </div>
+                      <div className="w-full bg-gray-200 rounded-full h-2">
+                        <div 
+                          className={`h-2 rounded-full transition-all duration-300 ${
+                            uploadedFiles.length >= 10 ? 'bg-red-500' : 
+                            uploadedFiles.length >= 8 ? 'bg-orange-500' : 
+                            uploadedFiles.length >= 5 ? 'bg-yellow-500' : 'bg-blue-500'
+                          }`}
+                          style={{ width: `${(uploadedFiles.length / 10) * 100}%` }}
+                        ></div>
+                      </div>
+                      
+                      {/* Warning messages */}
+                      {uploadedFiles.length >= 10 && (
+                        <p className="text-xs text-red-600 mt-1 text-center font-medium">
+                          Maximum file limit reached! Remove some files to add more.
+                        </p>
+                      )}
+                      {uploadedFiles.length >= 8 && uploadedFiles.length < 10 && (
+                        <p className="text-xs text-orange-600 mt-1 text-center">
+                          Almost at the limit! You can add {10 - uploadedFiles.length} more file(s).
+                        </p>
+                      )}
+                      
+                      {/* File reduction slider for when approaching or at limit */}
+                      {(uploadedFiles.length >= 8) && (
+                        <div className="mt-3 p-3 bg-orange-50 border border-orange-200 rounded-lg">
+                          <div className="flex items-center justify-between mb-2">
+                            <span className="text-xs font-medium text-orange-800">Reduce files to:</span>
+                            <span className="text-xs text-orange-600">{Math.max(1, uploadedFiles.length - 3)} files</span>
+                          </div>
+                          <div className="flex items-center space-x-3">
+                            <input
+                              type="range"
+                              min="1"
+                              max={uploadedFiles.length}
+                              value={Math.max(1, uploadedFiles.length - 3)}
+                              onChange={(e) => {
+                                const targetCount = parseInt(e.target.value)
+                                if (targetCount < uploadedFiles.length) {
+                                  // Remove files from the end to reach target count
+                                  const filesToRemove = uploadedFiles.length - targetCount
+                                  setUploadedFiles(prev => prev.slice(0, targetCount))
+                                  toast({
+                                    title: "Files Reduced",
+                                    description: `Removed ${filesToRemove} file(s) to reach ${targetCount} files.`,
+                                  })
+                                }
+                              }}
+                              className="flex-1 h-2 bg-orange-200 rounded-lg appearance-none cursor-pointer slider-orange"
+                            />
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => {
+                                const targetCount = Math.max(1, uploadedFiles.length - 3)
+                                const filesToRemove = uploadedFiles.length - targetCount
+                                setUploadedFiles(prev => prev.slice(0, targetCount))
+                                toast({
+                                  title: "Files Reduced",
+                                  description: `Removed ${filesToRemove} file(s) to reach ${targetCount} files.`,
+                                })
+                              }}
+                              className="text-xs px-2 py-1 h-6 bg-orange-100 border-orange-300 text-orange-700 hover:bg-orange-200"
+                            >
+                              Apply
+                            </Button>
+                          </div>
+                          <p className="text-xs text-orange-600 mt-1 text-center">
+                            Drag slider to reduce files or click Apply to remove 3 files
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                    
+                    <div className="space-y-1 max-h-20 overflow-y-auto">
+                      {uploadedFiles.map((file, index) => (
+                        <div key={index} className="flex items-center justify-between p-2 bg-blue-50 rounded border border-blue-200">
+                          <div className="flex items-center space-x-2">
+                            {getFileIcon(file.name.split('.').pop() || '')}
+                            <span className="text-xs text-blue-900 truncate">{file.name}</span>
+                            <span className="text-xs text-blue-600">({(file.size / 1024).toFixed(1)} KB)</span>
+                          </div>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => removeFile(index)}
+                            className="text-red-600 hover:text-red-700 h-6 w-6 p-0"
+                          >
+                            <X className="w-3 h-3" />
+                          </Button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {uploadedFiles.length > 0 && (
+                  <div className="mt-4 text-center">
+                    <Button onClick={processResumes} disabled={isProcessing} className="bg-blue-600 hover:bg-blue-700 text-white px-8 py-2">
+                      {isProcessing ? (
+                        <>
+                          <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
+                          Processing Resumes...
+                        </>
+                      ) : (
+                        <>
+                          <Upload className="w-4 h-4 mr-2" />
+                          Parse Resumes ({uploadedFiles.length})
+                        </>
+                      )}
+                    </Button>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </div>
+
         </TabsContent>
 
         <TabsContent value="results" className="space-y-6">
@@ -904,7 +1607,9 @@ export default function BulkImport() {
             </CardHeader>
             <CardContent>
               {/* Filters */}
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+              <div className="space-y-4 mb-6">
+                {/* Search and File Type Row */}
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div className="relative">
                   <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
                   <Input
@@ -932,12 +1637,151 @@ export default function BulkImport() {
                   onClick={() => {
                     setSearchTerm("")
                     setFileTypeFilter("all")
+                      setDateFilter("all")
+                      setStartDate("")
+                      setEndDate("")
                   }}
                 >
                   <Filter className="w-4 h-4 mr-2" />
                   Clear Filters
                 </Button>
               </div>
+
+                {/* Date Filters */}
+                <div className="bg-gray-50 p-4 rounded-lg border border-gray-200">
+                  <div className="flex items-center justify-between mb-3">
+                    <h3 className="text-sm font-medium text-gray-700">Date Filters</h3>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => {
+                        setDateFilter("all")
+                        setStartDate("")
+                        setEndDate("")
+                      }}
+                      className="text-xs text-gray-500 hover:text-gray-700"
+                    >
+                      Clear Date Filters
+                    </Button>
+                  </div>
+                  
+                  <div className="flex flex-wrap items-center gap-4">
+                    {/* Quick Date Filters */}
+                    <div className="flex items-center space-x-2">
+                      <span className="text-xs text-gray-600">Quick:</span>
+                      <div className="flex space-x-1">
+                        {[
+                          { value: "all", label: "All" },
+                          { value: "today", label: "Today" },
+                          { value: "yesterday", label: "Yesterday" },
+                          { value: "this_week", label: "This Week" },
+                          { value: "this_month", label: "This Month" },
+                          { value: "last_month", label: "Last Month" }
+                        ].map((filter) => (
+                          <button
+                            key={filter.value}
+                            onClick={() => setDateFilter(filter.value)}
+                            className={`px-2 py-1 text-xs rounded-md transition-colors ${
+                              dateFilter === filter.value
+                                ? 'bg-blue-100 text-blue-700 border border-blue-200'
+                                : 'bg-white text-gray-600 border border-gray-200 hover:bg-gray-50'
+                            }`}
+                          >
+                            {filter.label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Custom Date Range */}
+                    <div className="flex items-center space-x-2">
+                      <span className="text-xs text-gray-600">Custom:</span>
+                      <input
+                        type="date"
+                        value={startDate}
+                        onChange={(e) => {
+                          setStartDate(e.target.value)
+                          setDateFilter("custom")
+                        }}
+                        className="px-2 py-1 text-xs border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500"
+                      />
+                      <span className="text-xs text-gray-500">to</span>
+                      <input
+                        type="date"
+                        value={endDate}
+                        onChange={(e) => {
+                          setEndDate(e.target.value)
+                          setDateFilter("custom")
+                        }}
+                        className="px-2 py-1 text-xs border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500"
+                      />
+                      <button
+                        onClick={() => setDateFilter("custom")}
+                        className={`px-3 py-1 text-xs rounded-md transition-colors ${
+                          dateFilter === "custom" && (startDate || endDate)
+                            ? 'bg-blue-100 text-blue-700 border border-blue-200'
+                            : 'bg-white text-gray-600 border border-gray-200 hover:bg-gray-50'
+                        }`}
+                      >
+                        Apply
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Active Filter Display */}
+                  {dateFilter !== "all" && (
+                    <div className="mt-3 pt-3 border-t border-gray-200">
+                      <div className="flex items-center space-x-2">
+                        <span className="text-xs text-gray-500">Active filter:</span>
+                        <Badge variant="outline" className="text-xs">
+                          {dateFilter === "custom" 
+                            ? `Custom: ${startDate} to ${endDate}`
+                            : dateFilter.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase())
+                          }
+                        </Badge>
+                        <span className="text-xs text-gray-500">
+                          ({filteredResumes.length} of {resumeData.length} resumes)
+                        </span>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Active Filters Summary */}
+              {(searchTerm || fileTypeFilter !== "all" || dateFilter !== "all") && (
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 mb-4">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center space-x-2">
+                      <Filter className="w-4 h-4 text-blue-600" />
+                      <span className="text-sm font-medium text-blue-800">Active Filters:</span>
+                    </div>
+                    <span className="text-sm text-blue-600">
+                      Showing {filteredResumes.length} of {resumeData.length} resumes
+                    </span>
+                  </div>
+                  <div className="flex flex-wrap gap-2 mt-2">
+                    {searchTerm && (
+                      <Badge variant="secondary" className="text-xs">
+                        Search: "{searchTerm}"
+                      </Badge>
+                    )}
+                    {fileTypeFilter !== "all" && (
+                      <Badge variant="secondary" className="text-xs">
+                        File Type: {fileTypeFilter.toUpperCase()}
+                      </Badge>
+                    )}
+                    {dateFilter !== "all" && (
+                      <Badge variant="secondary" className="text-xs">
+                        Date: {dateFilter === "custom" 
+                          ? `Custom (${startDate} to ${endDate})`
+                          : dateFilter.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase())
+                        }
+                      </Badge>
+                    )}
+                  </div>
+                </div>
+              )}
 
               {/* Results Table */}
               {loading ? (
@@ -967,36 +1811,48 @@ export default function BulkImport() {
                     </TableHeader>
                     <TableBody>
                       {filteredResumes.map((resume) => {
-                        const parsedData = parseResumeData(resume.parsed_data)
+                        // Ensure resume has all required fields with fallbacks
+                        const safeResume = {
+                          id: resume.id || 0,
+                          filename: resume.filename || 'Unknown',
+                          file_type: resume.file_type || 'unknown',
+                          candidate_name: resume.candidate_name || 'N/A',
+                          candidate_email: resume.candidate_email || 'N/A',
+                          total_experience: resume.total_experience || 'N/A',
+                          created_at: resume.created_at || new Date().toISOString(),
+                          parsed_data: resume.parsed_data || null
+                        }
+                        
+                        const parsedData = parseResumeData(safeResume.parsed_data)
                         return (
                           <TableRow key={resume.id}>
                             <TableCell>
                               <Checkbox
-                                checked={selectedResumes.includes(resume.id)}
-                                onCheckedChange={() => toggleResumeSelection(resume.id)}
+                                checked={selectedResumes.includes(safeResume.id)}
+                                onCheckedChange={() => toggleResumeSelection(safeResume.id)}
                               />
                             </TableCell>
                             <TableCell>
                               <div className="flex items-center space-x-2">
-                                {getFileIcon(resume.file_type)}
-                                <span className="text-sm font-medium">{resume.filename}</span>
+                                {getFileIcon(safeResume.file_type)}
+                                <span className="text-sm font-medium">{safeResume.filename}</span>
                               </div>
                             </TableCell>
                             <TableCell>
-                              <span className="font-medium">{parsedData?.Name || resume.candidate_name || 'N/A'}</span>
+                              <span className="font-medium">{parsedData?.Name || safeResume.candidate_name || 'N/A'}</span>
                             </TableCell>
                             <TableCell>
-                              <span className="text-sm">{parsedData?.Email || resume.candidate_email || 'N/A'}</span>
+                              <span className="text-sm">{parsedData?.Email || safeResume.candidate_email || 'N/A'}</span>
                             </TableCell>
                             <TableCell>
                               <span className="text-sm">{parsedData?.Phone || 'N/A'}</span>
                             </TableCell>
                             <TableCell>
-                              <span className="text-sm">{parsedData?.TotalExperience || resume.total_experience || 'N/A'}</span>
+                              <span className="text-sm">{parsedData?.TotalExperience || safeResume.total_experience || 'N/A'}</span>
                             </TableCell>
                             <TableCell>
                               <span className="text-sm">
-                                {new Date(resume.created_at).toLocaleDateString()}
+                                {new Date(safeResume.created_at).toLocaleDateString()}
                               </span>
                             </TableCell>
                             <TableCell>
@@ -1011,7 +1867,7 @@ export default function BulkImport() {
                                     <DialogHeader>
                                       <DialogTitle className="flex items-center space-x-2">
                                         <User className="w-5 h-5" />
-                                        <span>{parsedData?.Name || resume.candidate_name || 'Resume Details'}</span>
+                                        <span>{parsedData?.Name || safeResume.candidate_name || 'Resume Details'}</span>
                                       </DialogTitle>
                                     </DialogHeader>
                                     <div className="space-y-6">
@@ -1019,7 +1875,7 @@ export default function BulkImport() {
                                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                         <div className="flex items-center space-x-2">
                                           <Mail className="w-4 h-4 text-gray-500" />
-                                          <span className="text-sm">{parsedData?.Email || resume.candidate_email || 'N/A'}</span>
+                                          <span className="text-sm">{parsedData?.Email || safeResume.candidate_email || 'N/A'}</span>
                                         </div>
                                         <div className="flex items-center space-x-2">
                                           <Phone className="w-4 h-4 text-gray-500" />
@@ -1031,7 +1887,7 @@ export default function BulkImport() {
                                         </div>
                                         <div className="flex items-center space-x-2">
                                           <Briefcase className="w-4 h-4 text-gray-500" />
-                                          <span className="text-sm">{parsedData?.TotalExperience || resume.total_experience || 'N/A'}</span>
+                                          <span className="text-sm">{parsedData?.TotalExperience || safeResume.total_experience || 'N/A'}</span>
                                         </div>
                                       </div>
 
@@ -1193,9 +2049,81 @@ export default function BulkImport() {
               {filteredResumes.length === 0 && !loading && (
                 <div className="text-center py-8">
                   <FileText className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-                  <p className="text-gray-600">No resumes found matching your filters.</p>
+                  <p className="text-gray-600">
+                    {(() => {
+                      const filters = []
+                      if (searchTerm) filters.push('search term')
+                      if (fileTypeFilter !== "all") filters.push(`${fileTypeFilter.toUpperCase()} file type`)
+                      if (dateFilter !== "all") {
+                        if (dateFilter === "custom") {
+                          filters.push(`date range (${startDate} to ${endDate})`)
+                        } else {
+                          filters.push(dateFilter.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase()))
+                        }
+                      }
+                      
+                      if (filters.length > 0) {
+                        return `No resumes found matching your ${filters.join(', ')} criteria.`
+                      }
+                      return 'No resumes found matching your filters.'
+                    })()}
+                  </p>
+                  {(searchTerm || fileTypeFilter !== "all" || dateFilter !== "all") && (
+                    <p className="text-sm text-gray-500 mt-2">
+                      Try adjusting your filters or search terms.
+                    </p>
+                  )}
                 </div>
               )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="download" className="space-y-6">
+          {/* Download Resume Tab */}
+          <Card>
+            <CardContent>
+              <div className="space-y-6">
+
+                {/* Resume Files List */}
+                <Card className="border-2 border-blue-200 bg-gradient-to-br from-blue-50 to-white">
+                  <CardHeader>
+                    <CardTitle className="text-blue-900">Available Resume Files</CardTitle>
+                    <CardDescription>Download individual resume files or view file information</CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <ResumeFilesList />
+                  </CardContent>
+                </Card>
+                
+                
+               
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="history" className="space-y-6">
+          {/* History Tab */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center space-x-2">
+                <Clock className="w-5 h-5" />
+                <span>Processing History</span>
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-center py-12">
+                <Clock className="w-16 h-16 text-gray-400 mx-auto mb-4" />
+                <h3 className="text-lg font-semibold text-gray-900 mb-2">Processing History</h3>
+                <p className="text-gray-600 mb-6">
+                  View the history of all resume processing operations.
+                </p>
+                <div className="bg-gray-50 rounded-lg p-6">
+                  <p className="text-sm text-gray-500">No processing history available yet.</p>
+                  <p className="text-xs text-gray-400 mt-2">Processing history will appear here after you process resumes.</p>
+                </div>
+              </div>
             </CardContent>
           </Card>
         </TabsContent>
