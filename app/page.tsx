@@ -53,7 +53,7 @@ import MyJobs from "./components/my-jobs"
 import RecruiterTimesheet from "./components/recruiter-timesheet"
 // import RequirementTimesheet from "./components/requirement-timesheet"
 import BulkImport from "./components/bulk-import"
-import AICandidateAnalysis from "./components/ai-candidate-analysis"
+// import AICandidateAnalysis from "./components/ai-candidate-analysis"
 import EmailAnalytics from "./components/email-analytics"
 import UserManagement from "../components/admin/user-management"
 import { useRouter } from "next/navigation"
@@ -126,7 +126,7 @@ export default function Dashboard() {
         { id: "jobs", label: "Job Postings", icon: Briefcase, component: JobPostings},
         { id: "interviews", label: "Interviews", icon: Calendar, component: InterviewManagement},
         { id: "pipeline", label: "Pipeline", icon: Target, component: PipelineAPI },
-        { id: "ai-analysis", label: "AI Analysis", icon: Brain, component: AICandidateAnalysis, badge: "New" },
+        // { id: "ai-analysis", label: "AI Analysis", icon: Brain, component: AICandidateAnalysis, badge: "New" },
       ],
     },
     {

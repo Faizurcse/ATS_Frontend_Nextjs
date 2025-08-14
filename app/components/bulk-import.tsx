@@ -636,6 +636,11 @@ export default function BulkImport() {
   const [loading, setLoading] = useState(false)
   const [processingResults, setProcessingResults] = useState<ProcessingResult[]>([])
   
+  // Add state for failed files management
+  const [failedFiles, setFailedFiles] = useState<ProcessingResult[]>([])
+  const [selectedFailedFiles, setSelectedFailedFiles] = useState<Set<string>>(new Set())
+  const [failedFileObjects, setFailedFileObjects] = useState<Map<string, File>>(new Map())
+  
   // Add AbortController for API cancellation
   const abortControllerRef = useRef<AbortController | null>(null)
   
@@ -856,6 +861,26 @@ export default function BulkImport() {
       setParseResults(data)
       setParsedResumes(data.results)
       setProcessingResults(data.results)
+      
+      // Extract failed files for re-upload functionality
+      const failed = data.results.filter(result => result.status === 'failed')
+      setFailedFiles(failed)
+      
+      // Store original files for failed results so they can be re-uploaded
+      const failedFileMap = new Map<string, File>()
+      failed.forEach(failedResult => {
+        const originalFile = uploadedFiles.find(file => file.name === failedResult.filename)
+        if (originalFile) {
+          failedFileMap.set(failedResult.filename, originalFile)
+        }
+      })
+      setFailedFileObjects(failedFileMap)
+      
+      // Remove successfully parsed files from uploaded files
+      const successfulFiles = data.results.filter(result => result.status === 'success')
+      const successfulFileNames = successfulFiles.map(result => result.filename)
+      setUploadedFiles(prev => prev.filter(file => !successfulFileNames.includes(file.name)))
+      
       setProcessingProgress(100)
       
       // Switch to results tab
@@ -926,6 +951,26 @@ export default function BulkImport() {
       setParseResults(mockData)
       setParsedResumes(mockData.results)
       setProcessingResults(mockData.results)
+      
+      // Extract failed files for re-upload functionality
+      const failed = mockData.results.filter(result => result.status === 'failed')
+      setFailedFiles(failed)
+      
+      // Store original files for failed results so they can be re-uploaded
+      const failedFileMap = new Map<string, File>()
+      failed.forEach(failedResult => {
+        const originalFile = uploadedFiles.find(file => file.name === failedResult.filename)
+        if (originalFile) {
+          failedFileMap.set(failedResult.filename, originalFile)
+        }
+      })
+      setFailedFileObjects(failedFileMap)
+      
+      // Remove successfully parsed files from uploaded files
+      const successfulFiles = mockData.results.filter(result => result.status === 'success')
+      const successfulFileNames = successfulFiles.map(result => result.filename)
+      setUploadedFiles(prev => prev.filter(file => !successfulFileNames.includes(file.name)))
+      
       setProcessingProgress(100)
       
       // Switch to results tab
@@ -1116,6 +1161,151 @@ export default function BulkImport() {
     return matchesSearch && matchesFileType && matchesDate
   })
 
+  // Add functions for failed files management
+  const handleFailedFileSelection = (filename: string, checked: boolean) => {
+    const newSelectedFailedFiles = new Set(selectedFailedFiles)
+    if (checked) {
+      newSelectedFailedFiles.add(filename)
+    } else {
+      newSelectedFailedFiles.delete(filename)
+    }
+    setSelectedFailedFiles(newSelectedFailedFiles)
+  }
+
+  const handleSelectAllFailed = () => {
+    if (selectedFailedFiles.size === failedFiles.length) {
+      // If all are selected, deselect all
+      setSelectedFailedFiles(new Set())
+    } else {
+      // Select all failed files
+      const allFailedFileNames = new Set(failedFiles.map(file => file.filename))
+      setSelectedFailedFiles(allFailedFileNames)
+    }
+  }
+
+  const reUploadFailedFiles = async () => {
+    if (selectedFailedFiles.size === 0) {
+      toast({
+        title: "No Files Selected",
+        description: "Please select at least one failed file to re-upload.",
+        variant: "destructive",
+      })
+      return
+    }
+
+    // Find the actual File objects for the selected failed files
+    let filesToReUpload: File[] = []
+    
+    // First try to get files from uploadedFiles (in case they're still there)
+    filesToReUpload = uploadedFiles.filter(file => selectedFailedFiles.has(file.name))
+    
+    // If not found in uploadedFiles, get them from the stored failed file objects
+    if (filesToReUpload.length === 0) {
+      const failedFileNames = Array.from(selectedFailedFiles)
+      filesToReUpload = failedFileNames
+        .map(filename => failedFileObjects.get(filename))
+        .filter((file): file is File => file !== undefined)
+    }
+    
+    // If still no files found, show error
+    if (filesToReUpload.length === 0) {
+      toast({
+        title: "Files Not Found",
+        description: "Selected failed files are no longer available for re-upload. Please upload them manually.",
+        variant: "destructive",
+      })
+      return
+    }
+    
+    // Add these files to uploadedFiles for processing if they're not already there
+    const newFiles = filesToReUpload.filter(file => !uploadedFiles.some(uploaded => uploaded.name === file.name))
+    if (newFiles.length > 0) {
+      setUploadedFiles(prev => [...prev, ...newFiles])
+    }
+
+    // Process the selected failed files
+    setIsProcessing(true)
+    setProcessingProgress(0)
+    
+    try {
+      const formData = new FormData()
+      filesToReUpload.forEach((file) => {
+        formData.append('files', file)
+      })
+
+      // Simulate progress
+      const progressInterval = setInterval(() => {
+        setProcessingProgress((prev) => {
+          if (prev >= 90) {
+            clearInterval(progressInterval)
+            return prev
+          }
+          return prev + 10
+        })
+      }, 200)
+
+      const response = await fetch(`${BASE_API_URL}/parse-resume`, {
+        method: 'POST',
+        body: formData,
+      })
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`)
+      }
+
+      const data: ResumeParseResponse = await response.json()
+      
+      // Update the overall results
+      const updatedResults = [...processingResults]
+      filesToReUpload.forEach(file => {
+        const result = data.results.find(r => r.filename === file.name)
+        if (result) {
+          const existingIndex = updatedResults.findIndex(r => r.filename === file.name)
+          if (existingIndex !== -1) {
+            updatedResults[existingIndex] = result
+          } else {
+            updatedResults.push(result)
+          }
+        }
+      })
+      
+      setProcessingResults(updatedResults)
+      
+      // Update failed files list
+      const newFailed = updatedResults.filter(result => result.status === 'failed')
+      setFailedFiles(newFailed)
+      
+      // Remove successfully re-processed files from uploaded files
+      const successfulFiles = updatedResults.filter(result => result.status === 'success')
+      const successfulFileNames = successfulFiles.map(result => result.filename)
+      setUploadedFiles(prev => prev.filter(file => !successfulFileNames.includes(file.name)))
+      
+      // Clear selection
+      setSelectedFailedFiles(new Set())
+      
+      setProcessingProgress(100)
+      
+      toast({
+        title: "Re-upload Complete",
+        description: `Successfully re-processed ${filesToReUpload.length} file(s).`,
+      })
+
+      // Refresh the parsed data tab
+      await fetchResumes()
+
+    } catch (error) {
+      console.error('Error re-processing failed files:', error)
+      toast({
+        title: "Re-upload Failed",
+        description: "Failed to re-process the selected files. Please try again.",
+        variant: "destructive",
+      })
+    } finally {
+      setIsProcessing(false)
+      setProcessingProgress(0)
+    }
+  }
+
   return (
     <div className="space-y-8">
       {/* Progress Overlay - Centered */}
@@ -1215,7 +1405,7 @@ export default function BulkImport() {
                     <div className="flex items-center space-x-2">
                       <Clock className="w-5 h-5 text-orange-600" />
                       <div>
-                        <p className="text-2xl font-bold">{parseResults.total_processing_time.toFixed(1)}s</p>
+                        <p className="text-3xl font-bold">{parseResults.total_processing_time.toFixed(1)}s</p>
                         <p className="text-sm text-gray-600">Processing Time</p>
                       </div>
                     </div>
@@ -1225,181 +1415,281 @@ export default function BulkImport() {
             </div>
           )}
 
-          {/* Upload Section */}
-          <div className="w-full">
-            <Card className="bg-gradient-to-br from-blue-50 to-white border-2 border-blue-200 shadow-lg hover:shadow-xl transition-all duration-300">
-              <CardHeader className="text-center pb-3">
-                <CardTitle className="flex items-center justify-center space-x-2 text-xl text-blue-800">
-                  <Upload className="w-5 h-5 text-blue-600" />
-                  <span>Resume Upload</span>
+          {/* Failed Files Section - Show only failed files */}
+          {failedFiles.length > 0 && (
+            <Card className="border-2 border-red-200 bg-gradient-to-br from-red-50 to-white">
+              <CardHeader>
+                <CardTitle className="text-red-900 flex items-center space-x-2">
+                  <XCircle className="w-5 h-5" />
+                  <span>Failed Files - Re-upload Required</span>
                 </CardTitle>
+                <CardDescription>
+                  These files failed to process. Select them and click re-upload to try again.
+                </CardDescription>
               </CardHeader>
-              <CardContent className="p-4">
-                <div
-                  className="border-2 border-dashed border-blue-300 rounded-lg p-4 text-center hover:border-blue-400 transition-colors bg-white/50 hover:bg-white/70"
-                  onDragOver={handleDragOver}
-                  onDrop={handleDrop}
-                >
-                  <Upload className="w-8 h-8 text-blue-400 mx-auto mb-2" />
-                  <p className="text-base font-medium text-blue-900 mb-1">Drag and drop resume files here, or click to browse</p>
-                  <p className="text-xs text-blue-600 mb-3">Supports PDF, DOC, DOCX, TXT, RTF, PNG, JPG, JPEG, WEBP files</p>
-                  <p className="text-xs text-orange-600 mb-3 font-medium">Maximum 10 files per batch</p>
-                  <input
-                    ref={fileInputRef}
-                    type="file"
-                    multiple
-                    accept=".pdf,.doc,.docx,.txt,.rtf,.png,.jpg,.jpeg,.webp"
-                    onChange={(e) => handleFileUpload(e.target.files)}
-                    className="hidden"
-                    id="file-upload"
-                  />
-                  <Button 
-                    variant="outline" 
-                    className={`px-6 py-2 ${
-                      uploadedFiles.length >= 10 
-                        ? 'bg-gray-400 text-gray-600 border-gray-400 cursor-not-allowed' 
-                        : 'bg-blue-600 hover:bg-blue-700 text-white border-blue-600 hover:border-blue-700'
-                    }`}
-                    onClick={() => {
-                      if (fileInputRef.current && uploadedFiles.length < 10) {
-                        fileInputRef.current.click();
-                      }
-                    }}
-                    disabled={uploadedFiles.length >= 10}
-                  >
-                    {uploadedFiles.length >= 10 ? 'Limit Reached' : 'Browse Files'}
-                  </Button>
+              <CardContent>
+                {/* Failed Files Selection Controls */}
+                <div className="flex items-center justify-between p-4 bg-red-50 border border-red-200 rounded-lg mb-4">
+                  <div className="flex items-center space-x-3">
+                    <div className="flex items-center space-x-2">
+                      <Checkbox
+                        id="select-all-failed"
+                        checked={selectedFailedFiles.size === failedFiles.length && failedFiles.length > 0}
+                        onCheckedChange={handleSelectAllFailed}
+                        className="data-[state=checked]:bg-red-600 data-[state=checked]:border-red-600"
+                      />
+                      <Label htmlFor="select-all-failed" className="text-sm font-medium text-red-700">
+                        Select All Failed ({selectedFailedFiles.size} of {failedFiles.length})
+                      </Label>
+                    </div>
+                  </div>
+                  {selectedFailedFiles.size > 0 && (
+                    <Button
+                      onClick={reUploadFailedFiles}
+                      className="bg-red-600 hover:bg-red-700 text-white"
+                      size="sm"
+                    >
+                      <RefreshCw className="w-4 h-4 mr-2" />
+                      Re-upload Selected ({selectedFailedFiles.size})
+                    </Button>
+                  )}
                 </div>
 
-                {uploadedFiles.length > 0 && (
-                  <div className="mt-4">
-                    <h4 className="font-medium text-blue-900 mb-2 text-center">
-                      Uploaded Files ({uploadedFiles.length}/10)
-                    </h4>
-                    
-                    {/* File limit progress indicator */}
-                    <div className="mb-3">
-                      <div className="flex justify-between text-xs text-blue-600 mb-1">
-                        <span>Files used</span>
-                        <span>{uploadedFiles.length}/10</span>
+                {/* Failed Files List */}
+                <div className="space-y-2">
+                  {failedFiles.map((failedFile, index) => (
+                    <div key={index} className="flex items-center justify-between p-3 bg-red-50 border border-red-200 rounded-lg">
+                      <div className="flex items-center space-x-3">
+                        <Checkbox
+                          id={`failed-${index}`}
+                          checked={selectedFailedFiles.has(failedFile.filename)}
+                          onCheckedChange={(checked) => handleFailedFileSelection(failedFile.filename, checked as boolean)}
+                          className="data-[state=checked]:bg-red-600 data-[state=checked]:border-red-600"
+                        />
+                        <div className="w-8 h-8 bg-red-100 rounded-full flex items-center justify-center">
+                          {getFileIcon(failedFile.file_type || '')}
+                        </div>
+                        <div>
+                          <h4 className="font-medium text-red-900">{failedFile.filename}</h4>
+                          <p className="text-sm text-red-600">
+                            Error: {failedFile.error || 'Processing failed'}
+                          </p>
+                        </div>
                       </div>
-                      <div className="w-full bg-gray-200 rounded-full h-2">
-                        <div 
-                          className={`h-2 rounded-full transition-all duration-300 ${
-                            uploadedFiles.length >= 10 ? 'bg-red-500' : 
-                            uploadedFiles.length >= 8 ? 'bg-orange-500' : 
-                            uploadedFiles.length >= 5 ? 'bg-yellow-500' : 'bg-blue-500'
-                          }`}
-                          style={{ width: `${(uploadedFiles.length / 10) * 100}%` }}
-                        ></div>
+                      <div className="flex items-center space-x-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => {
+                            // Select just this file and re-upload
+                            setSelectedFailedFiles(new Set([failedFile.filename]))
+                            setTimeout(() => reUploadFailedFiles(), 100)
+                          }}
+                          className="border-red-300 text-red-600 hover:bg-red-50 hover:border-red-400"
+                        >
+                          <RefreshCw className="w-4 h-4 mr-2" />
+                          Re-upload
+                        </Button>
                       </div>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Upload Section - Only show if there are files to upload or no failed files */}
+          {(uploadedFiles.length > 0 || failedFiles.length === 0) && (
+            <div className="w-full">
+              <Card className="bg-gradient-to-br from-blue-50 to-white border-2 border-blue-200 shadow-lg hover:shadow-xl transition-all duration-300">
+                <CardHeader className="text-center pb-3">
+                  <CardTitle className="flex items-center justify-center space-x-2 text-xl text-blue-800">
+                    <Upload className="w-5 h-5 text-blue-600" />
+                    <span>Resume Upload</span>
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="p-4">
+                  <div
+                    className="border-2 border-dashed border-blue-300 rounded-lg p-4 text-center hover:border-blue-400 transition-colors bg-white/50 hover:bg-white/70"
+                    onDragOver={handleDragOver}
+                    onDrop={handleDrop}
+                  >
+                    <Upload className="w-8 h-8 text-blue-400 mx-auto mb-2" />
+                    <p className="text-base font-medium text-blue-900 mb-1">Drag and drop resume files here, or click to browse</p>
+                    <p className="text-xs text-blue-600 mb-3">Supports PDF, DOC, DOCX, TXT, RTF, PNG, JPG, JPEG, WEBP files</p>
+                    <p className="text-xs text-orange-600 mb-3 font-medium">Maximum 10 files per batch</p>
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      multiple
+                      accept=".pdf,.doc,.docx,.txt,.rtf,.png,.jpg,.jpeg,.webp"
+                      onChange={(e) => handleFileUpload(e.target.files)}
+                      className="hidden"
+                      id="file-upload"
+                    />
+                    <Button 
+                      variant="outline" 
+                      className={`px-6 py-2 ${
+                        uploadedFiles.length >= 10 
+                          ? 'bg-gray-400 text-gray-600 border-gray-400 cursor-not-allowed' 
+                          : 'bg-blue-600 hover:bg-blue-700 text-white border-blue-600 hover:border-blue-700'
+                      }`}
+                      onClick={() => {
+                        if (fileInputRef.current && uploadedFiles.length < 10) {
+                          fileInputRef.current.click();
+                        }
+                      }}
+                      disabled={uploadedFiles.length >= 10}
+                    >
+                      {uploadedFiles.length >= 10 ? 'Limit Reached' : 'Browse Files'}
+                    </Button>
+                  </div>
+
+                  {uploadedFiles.length > 0 && (
+                    <div className="mt-4">
+                      <h4 className="font-medium text-blue-900 mb-2 text-center">
+                        Files Ready for Processing ({uploadedFiles.length}/10)
+                      </h4>
                       
-                      {/* Warning messages */}
-                      {uploadedFiles.length >= 10 && (
-                        <p className="text-xs text-red-600 mt-1 text-center font-medium">
-                          Maximum file limit reached! Remove some files to add more.
-                        </p>
-                      )}
-                      {uploadedFiles.length >= 8 && uploadedFiles.length < 10 && (
-                        <p className="text-xs text-orange-600 mt-1 text-center">
-                          Almost at the limit! You can add {10 - uploadedFiles.length} more file(s).
-                        </p>
-                      )}
-                      
-                      {/* File reduction slider for when approaching or at limit */}
-                      {(uploadedFiles.length >= 8) && (
-                        <div className="mt-3 p-3 bg-orange-50 border border-orange-200 rounded-lg">
-                          <div className="flex items-center justify-between mb-2">
-                            <span className="text-xs font-medium text-orange-800">Reduce files to:</span>
-                            <span className="text-xs text-orange-600">{Math.max(1, uploadedFiles.length - 3)} files</span>
-                          </div>
-                          <div className="flex items-center space-x-3">
-                            <input
-                              type="range"
-                              min="1"
-                              max={uploadedFiles.length}
-                              value={Math.max(1, uploadedFiles.length - 3)}
-                              onChange={(e) => {
-                                const targetCount = parseInt(e.target.value)
-                                if (targetCount < uploadedFiles.length) {
-                                  // Remove files from the end to reach target count
+                      {/* File limit progress indicator */}
+                      <div className="mb-3">
+                        <div className="flex justify-between text-xs text-blue-600 mb-1">
+                          <span>Files used</span>
+                          <span>{uploadedFiles.length}/10</span>
+                        </div>
+                        <div className="w-full bg-gray-200 rounded-full h-2">
+                          <div 
+                            className={`h-2 rounded-full transition-all duration-300 ${
+                              uploadedFiles.length >= 10 ? 'bg-red-500' : 
+                              uploadedFiles.length >= 8 ? 'bg-orange-500' : 
+                              uploadedFiles.length >= 5 ? 'bg-yellow-500' : 'bg-blue-500'
+                            }`}
+                            style={{ width: `${(uploadedFiles.length / 10) * 100}%` }}
+                          ></div>
+                        </div>
+                        
+                        {/* Warning messages */}
+                        {uploadedFiles.length >= 10 && (
+                          <p className="text-xs text-red-600 mt-1 text-center font-medium">
+                            Maximum file limit reached! Remove some files to add more.
+                          </p>
+                        )}
+                        {uploadedFiles.length >= 8 && uploadedFiles.length < 10 && (
+                          <p className="text-xs text-orange-600 mt-1 text-center">
+                            Almost at the limit! You can add {10 - uploadedFiles.length} more file(s).
+                          </p>
+                        )}
+                        
+                        {/* File reduction slider for when approaching or at limit */}
+                        {(uploadedFiles.length >= 8) && (
+                          <div className="mt-3 p-3 bg-orange-50 border border-orange-200 rounded-lg">
+                            <div className="flex items-center justify-between mb-2">
+                              <span className="text-xs font-medium text-orange-800">Reduce files to:</span>
+                              <span className="text-xs text-orange-600">{Math.max(1, uploadedFiles.length - 3)} files</span>
+                            </div>
+                            <div className="flex items-center space-x-3">
+                              <input
+                                type="range"
+                                min="1"
+                                max={uploadedFiles.length}
+                                value={Math.max(1, uploadedFiles.length - 3)}
+                                onChange={(e) => {
+                                  const targetCount = parseInt(e.target.value)
+                                  if (targetCount < uploadedFiles.length) {
+                                    // Remove files from the end to reach target count
+                                    const filesToRemove = uploadedFiles.length - targetCount
+                                    setUploadedFiles(prev => prev.slice(0, targetCount))
+                                    toast({
+                                      title: "Files Reduced",
+                                      description: `Removed ${filesToRemove} file(s) to reach ${targetCount} files.`,
+                                    })
+                                  }
+                                }}
+                                className="flex-1 h-2 bg-orange-200 rounded-lg appearance-none cursor-pointer slider-orange"
+                              />
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => {
+                                  const targetCount = Math.max(1, uploadedFiles.length - 3)
                                   const filesToRemove = uploadedFiles.length - targetCount
                                   setUploadedFiles(prev => prev.slice(0, targetCount))
                                   toast({
                                     title: "Files Reduced",
                                     description: `Removed ${filesToRemove} file(s) to reach ${targetCount} files.`,
                                   })
-                                }
-                              }}
-                              className="flex-1 h-2 bg-orange-200 rounded-lg appearance-none cursor-pointer slider-orange"
-                            />
+                                }}
+                                className="text-xs px-2 py-1 h-6 bg-orange-100 border-orange-300 text-orange-700 hover:bg-orange-200"
+                              >
+                                Apply
+                              </Button>
+                            </div>
+                            <p className="text-xs text-orange-600 mt-1 text-center">
+                              Drag slider to reduce files or click Apply to remove 3 files
+                            </p>
+                          </div>
+                        )}
+                      </div>
+                      
+                      <div className="space-y-1 max-h-20 overflow-y-auto">
+                        {uploadedFiles.map((file, index) => (
+                          <div key={index} className="flex items-center justify-between p-2 bg-blue-50 rounded border border-blue-200">
+                            <div className="flex items-center space-x-2">
+                              {getFileIcon(file.name.split('.').pop() || '')}
+                              <span className="text-xs text-blue-900 truncate">{file.name}</span>
+                              <span className="text-xs text-blue-600">({(file.size / 1024).toFixed(1)} KB)</span>
+                            </div>
                             <Button
-                              variant="outline"
+                              variant="ghost"
                               size="sm"
-                              onClick={() => {
-                                const targetCount = Math.max(1, uploadedFiles.length - 3)
-                                const filesToRemove = uploadedFiles.length - targetCount
-                                setUploadedFiles(prev => prev.slice(0, targetCount))
-                                toast({
-                                  title: "Files Reduced",
-                                  description: `Removed ${filesToRemove} file(s) to reach ${targetCount} files.`,
-                                })
-                              }}
-                              className="text-xs px-2 py-1 h-6 bg-orange-100 border-orange-300 text-orange-700 hover:bg-orange-200"
+                              onClick={() => removeFile(index)}
+                              className="text-red-600 hover:text-red-700 h-6 w-6 p-0"
                             >
-                              Apply
+                              <X className="w-3 h-3" />
                             </Button>
                           </div>
-                          <p className="text-xs text-orange-600 mt-1 text-center">
-                            Drag slider to reduce files or click Apply to remove 3 files
-                          </p>
-                        </div>
-                      )}
+                        ))}
+                      </div>
                     </div>
-                    
-                    <div className="space-y-1 max-h-20 overflow-y-auto">
-                      {uploadedFiles.map((file, index) => (
-                        <div key={index} className="flex items-center justify-between p-2 bg-blue-50 rounded border border-blue-200">
-                          <div className="flex items-center space-x-2">
-                            {getFileIcon(file.name.split('.').pop() || '')}
-                            <span className="text-xs text-blue-900 truncate">{file.name}</span>
-                            <span className="text-xs text-blue-600">({(file.size / 1024).toFixed(1)} KB)</span>
-                          </div>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => removeFile(index)}
-                            className="text-red-600 hover:text-red-700 h-6 w-6 p-0"
-                          >
-                            <X className="w-3 h-3" />
-                          </Button>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
+                  )}
 
-                {uploadedFiles.length > 0 && (
-                  <div className="mt-4 text-center">
-                    <Button onClick={processResumes} disabled={isProcessing} className="bg-blue-600 hover:bg-blue-700 text-white px-8 py-2">
-                      {isProcessing ? (
-                        <>
-                          <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
-                          Processing Resumes...
-                        </>
-                      ) : (
-                        <>
-                          <Upload className="w-4 h-4 mr-2" />
-                          Parse Resumes ({uploadedFiles.length})
-                        </>
-                      )}
-                    </Button>
-                  </div>
-                )}
+                  {uploadedFiles.length > 0 && (
+                    <div className="mt-4 text-center">
+                      <Button onClick={processResumes} disabled={isProcessing} className="bg-blue-600 hover:bg-blue-700 text-white px-8 py-2">
+                        {isProcessing ? (
+                          <>
+                            <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
+                            Processing Resumes...
+                          </>
+                        ) : (
+                          <>
+                            <Upload className="w-4 h-4 mr-2" />
+                            Parse Resumes ({uploadedFiles.length})
+                          </>
+                        )}
+                      </Button>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            </div>
+          )}
+
+          {/* No Files Message */}
+          {uploadedFiles.length === 0 && failedFiles.length === 0 && (
+            <Card className="bg-gradient-to-br from-gray-50 to-white border-2 border-gray-200">
+              <CardContent className="p-12 text-center">
+                <Upload className="w-16 h-16 text-gray-400 mx-auto mb-4" />
+                <h3 className="text-lg font-semibold text-gray-900 mb-2">No Files to Process</h3>
+                <p className="text-gray-600 mb-4">
+                  Upload resume files to get started with bulk processing.
+                </p>
+                <p className="text-sm text-gray-500">
+                  All previously uploaded files have been successfully processed or are being re-uploaded.
+                </p>
               </CardContent>
             </Card>
-          </div>
-
+          )}
         </TabsContent>
 
         <TabsContent value="results" className="space-y-6">
@@ -1482,6 +1772,7 @@ export default function BulkImport() {
                           <TableHead className="font-semibold text-gray-700">File Type</TableHead>
                           <TableHead className="font-semibold text-gray-700">Processing Time</TableHead>
                           <TableHead className="font-semibold text-gray-700">Details</TableHead>
+                          <TableHead className="font-semibold text-gray-700">Actions</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
@@ -1549,6 +1840,44 @@ export default function BulkImport() {
                                 </div>
                               )}
                             </TableCell>
+                                                         <TableCell className="py-4">
+                               {result.status === 'failed' && (
+                                 <Button
+                                   variant="outline"
+                                   size="sm"
+                                   onClick={() => {
+                                     // Go to upload tab and select this failed file for re-upload
+                                     setActiveTab("upload")
+                                     // Select this failed file for re-upload
+                                     setSelectedFailedFiles(new Set([result.filename]))
+                                     
+                                     // Check if we need to add the file back to uploadedFiles
+                                     const fileExists = uploadedFiles.some(file => file.name === result.filename)
+                                     if (!fileExists) {
+                                       // Get the original file from stored failed file objects
+                                       const originalFile = failedFileObjects.get(result.filename)
+                                       if (originalFile) {
+                                         setUploadedFiles(prev => [...prev, originalFile])
+                                         toast({
+                                           title: "File Added for Re-upload",
+                                           description: `${result.filename} has been added to the upload queue for re-processing.`,
+                                         })
+                                       } else {
+                                         toast({
+                                           title: "Original File Not Found",
+                                           description: "Please re-upload the file manually as the original file is no longer available.",
+                                           variant: "destructive",
+                                         })
+                                       }
+                                     }
+                                   }}
+                                   className="border-red-300 text-red-600 hover:bg-red-50 hover:border-red-400"
+                                 >
+                                   <RefreshCw className="w-4 h-4 mr-2" />
+                                   Re-upload
+                                 </Button>
+                               )}
+                             </TableCell>
                           </TableRow>
                         ))}
                       </TableBody>
