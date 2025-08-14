@@ -143,7 +143,7 @@ const formatDateDDMMMYYYY = (dateString: string) => {
 export default function CandidateManagement() {
   const { toast } = useToast()
   const [statusFilter, setStatusFilter] = useState("all")
-  const [isAddDialogOpen, setIsAddDialogOpen] = useState(false)
+
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false)
   const [editingCandidate, setEditingCandidate] = useState<Candidate | null>(null)
   const [isViewDialogOpen, setIsViewDialogOpen] = useState(false)
@@ -650,23 +650,7 @@ export default function CandidateManagement() {
 
 
 
-  const [newCandidate, setNewCandidate] = useState({
-    name: "",
-    email: "",
-    phone: "",
-    currentSalary: "",
-    expectedSalary: "",
-    noticePeriod: "",
-    currentLocation: "",
-    country: "",
-    city: "",
-    skills: "",
-    experience: "",
-    jobId: "",
-    recruiterId: "",
-    source: "website" as "website" | "referral" | "linkedin" | "recruiter" | "other",
-    comments: "",
-  })
+
 
   // Mock user data for role-based access control
   const currentUser = {
@@ -821,76 +805,7 @@ export default function CandidateManagement() {
     }
   }
 
-  const handleAddCandidate = () => {
-    const selectedJob = jobPostings.find((job) => job.id === newCandidate.jobId)
-    const selectedRecruiter = recruiters.find((r) => r.id === newCandidate.recruiterId)
-    if (!selectedJob || !selectedRecruiter) return
 
-    // Split name into first and last name
-    const nameParts = newCandidate.name.split(' ')
-    const firstName = nameParts[0] || ''
-    const lastName = nameParts.slice(1).join(' ') || ''
-
-    const candidate: Candidate = {
-      id: Date.now(),
-      fullName: newCandidate.name,
-      firstName: firstName,
-      lastName: lastName,
-      email: newCandidate.email,
-      phone: newCandidate.phone,
-      currentLocation: newCandidate.currentLocation,
-      keySkills: newCandidate.skills,
-      salaryExpectation: Number.parseInt(newCandidate.expectedSalary) || 0,
-      noticePeriod: newCandidate.noticePeriod,
-      yearsOfExperience: newCandidate.experience,
-      remoteWork: false, // Default value
-      startDate: new Date().toISOString().split("T")[0],
-      portfolioUrl: "",
-      status: "new",
-      appliedAt: new Date().toISOString().split("T")[0],
-      updatedAt: new Date().toISOString().split("T")[0],
-      resumeDownloadUrl: "",
-      totalApplications: 1,
-      appliedJobs: [{
-        applicationId: Date.now(),
-        applicationStatus: "new",
-        appliedAt: new Date().toISOString().split("T")[0],
-        job: {
-          id: Number.parseInt(selectedJob.id),
-          title: selectedJob.title,
-          company: selectedJob.customerName,
-          city: selectedJob.city,
-          jobType: selectedJob.jobType,
-          experienceLevel: "Not specified",
-          workType: "Not specified",
-          jobStatus: "active",
-          salaryMin: 0,
-          salaryMax: 0,
-          priority: "medium",
-          createdAt: new Date().toISOString().split("T")[0]
-        }
-      }]
-    }
-    setCandidates([...candidates, candidate])
-    setNewCandidate({
-      name: "",
-      email: "",
-      phone: "",
-      currentSalary: "",
-      expectedSalary: "",
-      noticePeriod: "",
-      currentLocation: "",
-      country: "",
-      city: "",
-      skills: "",
-      experience: "",
-      jobId: "",
-      recruiterId: "",
-      source: "website",
-      comments: "",
-    })
-    setIsAddDialogOpen(false)
-  }
 
   const handleEditCandidate = () => {
     if (!editingCandidate) return
@@ -1246,12 +1161,7 @@ export default function CandidateManagement() {
       </Card>
     )
   }
-  // Get available cities based on selected country for new candidate form
-  const availableCitiesForNewCandidate = newCandidate.country ? getCitiesByCountry(newCandidate.country) : []
-  const selectedJobForNewCandidate = jobPostings.find((job) => job.id === newCandidate.jobId)
-  const salaryPlaceholdersForNewCandidate = selectedJobForNewCandidate
-    ? getSalaryPlaceholder(selectedJobForNewCandidate.jobType, selectedJobForNewCandidate.country)
-    : getSalaryPlaceholder("full-time", "US")
+
 
 
 
@@ -1280,231 +1190,9 @@ export default function CandidateManagement() {
               <Badge variant="outline" className="bg-purple-50 text-purple-700 border-purple-200">
                 {filteredCandidates.length} Filtered Results
               </Badge>
-              <Badge variant="outline" className="bg-orange-50 text-orange-700 border-orange-200">
-                <Brain className="w-3 h-3 mr-1" />
-                AI Matching Active
-              </Badge>
             </div>
           </div>
-          <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
-            <DialogTrigger asChild>
-              <Button className="bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 text-white shadow-lg">
-                <Upload className="w-4 h-4 mr-2" />
-                Upload Resume & Parse
-              </Button>
-            </DialogTrigger>
-            <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
-              <DialogHeader>
-                <DialogTitle className="flex items-center space-x-2">
-                  <Brain className="w-5 h-5 text-purple-600" />
-                  <span>AI Resume Parser</span>
-                </DialogTitle>
-                <DialogDescription>
-                  Upload candidate resume and let AI automatically extract all information including skills, experience,
-                  contact details, and more
-                </DialogDescription>
-              </DialogHeader>
 
-              <div className="space-y-6 py-4">
-                {/* Resume Upload Section */}
-                <div className="space-y-4">
-                  <div className="border-2 border-dashed border-purple-300 rounded-lg p-8 text-center bg-gradient-to-br from-purple-50 to-blue-50">
-                    <div className="flex flex-col items-center space-y-4">
-                      <div className="p-4 bg-purple-100 rounded-full">
-                        <Upload className="w-8 h-8 text-purple-600" />
-                      </div>
-                      <div>
-                        <h3 className="text-lg font-semibold text-gray-900 mb-2">Upload Candidate Resume</h3>
-                        <p className="text-gray-600 mb-4">Drag and drop resume files or click to browse</p>
-                        <div className="flex flex-wrap justify-center gap-2 text-xs text-gray-500">
-                          <Badge variant="outline">PDF</Badge>
-                          <Badge variant="outline">DOC</Badge>
-                          <Badge variant="outline">DOCX</Badge>
-                          <Badge variant="outline">TXT</Badge>
-                        </div>
-                      </div>
-                      <Button className="bg-purple-600 hover:bg-purple-700">
-                        <Upload className="w-4 h-4 mr-2" />
-                        Choose Files
-                      </Button>
-                    </div>
-                  </div>
-
-                  {/* AI Processing Status */}
-                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                    <div className="flex items-center space-x-3">
-                      <Brain className="w-5 h-5 text-blue-600 animate-pulse" />
-                      <div>
-                        <h4 className="font-medium text-blue-900">AI Processing Capabilities</h4>
-                        <p className="text-sm text-blue-700 mt-1">
-                          Our AI will automatically extract and organize the following information:
-                        </p>
-                      </div>
-                    </div>
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mt-4">
-                      <div className="flex items-center space-x-2 text-sm text-blue-700">
-                        <User className="w-4 h-4" />
-                        <span>Personal Details</span>
-                      </div>
-                      <div className="flex items-center space-x-2 text-sm text-blue-700">
-                        <Mail className="w-4 h-4" />
-                        <span>Contact Information</span>
-                      </div>
-                      <div className="flex items-center space-x-2 text-sm text-blue-700">
-                        <Briefcase className="w-4 h-4" />
-                        <span>Work Experience</span>
-                      </div>
-                      <div className="flex items-center space-x-2 text-sm text-blue-700">
-                        <Brain className="w-4 h-4" />
-                        <span>Skills & Technologies</span>
-                      </div>
-                      <div className="flex items-center space-x-2 text-sm text-blue-700">
-                        <MapPin className="w-4 h-4" />
-                        <span>Location Details</span>
-                      </div>
-                      <div className="flex items-center space-x-2 text-sm text-blue-700">
-                        <DollarSign className="w-4 h-4" />
-                        <span>Salary Expectations</span>
-                      </div>
-                      <div className="flex items-center space-x-2 text-sm text-blue-700">
-                        <Calendar className="w-4 h-4" />
-                        <span>Availability</span>
-                      </div>
-                      <div className="flex items-center space-x-2 text-sm text-blue-700">
-                        <Globe className="w-4 h-4" />
-                        <span>Education & Certifications</span>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Job Assignment Section */}
-                <div className="space-y-4">
-                  <div className="flex items-center space-x-2">
-                    <Briefcase className="w-5 h-5 text-gray-600" />
-                    <h3 className="text-lg font-semibold">Job Assignment</h3>
-                  </div>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="jobId">Target Job Posting *</Label>
-                      <Select
-                        value={newCandidate.jobId}
-                        onValueChange={(value) => setNewCandidate({ ...newCandidate, jobId: value })}
-                      >
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select job posting" />
-                        </SelectTrigger>
-                        <SelectContent searchable searchPlaceholder="Search job postings..." onSearchChange={(value) => {}} side="bottom">
-                          {jobPostings.map((job) => (
-                            <SelectItem key={job.id} value={job.id}>
-                              <div className="flex items-center space-x-2">
-                                <span>{job.title}</span>
-                                <Badge className={getJobTypeColor(job.jobType)} variant="outline">
-                                  {JOB_TYPES.find((t) => t.value === job.jobType)?.label}
-                                </Badge>
-                                <span className="text-xs text-gray-500">
-                                  {COUNTRIES.find((c) => c.code === job.country)?.name} - {job.city}
-                                </span>
-                              </div>
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="recruiterId">Assigned Recruiter *</Label>
-                      <Select
-                        value={newCandidate.recruiterId}
-                        onValueChange={(value) => setNewCandidate({ ...newCandidate, recruiterId: value })}
-                      >
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select recruiter" />
-                        </SelectTrigger>
-                        <SelectContent searchable searchPlaceholder="Search recruiters..." onSearchChange={(value) => {}} side="bottom">
-                          {recruiters.map((recruiter) => (
-                            <SelectItem key={recruiter.id} value={recruiter.id}>
-                              {recruiter.name}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  </div>
-                </div>
-
-                {/* AI Extracted Information Preview */}
-                <div className="space-y-4">
-                  <div className="flex items-center space-x-2">
-                    <Brain className="w-5 h-5 text-purple-600" />
-                    <h3 className="text-lg font-semibold">AI Extracted Information</h3>
-                    <Badge className="bg-green-100 text-green-800">Auto-Generated</Badge>
-                  </div>
-
-                  <div className="bg-gray-50 border border-gray-200 rounded-lg p-6">
-                    <div className="text-center text-gray-500">
-                      <Brain className="w-12 h-12 mx-auto mb-3 text-gray-400" />
-                      <p className="text-lg font-medium mb-2">Ready to Process Resume</p>
-                      <p className="text-sm">
-                        Upload a resume file above and AI will automatically extract and display all candidate
-                        information here
-                      </p>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Source and Additional Notes */}
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="source">Application Source</Label>
-                    <Select
-                      value={newCandidate.source}
-                      onValueChange={(value) =>
-                        setNewCandidate({
-                          ...newCandidate,
-                          source: value as "website" | "referral" | "linkedin" | "recruiter" | "other",
-                        })
-                      }
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder={newCandidate.source || "Select a source"} />
-                      </SelectTrigger>
-                      <SelectContent searchable searchPlaceholder="Search sources..." onSearchChange={(value) => {}} side="bottom">
-                        <SelectItem value="website">Company Website</SelectItem>
-                        <SelectItem value="linkedin">LinkedIn</SelectItem>
-                        <SelectItem value="referral">Employee Referral</SelectItem>
-                        <SelectItem value="recruiter">Recruiter Sourced</SelectItem>
-                        <SelectItem value="other">Other</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="comments">Additional Notes (Optional)</Label>
-                    <Textarea
-                      id="comments"
-                      value={newCandidate.comments}
-                      onChange={(e) => setNewCandidate({ ...newCandidate, comments: e.target.value })}
-                      placeholder="Any additional notes or observations..."
-                      rows={3}
-                    />
-                  </div>
-                </div>
-              </div>
-
-              <div className="flex justify-end space-x-2 pt-4 border-t">
-                <Button variant="outline" onClick={() => setIsAddDialogOpen(false)}>
-                  Cancel
-                </Button>
-                <Button
-                  onClick={handleAddCandidate}
-                  className="bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700"
-                  disabled={!newCandidate.jobId || !newCandidate.recruiterId}
-                >
-                  <Brain className="w-4 h-4 mr-2" />
-                  Process & Add Candidate
-                </Button>
-              </div>
-            </DialogContent>
-          </Dialog>
         </div>
 
         {/* AI-Powered Smart Search */}
@@ -1522,7 +1210,6 @@ export default function CandidateManagement() {
               className="w-full pl-16 pr-6 py-4 text-lg border-2 border-purple-300 rounded-xl focus:border-purple-500 focus:ring-purple-200 bg-white/80 backdrop-blur-sm placeholder-gray-500"
             />
             <div className="absolute right-4 top-1/2 transform -translate-y-1/2 flex items-center space-x-2">
-              <Badge className="bg-purple-100 text-purple-700 border-purple-300 text-xs">AI Powered</Badge>
               {searchFilters.searchTerm && (
                 <button
                   onClick={() => setSearchFilters({ ...searchFilters, searchTerm: "" })}
@@ -1796,13 +1483,7 @@ export default function CandidateManagement() {
                         ? "Start building your talent pipeline by adding your first candidate."
                         : "Try adjusting your search filters to see more results."}
                     </p>
-                    <Button 
-                      onClick={() => setIsAddDialogOpen(true)} 
-                      className="bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white shadow-lg"
-                    >
-                      <Plus className="w-4 h-4 mr-2" />
-                      Add First Candidate
-                    </Button>
+
                   </div>
                 ) : (
                   <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
@@ -2163,15 +1844,7 @@ export default function CandidateManagement() {
                                       <User className="w-3 h-3 mr-1" />
                                       View
                                     </Button>
-                                    <Button
-                                      variant="outline"
-                                      size="sm"
-                                      onClick={() => setShowAiAnalysis(candidate.id.toString())}
-                                      className="h-8 px-3 text-purple-600 border-purple-200 hover:bg-purple-50 hover:border-purple-300 transition-all duration-200 hover:shadow-md"
-                                    >
-                                      <Brain className="w-3 h-3 mr-1" />
-                                      AI
-                                    </Button>
+
                                     {candidate.resumeDownloadUrl && (
                                       <Button
                                         variant="outline"
