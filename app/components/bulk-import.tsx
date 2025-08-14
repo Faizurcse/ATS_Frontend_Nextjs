@@ -1165,12 +1165,11 @@ export default function BulkImport() {
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-        <TabsList className="grid w-full grid-cols-5">
+        <TabsList className="grid w-full grid-cols-4">
           <TabsTrigger value="upload">Bulk Import Files</TabsTrigger>
           <TabsTrigger value="results">Processing Results</TabsTrigger>
           <TabsTrigger value="parsed">Parsed Data</TabsTrigger>
           <TabsTrigger value="download">Download Resume</TabsTrigger>
-          <TabsTrigger value="history">History</TabsTrigger>
         </TabsList>
 
         <TabsContent value="upload" className="space-y-6">
@@ -2103,30 +2102,7 @@ export default function BulkImport() {
           </Card>
         </TabsContent>
 
-        <TabsContent value="history" className="space-y-6">
-          {/* History Tab */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center space-x-2">
-                <Clock className="w-5 h-5" />
-                <span>Processing History</span>
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-center py-12">
-                <Clock className="w-16 h-16 text-gray-400 mx-auto mb-4" />
-                <h3 className="text-lg font-semibold text-gray-900 mb-2">Processing History</h3>
-                <p className="text-gray-600 mb-6">
-                  View the history of all resume processing operations.
-                </p>
-                <div className="bg-gray-50 rounded-lg p-6">
-                  <p className="text-sm text-gray-500">No processing history available yet.</p>
-                  <p className="text-xs text-gray-400 mt-2">Processing history will appear here after you process resumes.</p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
+
       </Tabs>
     </div>
   )
