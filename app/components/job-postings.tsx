@@ -689,7 +689,7 @@ export default function JobPostings() {
       setIsAIGenerating(true)
       setAiMessage(null)
 
-      const response = await fetch(`http://localhost:8000/job-posting/generate`, {
+      const response = await fetch(`http://147.93.155.233:8000/job-posting/generate`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ prompt: aiPrompt.trim() })
