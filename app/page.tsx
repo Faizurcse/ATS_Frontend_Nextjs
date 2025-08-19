@@ -56,6 +56,7 @@ import BulkImport from "./components/bulk-import"
 // import AICandidateAnalysis from "./components/ai-candidate-analysis"
 import EmailAnalytics from "./components/email-analytics"
 import UserManagement from "../components/admin/user-management"
+import CandidatesSearch from "./components/candidates-search"
 import { useRouter } from "next/navigation"
 
 interface NavigationItem {
@@ -123,6 +124,7 @@ export default function Dashboard() {
       label: "Recruitment",
       items: [
         { id: "candidates", label: "Candidates", icon: Users, component: CandidateManagement },
+        { id: "candidates-search", label: "Candidates Search", icon: Search, component: CandidatesSearch, badge: "AI" },
         { id: "jobs", label: "Job Postings", icon: Briefcase, component: JobPostings},
         { id: "interviews", label: "Interviews", icon: Calendar, component: InterviewManagement},
         { id: "pipeline", label: "Pipeline", icon: Target, component: PipelineAPI },
@@ -402,7 +404,7 @@ function DashboardOverview({ setActiveTab, showQuickActions, setShowQuickActions
         const controller = new AbortController()
         const timeoutId = setTimeout(() => controller.abort(), 50000) // 10 second timeout
         
-        const response = await fetch('https://ats-backend-nodejs-h80i.onrender.com/api/dashboard', {
+        const response = await fetch('https://atsapi.workisy.in/api/dashboard', {
           signal: controller.signal
         })
         
