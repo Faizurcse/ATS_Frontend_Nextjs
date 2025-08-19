@@ -124,7 +124,7 @@ function ResumeFilesList() {
   const fetchResumeFiles = async () => {
     setLoading(true)
     try {
-      const response = await fetch('http://147.93.155.233:8000/api/v1/download/resumes/with-files')
+      const response = await fetch('https://pyats.workisy.in/api/v1/download/resumes/with-files')
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`)
       }
@@ -144,7 +144,7 @@ function ResumeFilesList() {
 
   const handleDownload = async (downloadUrl: string, filename: string) => {
     try {
-      const response = await fetch(`http://147.93.155.233:8000${downloadUrl}`)
+      const response = await fetch(`https://pyats.workisy.in${downloadUrl}`)
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`)
       }
