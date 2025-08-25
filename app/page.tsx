@@ -362,14 +362,20 @@ function DashboardOverview({ setActiveTab, showQuickActions, setShowQuickActions
   showQuickActions: boolean;
   setShowQuickActions: (show: boolean) => void;
 }) {
+  
   const [userName, setUserName] = useState("")
   const [userEmail, setUserEmail] = useState("")
   const [currentTime, setCurrentTime] = useState("")
   const [dashboardData, setDashboardData] = useState<any>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [greeting, setGreeting] = useState("")
+  const [isClient, setIsClient] = useState(false)
 
   useEffect(() => {
+    // Mark component as mounted on client
+    setIsClient(true)
+    
     // Get user data from localStorage
     if (typeof window !== "undefined") {
       const email = localStorage.getItem("auth_email") || ""
@@ -390,6 +396,12 @@ function DashboardOverview({ setActiveTab, showQuickActions, setShowQuickActions
         hour12: true 
       })
       setCurrentTime(timeString)
+      
+      // Set greeting
+      const hour = now.getHours()
+      if (hour < 12) setGreeting("Good Morning")
+      else if (hour < 17) setGreeting("Good Afternoon")
+      else setGreeting("Good Evening")
     }
   }, [])
 
@@ -442,6 +454,7 @@ function DashboardOverview({ setActiveTab, showQuickActions, setShowQuickActions
   }, [])
 
   const getGreeting = () => {
+    if (!isClient) return "" // Return empty string during SSR
     const hour = new Date().getHours()
     if (hour < 12) return "Good Morning"
     if (hour < 17) return "Good Afternoon"
@@ -483,7 +496,7 @@ function DashboardOverview({ setActiveTab, showQuickActions, setShowQuickActions
                   <UserCheck className="w-8 h-8 text-white" />
                 </div>
                 <div>
-                  <h1 className="text-4xl font-bold mb-2">{getGreeting()}, {userName}!</h1>
+                  <h1 className="text-4xl font-bold mb-2">{greeting || getGreeting()}, {userName}!</h1>
                   <p className="text-blue-100 text-lg">Welcome to your recruitment dashboard</p>
                 </div>
               </div>

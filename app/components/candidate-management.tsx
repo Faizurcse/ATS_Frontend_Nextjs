@@ -27,7 +27,7 @@ import {
   Calendar,
   Briefcase,
   Building2,
-  User,
+  User as UserIcon,
   Edit,
   MessageSquare,
   Globe,
@@ -50,8 +50,8 @@ import {
   getCitiesByCountry,
   getSalaryPlaceholder,
 } from "../../lib/location-data"
-import AICandidateAnalysis from "./ai-candidate-analysis"
-import type { AIAnalysis } from "../../lib/auth-utils"
+// import AICandidateAnalysis from "./ai-candidate-analysis"
+import type { AIAnalysis, User } from "../../lib/auth-utils"
 // Import the auth utilities
 import { getAccessibleUserIds } from "../../lib/auth-utils"
 import BASE_API_URL from "../../BaseUrlApi"
@@ -98,6 +98,8 @@ interface AppliedJob {
   }
 }
 
+
+
 interface Candidate {
   id: number
   fullName: string
@@ -119,6 +121,10 @@ interface Candidate {
   resumeDownloadUrl: string
   totalApplications: number
   appliedJobs: AppliedJob[]
+  recruiterId: string
+  recruiterName: string
+  source: string
+  jobId?: string
 }
 
 interface ApiResponse {
@@ -140,7 +146,11 @@ const formatDateDDMMMYYYY = (dateString: string) => {
 
 
 
-export default function CandidateManagement() {
+export default function CandidateManagement({ setActiveTab, showQuickActions, setShowQuickActions }: {
+  setActiveTab: (tab: string) => void;
+  showQuickActions: boolean;
+  setShowQuickActions: (show: boolean) => void;
+}) {
   const { toast } = useToast()
   const [statusFilter, setStatusFilter] = useState("all")
 
@@ -192,6 +202,14 @@ export default function CandidateManagement() {
     priority: "",
     source: "",
   })
+
+  const [lastUpdated, setLastUpdated] = useState("")
+  const [isClient, setIsClient] = useState(false)
+
+  useEffect(() => {
+    setIsClient(true)
+    setLastUpdated(new Date().toLocaleString())
+  }, [])
 
   // Filter functions for dropdowns
   const getFilteredJobTypes = () => {
@@ -380,7 +398,7 @@ export default function CandidateManagement() {
         email: "workspacefaizurrahmankhanfaizurrahmanhe@appitsoftware.com",
         phone: "+1-555-0199",
         currentLocation: "Mumbai, India",
-        keySkills: "Oracle, PL/SQL, React, JavaScript, Node.js, TypeScript, AWS, Docker",
+        keySkills: "Oracle, PL/SQL, React, JavaScript, NodeScript, AWS, Docker",
         salaryExpectation: 95000,
         noticePeriod: "1 month",
         yearsOfExperience: "6 years",
@@ -392,6 +410,9 @@ export default function CandidateManagement() {
         updatedAt: "2024-01-22",
         resumeDownloadUrl: "https://example.com/resumes/amir-khan-resume.pdf",
         totalApplications: 2,
+        recruiterId: "1",
+        recruiterName: "Sarah Wilson",
+        source: "website",
         appliedJobs: [
           {
             applicationId: 1001,
@@ -455,6 +476,9 @@ export default function CandidateManagement() {
         updatedAt: "2024-01-18",
         resumeDownloadUrl: "https://example.com/resumes/sarah-wilson-resume.pdf",
         totalApplications: 1,
+        recruiterId: "2",
+        recruiterName: "Mike Johnson",
+        source: "linkedin",
         appliedJobs: [
           {
             applicationId: 1003,
@@ -498,6 +522,9 @@ export default function CandidateManagement() {
         updatedAt: "2024-01-25",
         resumeDownloadUrl: "https://example.com/resumes/david-chen-resume.pdf",
         totalApplications: 1,
+        recruiterId: "3",
+        recruiterName: "Emily Chen",
+        source: "referral",
         appliedJobs: [
           {
             applicationId: 1004,
@@ -542,6 +569,9 @@ export default function CandidateManagement() {
         updatedAt: "2024-01-25",
         resumeDownloadUrl: "https://example.com/resumes/priya-sharma-resume.pdf",
         totalApplications: 1,
+        recruiterId: "4",
+        recruiterName: "David Brown",
+        source: "recruiter",
         appliedJobs: [
           {
             applicationId: 1005,
@@ -653,9 +683,18 @@ export default function CandidateManagement() {
 
 
   // Mock user data for role-based access control
-  const currentUser = {
+  const currentUser: User = {
     id: "1",
-    role: "manager", // admin, manager, user
+    username: "manager1",
+    email: "manager@company.com",
+    firstName: "John",
+    lastName: "Manager",
+    role: "manager",
+    status: "active",
+    createdDate: "2024-01-01",
+    lastLogin: "2024-01-15",
+    permissions: [],
+    teamIds: ["team1"]
   }
 
   // Add role-based filtering for candidates
@@ -668,9 +707,48 @@ export default function CandidateManagement() {
       // Manager sees candidates assigned to their team members
       const accessibleUserIds = getAccessibleUserIds(currentUser, [
         // Mock users data - in real app this would come from props or context
-        { id: "1", managerId: currentUser.id, teamIds: ["team1"] },
-        { id: "2", managerId: currentUser.id, teamIds: ["team1"] },
-        { id: "3", managerId: "other", teamIds: ["team2"] },
+        {
+          id: "1",
+          username: "user1",
+          email: "user1@company.com",
+          firstName: "User",
+          lastName: "One",
+          role: "user",
+          status: "active",
+          createdDate: "2024-01-01",
+          lastLogin: "2024-01-15",
+          permissions: [],
+          managerId: currentUser.id,
+          teamIds: ["team1"]
+        },
+        {
+          id: "2",
+          username: "user2",
+          email: "user2@company.com",
+          firstName: "User",
+          lastName: "Two",
+          role: "user",
+          status: "active",
+          createdDate: "2024-01-01",
+          lastLogin: "2024-01-15",
+          permissions: [],
+          managerId: currentUser.id,
+          teamIds: ["team1"]
+        },
+        {
+          id: "3",
+          username: "user3",
+          email: "user3@company.com",
+          firstName: "User",
+          lastName: "Three",
+          role: "user",
+          status: "active",
+          createdDate: "2024-01-01",
+          lastLogin: "2024-01-15",
+          permissions: [],
+          managerId: "other",
+          teamIds: ["team2"]
+        },
       ])
       return candidates.filter((candidate) => accessibleUserIds.includes(candidate.recruiterId))
     }
@@ -969,7 +1047,7 @@ export default function CandidateManagement() {
                   <SelectTrigger className="w-full h-8 text-xs">
                     <SelectValue>
                       <div className="flex items-center space-x-2">
-                        <User className="w-3 h-3 text-gray-400" />
+                        <UserIcon className="w-3 h-3 text-gray-400" />
                         <span className="truncate">{candidate.recruiterName}</span>
                       </div>
                     </SelectValue>
@@ -978,7 +1056,7 @@ export default function CandidateManagement() {
                     {recruiters.map((recruiter) => (
                       <SelectItem key={recruiter.id} value={recruiter.id}>
                         <div className="flex items-center space-x-2">
-                          <User className="w-3 h-3" />
+                          <UserIcon className="w-3 h-3" />
                           <span>{recruiter.name}</span>
                         </div>
                       </SelectItem>
@@ -1023,13 +1101,13 @@ export default function CandidateManagement() {
                     </SelectItem>
                     <SelectItem value="linkedin">
                       <div className="flex items-center space-x-2">
-                        <User className="w-3 h-3" />
+                        <UserIcon className="w-3 h-3" />
                         <span>LinkedIn</span>
                       </div>
                     </SelectItem>
                     <SelectItem value="referral">
                       <div className="flex items-center space-x-2">
-                        <User className="w-3 h-3" />
+                        <UserIcon className="w-3 h-3" />
                         <span>Referral</span>
                       </div>
                     </SelectItem>
@@ -1531,7 +1609,7 @@ export default function CandidateManagement() {
                           <TableRow className="bg-gradient-to-r from-gray-50 to-slate-50 border-b border-gray-200">
                             <TableHead className="px-6 py-4 text-left">
                               <div className="flex items-center space-x-2">
-                                <User className="w-4 h-4 text-blue-500" />
+                                <UserIcon className="w-4 h-4 text-blue-500" />
                                 <span className="text-xs font-semibold text-gray-700 uppercase tracking-wider">Candidate</span>
                               </div>
                             </TableHead>
@@ -1841,7 +1919,7 @@ export default function CandidateManagement() {
                                       }}
                                       className="h-8 px-3 text-green-600 border-green-200 hover:bg-green-50 hover:border-green-300 transition-all duration-200 hover:shadow-md"
                                     >
-                                      <User className="w-3 h-3 mr-1" />
+                                      <UserIcon className="w-3 h-3 mr-1" />
                                       View
                                     </Button>
 
@@ -1878,7 +1956,7 @@ export default function CandidateManagement() {
                           <span>{totalApplications} total applications</span>
                         </div>
                         <div className="flex items-center space-x-2">
-                          <span className="text-xs text-gray-500">Last updated: {new Date().toLocaleString()}</span>
+                          <span className="text-xs text-gray-500">Last updated: {isClient ? lastUpdated : ""}</span>
                         </div>
                       </div>
                     </div>
@@ -1896,11 +1974,11 @@ export default function CandidateManagement() {
               <DialogTitle>AI Candidate Analysis</DialogTitle>
               <DialogDescription>Comprehensive AI-powered evaluation and recommendations</DialogDescription>
             </DialogHeader>
-            <AICandidateAnalysis
+            {/* <AICandidateAnalysis
               candidate={candidates.find((c) => c.id === Number.parseInt(showAiAnalysis || '0'))}
               jobPosting={jobPostings.find((j) => j.id === candidates.find((c) => c.id === Number.parseInt(showAiAnalysis || '0'))?.appliedJobs[0]?.job.id.toString())}
               onAnalysisComplete={(analysis) => handleAiAnalysisComplete(showAiAnalysis, analysis)}
-            />
+            /> */}
           </DialogContent>
         </Dialog>
       )}
@@ -2352,7 +2430,7 @@ export default function CandidateManagement() {
               {/* Personal Information Section */}
               <div className="space-y-4">
                 <h3 className="text-lg font-semibold flex items-center space-x-2">
-                  <User className="w-5 h-5 text-blue-600" />
+                  <UserIcon className="w-5 h-5 text-blue-600" />
                   <span>Personal Information</span>
                 </h3>
                 <div className="grid grid-cols-2 gap-4">
@@ -2539,7 +2617,7 @@ export default function CandidateManagement() {
             <div className="flex items-center justify-between">
               <div className="flex items-center space-x-3">
                 <div className="p-2 bg-gradient-to-r from-green-500 to-emerald-500 rounded-lg">
-                  <User className="w-6 h-6 text-white" />
+                  <UserIcon className="w-6 h-6 text-white" />
                 </div>
                 <div>
                   <DialogTitle className="text-2xl font-bold text-gray-900">
@@ -2619,7 +2697,7 @@ export default function CandidateManagement() {
                   <Card className="border-0 shadow-lg bg-white">
                     <CardContent className="p-6">
                       <div className="flex items-center space-x-2 mb-4">
-                        <User className="w-5 h-5 text-blue-600" />
+                        <UserIcon className="w-5 h-5 text-blue-600" />
                         <h3 className="text-lg font-semibold text-gray-900">Personal Information</h3>
                       </div>
                       <div className="space-y-4">
