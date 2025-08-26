@@ -57,6 +57,7 @@ import BulkImport from "./components/bulk-import"
 import EmailAnalytics from "./components/email-analytics"
 import UserManagement from "../components/admin/user-management"
 import CandidatesSearch from "./components/candidates-search"
+import AIRecruitmentPlanning from "./components/ai-recruitment-planning"
 import { useRouter } from "next/navigation"
 
 interface NavigationItem {
@@ -128,6 +129,7 @@ export default function Dashboard() {
         { id: "jobs", label: "Job Postings", icon: Briefcase, component: JobPostings},
         { id: "interviews", label: "Interviews", icon: Calendar, component: InterviewManagement},
         { id: "pipeline", label: "Pipeline", icon: Target, component: PipelineAPI },
+        { id: "ai-recruitment", label: "AI Recruitment", icon: Brain, component: AIRecruitmentPlanning, badge: "New" },
         // { id: "ai-analysis", label: "AI Analysis", icon: Brain, component: AICandidateAnalysis, badge: "New" },
       ],
     },
