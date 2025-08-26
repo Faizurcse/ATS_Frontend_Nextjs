@@ -21,7 +21,7 @@ import {
   Plus,
   Upload,
   MapPin,
-  DollarSign,
+  IndianRupee,
   Phone,
   Mail,
   Calendar,
@@ -949,7 +949,6 @@ export default function CandidateManagement({ setActiveTab, showQuickActions, se
               <span>{candidate.currentLocation}</span>
             </div>
             <div className="flex items-center space-x-2">
-              <DollarSign className="w-4 h-4 text-gray-400" />
               <span>₹{candidate.salaryExpectation.toLocaleString()}</span>
             </div>
           </div>
@@ -1316,7 +1315,7 @@ export default function CandidateManagement({ setActiveTab, showQuickActions, se
                   <span>Location & availability preferences</span>
                 </div>
                 <div className="flex items-center space-x-2 text-purple-700">
-                  <DollarSign className="w-3 h-3" />
+                  <IndianRupee className="w-3 h-3" />
                   <span>Salary expectations & job type fit</span>
                 </div>
               </div>
@@ -1324,7 +1323,7 @@ export default function CandidateManagement({ setActiveTab, showQuickActions, se
                 <span className="text-xs text-purple-600 font-medium">Quick Searches: </span>
                 {[
                   "senior developers available now",
-                  "marketing experts under $90k",
+                                        "marketing experts under ₹90k",
                   "remote candidates with React",
                   "entry level designers",
                   "contract workers in tech",
@@ -1633,7 +1632,7 @@ export default function CandidateManagement({ setActiveTab, showQuickActions, se
                             </TableHead>
                             <TableHead className="px-6 py-4 text-left">
                               <div className="flex items-center space-x-2">
-                                <DollarSign className="w-4 h-4 text-green-500" />
+                                <IndianRupee className="w-4 h-4 text-green-500" />
                                 <span className="text-xs font-semibold text-gray-700 uppercase tracking-wider">Salary</span>
                               </div>
                             </TableHead>
@@ -2238,7 +2237,7 @@ export default function CandidateManagement({ setActiveTab, showQuickActions, se
                       </TableHead>
                       <TableHead className="px-4 py-3 text-left">
                         <div className="flex items-center space-x-2">
-                          <DollarSign className="w-4 h-4 text-green-500" />
+                          <IndianRupee className="w-4 h-4 text-green-500" />
                           <span className="text-xs font-semibold text-gray-700 uppercase tracking-wider">Priority</span>
                         </div>
                       </TableHead>
@@ -2563,7 +2562,7 @@ export default function CandidateManagement({ setActiveTab, showQuickActions, se
               {/* Salary Information Section */}
               <div className="space-y-4">
                 <h3 className="text-lg font-semibold flex items-center space-x-2">
-                  <DollarSign className="w-5 h-5 text-green-600" />
+                  <IndianRupee className="w-5 h-5 text-green-600" />
                   <span>Salary Information</span>
                 </h3>
                 <div className="grid grid-cols-2 gap-4">
@@ -2668,7 +2667,7 @@ export default function CandidateManagement({ setActiveTab, showQuickActions, se
                 <div className="bg-white rounded-xl p-4 border border-gray-200 shadow-sm">
                   <div className="flex items-center space-x-3">
                     <div className="p-2 bg-green-100 rounded-lg">
-                      <DollarSign className="w-5 h-5 text-green-600" />
+                      <IndianRupee className="w-5 h-5 text-green-600" />
                     </div>
                     <div>
                       <p className="text-sm font-medium text-gray-600">Expected Salary</p>

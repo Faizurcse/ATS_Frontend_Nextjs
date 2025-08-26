@@ -9,7 +9,7 @@ import {
   Briefcase,
   Building2,
   TrendingUp,
-  DollarSign,
+  IndianRupee,
   Clock,
   Shield,
   Activity,

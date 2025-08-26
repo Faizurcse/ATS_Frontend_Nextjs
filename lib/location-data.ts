@@ -560,7 +560,7 @@ export const getCitiesByCountry = (countryCode: string): string[] => {
 
 export const getCurrencyByCountry = (countryCode: string): { currency: string; symbol: string } => {
   const country = COUNTRIES.find((c) => c.code === countryCode)
-  return country ? { currency: country.currency, symbol: country.currencySymbol } : { currency: "USD", symbol: "$" }
+  return country ? { currency: country.currency, symbol: "₹" } : { currency: "INR", symbol: "₹" }
 }
 
 export const getCountryByCity = (cityName: string): Country | null => {

@@ -44,7 +44,7 @@ import {
   Calendar,
   User,
   Building,
-  DollarSign,
+  IndianRupee,
   Globe,
   Briefcase,
   GraduationCap,
@@ -686,7 +686,7 @@ export default function InterviewManagement() {
                         <span>{candidate.experience}</span>
                       </div>
                       <div className="flex items-center space-x-2">
-                        <DollarSign className="w-4 h-4 text-gray-500" />
+                        <IndianRupee className="w-4 h-4 text-gray-500" />
                         <span>₹{candidate.expectedSalary.toLocaleString()}</span>
                       </div>
                     </div>

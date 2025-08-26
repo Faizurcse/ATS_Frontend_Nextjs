@@ -20,7 +20,7 @@ import {
 import {
   Plus,
   MapPin,
-  DollarSign,
+  IndianRupee,
   Calendar,
   Building2,
   User,
@@ -37,18 +37,18 @@ import {
   X,
   Trash2,
   Sparkles,
+  CheckCircle,
 } from "lucide-react"
 import {
   JOB_TYPES,
   formatSalary,
   type JobType,
-  COUNTRIES,
-  getCitiesByCountry,
   getSalaryPlaceholder,
+  getCurrencyByCountry,
 } from "../../lib/location-data"
-import BASE_API_URL_AI from '../../PythonApi';
 import { useToast } from "@/components/ui/use-toast";
 import BASE_API_URL from '../../BaseUrlApi';
+import ViewFinalizeJobPosting from './viewFinalizeJobPosting';
 
 // SearchFilters interface definition
 interface SearchFilters {
@@ -83,6 +83,7 @@ interface JobPosting {
   priority: "urgent" | "high" | "medium" | "low"
   postedDate: string
   lastUpdated: string
+  createdAt?: string // ISO timestamp from API
   applicants: number
   views: number
   internalSPOC: string
@@ -102,6 +103,7 @@ interface JobPosting {
 export default function JobPostings() {
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false)
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false)
+  const [isViewDialogOpen, setIsViewDialogOpen] = useState(false)
   const [editingJob, setEditingJob] = useState<JobPosting | null>(null)
   const [viewMode, setViewMode] = useState("all")
   const [statusFilter, setStatusFilter] = useState("all")
@@ -112,6 +114,21 @@ export default function JobPostings() {
   const [isAIGenerating, setIsAIGenerating] = useState(false)
   const [aiPrompt, setAiPrompt] = useState("")
   const [aiMessage, setAiMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null)
+
+  // Custom confirmation dialog states
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
+  const [jobToDelete, setJobToDelete] = useState<JobPosting | null>(null)
+  const [showCopySuccess, setShowCopySuccess] = useState(false)
+  const [copiedLink, setCopiedLink] = useState("")
+
+  // Custom dropdown change notification states
+  const [showDropdownNotification, setShowDropdownNotification] = useState(false)
+  const [dropdownNotificationData, setDropdownNotificationData] = useState<{
+    field: string
+    oldValue: string
+    newValue: string
+    jobTitle: string
+  } | null>(null)
 
   const [searchFilters, setSearchFilters] = useState<SearchFilters>({
     searchTerm: "",
@@ -213,6 +230,20 @@ export default function JobPostings() {
     }
   }
 
+  // Helper function to show dropdown change notification
+  const showDropdownChangeNotification = (field: string, oldValue: string, newValue: string, jobTitle: string) => {
+    setDropdownNotificationData({
+      field,
+      oldValue,
+      newValue,
+      jobTitle
+    })
+    setShowDropdownNotification(true)
+    
+    // Auto-hide after 3 seconds
+    setTimeout(() => setShowDropdownNotification(false), 3000)
+  }
+
   // Function to fetch jobs from API
   const fetchJobs = async () => {
     try {
@@ -264,8 +295,13 @@ export default function JobPostings() {
         experience: job.experienceLevel || "Not specified",
         status: "active" as const,
         priority: (job.priority || "medium").toLowerCase() as "urgent" | "high" | "medium" | "low",
-        postedDate: job.createdAt ? new Date(job.createdAt).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
+        postedDate: (() => {
+          const date = job.createdAt ? new Date(job.createdAt).toISOString().split('T')[0] : new Date().toISOString().split('T')[0];
+          console.log(`Job ${job.title}: createdAt=${job.createdAt}, postedDate=${date}`);
+          return date;
+        })(),
         lastUpdated: job.updatedAt ? new Date(job.updatedAt).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
+        createdAt: job.createdAt || job.postedDate || new Date().toISOString(), // Store the original createdAt timestamp
         applicants: job.applicants || 0,
         views: job.views || 0,
         internalSPOC: job.internalSPOC || "Not specified",
@@ -284,6 +320,16 @@ export default function JobPostings() {
       }))
 
       setJobPostings(transformedJobs)
+      
+      // Log the sorted jobs to verify sorting is working
+      console.log('Jobs sorted by createdAt (newest first):', 
+        transformedJobs.map(job => ({
+          title: job.title,
+          createdAt: job.createdAt,
+          postedDate: job.postedDate,
+          timestamp: job.createdAt ? new Date(job.createdAt).getTime() : new Date(job.postedDate).getTime()
+        }))
+      )
     } catch (error) {
       console.error('Error fetching jobs:', error)
 
@@ -311,6 +357,7 @@ export default function JobPostings() {
             priority: "high",
             postedDate: "2024-01-15",
             lastUpdated: "2024-01-15",
+            createdAt: "2024-01-15T10:00:00.000Z",
             applicants: 12,
             views: 45,
             internalSPOC: "Sarah Wilson",
@@ -344,6 +391,7 @@ export default function JobPostings() {
             priority: "medium",
             postedDate: "2024-01-10",
             lastUpdated: "2024-01-10",
+            createdAt: "2024-01-10T09:00:00.000Z",
             applicants: 8,
             views: 32,
             internalSPOC: "Mike Johnson",
@@ -482,7 +530,10 @@ export default function JobPostings() {
         jobStatus: ""
       })
       resetAIStates()
+      
+      // Close both dialogs immediately
       setIsAddDialogOpen(false)
+      setIsViewDialogOpen(false)
 
       // Show success message
       toast({
@@ -609,27 +660,33 @@ export default function JobPostings() {
   }
 
   const handleDeleteJob = async (jobId: string) => {
-    // Show confirmation dialog
-    const isConfirmed = window.confirm('Are you sure you want to delete this job posting? This action cannot be undone.')
-
-    if (!isConfirmed) {
+    // Find the job data to get email
+    const job = jobPostings.find(job => job.id === jobId)
+    if (!job) {
+      toast({
+        title: "Error",
+        description: "Job not found in local state",
+        variant: "destructive",
+      })
       return
     }
 
+    // Set job to delete and show confirmation dialog
+    setJobToDelete(job)
+    setShowDeleteConfirm(true)
+  }
+
+  const confirmDeleteJob = async () => {
+    if (!jobToDelete) return
+
     setIsDeletingJob(true)
     try {
-      console.log('Attempting to delete job:', jobId)
-
-      // Find the job data to get email
-      const jobToDelete = jobPostings.find(job => job.id === jobId)
-      if (!jobToDelete) {
-        throw new Error('Job not found in local state')
-      }
+      console.log('Attempting to delete job:', jobToDelete.id)
 
       console.log('Job email:', jobToDelete.email)
 
       // Make API call to delete job with email data
-      const response = await fetch(`${BASE_API_URL}/jobs/delete-job/${jobId}`, {
+      const response = await fetch(`${BASE_API_URL}/jobs/delete-job/${jobToDelete.id}`, {
         method: 'DELETE',
         headers: {
           'Content-Type': 'application/json',
@@ -648,7 +705,7 @@ export default function JobPostings() {
       console.log('Job deleted successfully:', result)
 
       // Remove job from local state
-      setJobPostings(jobPostings.filter(job => job.id !== jobId))
+      setJobPostings(jobPostings.filter(job => job.id !== jobToDelete.id))
 
       // Show success message from API
       toast({
@@ -675,6 +732,9 @@ export default function JobPostings() {
       }
     } finally {
       setIsDeletingJob(false)
+      // Close confirmation dialog and reset state
+      setShowDeleteConfirm(false)
+      setJobToDelete(null)
     }
   }
 
@@ -725,7 +785,7 @@ export default function JobPostings() {
             }
             return expLevel;
           })(),
-          country: COUNTRIES.find(c => c.name === generatedData.country)?.code || generatedData.country || newJob.country,
+          country: generatedData.country || newJob.country,
           city: generatedData.city || newJob.city,
           location: generatedData.location || generatedData.fullLocation || newJob.location,
           workType: generatedData.workType ? generatedData.workType : newJob.workType,
@@ -752,7 +812,7 @@ export default function JobPostings() {
         console.log('Email:', generatedData.email, '->', updatedJob.email)
         console.log('JobType:', generatedData.jobType, '->', updatedJob.jobType)
         console.log('Experience:', generatedData.experience, '->', updatedJob.experience, '(Raw:', generatedData.experienceLevel, ')')
-        console.log('Country:', generatedData.country, '->', updatedJob.country, '(Mapped to code:', COUNTRIES.find(c => c.name === generatedData.country)?.code, ')')
+        console.log('Country:', generatedData.country, '->', updatedJob.country)
         console.log('City:', generatedData.city, '->', updatedJob.city)
         console.log('Location:', generatedData.location, '->', updatedJob.location)
         console.log('WorkType:', generatedData.workType, '->', updatedJob.workType)
@@ -809,6 +869,41 @@ export default function JobPostings() {
     }
   }
 
+  // Check if all required fields are filled for view button
+  const isFormComplete = () => {
+    const requiredFields = [
+      'title', 'company', 'department', 'internalSPOC', 'recruiter', 'email',
+      'jobType', 'experience', 'country', 'city', 'location', 'workType',
+      'jobStatus', 'salaryMin', 'salaryMax', 'priority', 'description',
+      'requirements', 'skills', 'benefits'
+    ]
+    
+    return requiredFields.every(field => {
+      const value = newJob[field as keyof typeof newJob]
+      return value && value.toString().trim().length > 0
+    })
+  }
+
+  // Handle finalize from view dialog
+  const handleFinalizeJob = async (finalizedJobData: any) => {
+    // Update the newJob state with any changes made in the view dialog
+    setNewJob(finalizedJobData)
+    
+    // Call the original handleAddJob function
+    // The dialog will be closed automatically by the ViewFinalizeJobPosting component
+    await handleAddJob()
+  }
+
+  // Handle back from view dialog
+  const handleBackFromView = (updatedJobData: any) => {
+    // Update the newJob state with any changes made in the view dialog
+    setNewJob(updatedJobData)
+    
+    // Close the view dialog and reopen the add dialog instantly
+    setIsViewDialogOpen(false)
+    setIsAddDialogOpen(true)
+  }
+
   // Reset AI states and form
   const resetAIStates = () => {
     setAiPrompt("")
@@ -841,60 +936,97 @@ export default function JobPostings() {
       jobStatus: ""
     })
     resetAIStates()
+    // Reset any other states that might interfere
+    setIsPostingJob(false)
   }
 
-  // AI-powered job filtering
-  const filteredJobs = jobPostings.filter((job) => {
-    const searchTerm = searchFilters.searchTerm.toLowerCase()
-    let matchesSearch = true
+  // AI-powered job filtering and sorting
+  const filteredJobs = jobPostings
+    .filter((job) => {
+      const searchTerm = searchFilters.searchTerm.toLowerCase()
+      let matchesSearch = true
 
-    if (searchTerm) {
-      const basicMatch =
-        job.title.toLowerCase().includes(searchTerm) ||
-        job.company.toLowerCase().includes(searchTerm) ||
-        job.location.toLowerCase().includes(searchTerm) ||
-        job.description.toLowerCase().includes(searchTerm) ||
-        job.skills.some((skill) => skill.toLowerCase().includes(searchTerm))
+      if (searchTerm) {
+        const basicMatch =
+          job.title.toLowerCase().includes(searchTerm) ||
+          job.company.toLowerCase().includes(searchTerm) ||
+          job.location.toLowerCase().includes(searchTerm) ||
+          job.description.toLowerCase().includes(searchTerm) ||
+          job.skills.some((skill) => skill.toLowerCase().includes(searchTerm))
 
-      matchesSearch = basicMatch
-    }
+        matchesSearch = basicMatch
+      }
 
-    const matchesStatus = statusFilter === "all" || job.status === statusFilter
-    const matchesJobType =
-      !searchFilters.jobType || searchFilters.jobType === "any" || job.jobType === searchFilters.jobType
-    const matchesCountry =
-      !searchFilters.country || searchFilters.country === "all" || job.country === searchFilters.country
-    const matchesCity = !searchFilters.city || searchFilters.city === "all" || job.city === searchFilters.city
-    const matchesExperience =
-      !searchFilters.experience ||
-      searchFilters.experience === "any" ||
-      job.experience.includes(searchFilters.experience)
-    const matchesSkills =
-      searchFilters.skills.length === 0 ||
-      searchFilters.skills.some((skill) =>
-        job.skills.some((jobSkill) => jobSkill.toLowerCase().includes(skill.toLowerCase())),
+      const matchesStatus = statusFilter === "all" || job.status === statusFilter
+      const matchesJobType =
+        !searchFilters.jobType || searchFilters.jobType === "any" || job.jobType === searchFilters.jobType
+      const matchesCountry =
+        !searchFilters.country || searchFilters.country === "all" || job.country === searchFilters.country
+      const matchesCity = !searchFilters.city || searchFilters.city === "all" || job.city === searchFilters.city
+      const matchesExperience =
+        !searchFilters.experience ||
+        searchFilters.experience === "any" ||
+        job.experience.includes(searchFilters.experience)
+      const matchesSkills =
+        searchFilters.skills.length === 0 ||
+        searchFilters.skills.some((skill) =>
+          job.skills.some((jobSkill) => jobSkill.toLowerCase().includes(skill.toLowerCase())),
+        )
+      const matchesPriority =
+        !searchFilters.priority || searchFilters.priority === "any" || job.priority === searchFilters.priority
+
+      const salaryMin = searchFilters.salaryMin ? Number.parseFloat(searchFilters.salaryMin) : 0
+      const salaryMax = searchFilters.salaryMax
+        ? Number.parseFloat(searchFilters.salaryMax)
+        : Number.POSITIVE_INFINITY
+      const matchesSalary = job.salaryMax >= salaryMin && job.salaryMin <= salaryMax
+
+      return (
+        matchesSearch &&
+        matchesStatus &&
+        matchesJobType &&
+        matchesCountry &&
+        matchesCity &&
+        matchesExperience &&
+        matchesSkills &&
+        matchesPriority &&
+        matchesSalary
       )
-    const matchesPriority =
-      !searchFilters.priority || searchFilters.priority === "any" || job.priority === searchFilters.priority
-
-    const salaryMin = searchFilters.salaryMin ? Number.parseFloat(searchFilters.salaryMin) : 0
-    const salaryMax = searchFilters.salaryMax
-      ? Number.parseFloat(searchFilters.salaryMax)
-      : Number.POSITIVE_INFINITY
-    const matchesSalary = job.salaryMax >= salaryMin && job.salaryMin <= salaryMax
-
-    return (
-      matchesSearch &&
-      matchesStatus &&
-      matchesJobType &&
-      matchesCountry &&
-      matchesCity &&
-      matchesExperience &&
-      matchesSkills &&
-      matchesPriority &&
-      matchesSalary
-    )
-  })
+    })
+    .sort((a, b) => {
+      // Sort by createdAt timestamp in descending order (newest first)
+      // This ensures the most recently created jobs appear at the top
+      // Use createdAt if available, otherwise fall back to postedDate
+      let dateA: number
+      let dateB: number
+      
+      try {
+        // Try to parse createdAt timestamp first (most accurate)
+        if (a.createdAt) {
+          dateA = new Date(a.createdAt).getTime()
+        } else if (a.postedDate) {
+          dateA = new Date(a.postedDate).getTime()
+        } else {
+          dateA = 0 // Fallback for jobs without dates
+        }
+        
+        if (b.createdAt) {
+          dateB = new Date(b.createdAt).getTime()
+        } else if (b.postedDate) {
+          dateB = new Date(b.postedDate).getTime()
+        } else {
+          dateB = 0 // Fallback for jobs without dates
+        }
+      } catch (error) {
+        console.warn('Error parsing dates for sorting:', error)
+        // Fallback to string comparison if date parsing fails
+        dateA = a.createdAt ? new Date(a.createdAt).getTime() : 0
+        dateB = b.createdAt ? new Date(b.createdAt).getTime() : 0
+      }
+      
+      // Sort in descending order (newest first)
+      return dateB - dateA
+    })
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -960,10 +1092,8 @@ export default function JobPostings() {
                 <span>{job.location}</span>
               </div>
               <div className="flex items-center space-x-2 text-sm text-gray-600 mb-3">
-                <DollarSign className="w-4 h-4" />
-                <span>
-                  {formatSalary(job.salaryMin, job.jobType, job.country, true, job.salaryMin)} -{" "}
-                  {formatSalary(job.salaryMax, job.jobType, job.country)}
+                <span className="flex items-center space-x-1 font-medium text-green-600">
+                  <span>{formatSalary(job.salaryMax, job.jobType, job.country, true, job.salaryMin)}</span>
                 </span>
                 <span>•</span>
                 <Clock className="w-4 h-4" />
@@ -976,6 +1106,8 @@ export default function JobPostings() {
                 value={job.jobType}
                 onValueChange={async (value) => {
                   try {
+                    const oldValue = job.jobType
+                    
                     // Update local state immediately for responsive UI
                     const updatedJobs = jobPostings.map((j) =>
                       j.id === job.id
@@ -987,6 +1119,14 @@ export default function JobPostings() {
                         : j,
                     )
                     setJobPostings(updatedJobs)
+
+                    // Show dropdown change notification
+                    showDropdownChangeNotification(
+                      'Job Type',
+                      oldValue,
+                      value,
+                      job.title
+                    )
 
                     // Prepare data for API
                     const jobData = {
@@ -1044,6 +1184,8 @@ export default function JobPostings() {
                 value={job.jobStatus}
                 onValueChange={async (value) => {
                   try {
+                    const oldValue = job.jobStatus
+                    
                     // Update local state immediately for responsive UI
                     const updatedJobs = jobPostings.map((j) =>
                       j.id === job.id
@@ -1055,6 +1197,14 @@ export default function JobPostings() {
                         : j,
                     )
                     setJobPostings(updatedJobs)
+
+                    // Show dropdown change notification
+                    showDropdownChangeNotification(
+                      'Job Status',
+                      oldValue,
+                      value,
+                      job.title
+                    )
 
                     // Prepare data for API
                     const jobData = {
@@ -1126,6 +1276,8 @@ export default function JobPostings() {
                 value={job.workType}
                 onValueChange={async (value) => {
                   try {
+                    const oldValue = job.workType
+                    
                     // Update local state immediately for responsive UI
                     const updatedJobs = jobPostings.map((j) =>
                       j.id === job.id
@@ -1137,6 +1289,14 @@ export default function JobPostings() {
                         : j,
                     )
                     setJobPostings(updatedJobs)
+
+                    // Show dropdown change notification
+                    showDropdownChangeNotification(
+                      'Work Type',
+                      oldValue,
+                      value,
+                      job.title
+                    )
 
                     // Prepare data for API
                     const jobData = {
@@ -1201,6 +1361,8 @@ export default function JobPostings() {
                 value={job.priority}
                 onValueChange={async (value) => {
                   try {
+                    const oldValue = job.priority
+                    
                     // Update local state immediately for responsive UI
                     const updatedJobs = jobPostings.map((j) =>
                       j.id === job.id
@@ -1212,6 +1374,14 @@ export default function JobPostings() {
                         : j,
                     )
                     setJobPostings(updatedJobs)
+
+                    // Show dropdown change notification
+                    showDropdownChangeNotification(
+                      'Priority',
+                      oldValue,
+                      value,
+                      job.title
+                    )
 
                     // Prepare data for API
                     const jobData = {
@@ -1315,10 +1485,10 @@ export default function JobPostings() {
 
           <div className="flex items-center justify-between text-sm">
             <div className="flex items-center space-x-2">
-              <Calendar className="w-4 h-4 text-gray-400" />
-              <span>
-                Posted: {new Date(job.postedDate).toLocaleDateString()}
-              </span>
+                             <Calendar className="w-4 h-4 text-gray-400" />
+                       <span>
+             Posted: {new Date(job.postedDate).toLocaleDateString()}
+           </span>
             </div>
             <div className="flex space-x-2">
               <div className="flex items-center space-x-2">
@@ -1367,18 +1537,31 @@ export default function JobPostings() {
                       }
                     }
                     
-                    // Attempt to copy and show single success message
+                    // Attempt to copy and show custom success popup
                     copyToClipboard(applyLink).then(success => {
                       if (success) {
-                        alert('Link copied to clipboard successfully!')
+                        setCopiedLink(applyLink)
+                        setShowCopySuccess(true)
+                        // Auto-hide after 3 seconds
+                        setTimeout(() => setShowCopySuccess(false), 3000)
                       } else {
                         // Silent fallback - just copy the link to console for manual copying
                         console.log('Copy this link manually:', applyLink)
+                        toast({
+                          title: "Copy Failed",
+                          description: "Please copy the link manually from the console",
+                          variant: "destructive",
+                        })
                       }
                     }).catch(error => {
                       console.error('Error in copy operation:', error)
                       // Silent fallback - just copy the link to console for manual copying
                       console.log('Copy this link manually:', applyLink)
+                      toast({
+                        title: "Copy Failed",
+                        description: "Please copy the link manually from the console",
+                        variant: "destructive",
+                      })
                     })
                   }}
                   className="text-green-600 border-green-200 hover:bg-green-50 text-xs"
@@ -1391,7 +1574,7 @@ export default function JobPostings() {
               <div className="flex items-center space-x-1">
                 {/* WhatsApp */}
                 <a
-                  href={`https://wa.me/?text=${encodeURIComponent(`🚀 Exciting Job Opportunity!\n\n${job.title} at ${job.company}\n📍 ${job.location}\n💰 ${formatSalary(job.salaryMin, job.jobType, job.country, true, job.salaryMin)} - ${formatSalary(job.salaryMax, job.jobType, job.country)}\n\n${job.description.substring(0, 200)}...\n\nApply now: ${window.location.origin}/apply/job-listings-${job.title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '')}-${job.experience?.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'senior'}-${job.jobType?.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'full-time'}-${job.company.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '')}-${job.city?.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'remote'}-${job.id}?utm_source=whatsapp&utm_medium=social&utm_campaign=job_posting`)}`}
+                  href={`https://wa.me/?text=${encodeURIComponent(`🚀 Exciting Job Opportunity!\n\n${job.title} at ${job.company}\n📍 ${job.location}\n${formatSalary(job.salaryMax, job.jobType, job.country, true, job.salaryMin)}\n\n${job.description.substring(0, 200)}...\n\nApply now: ${window.location.origin}/apply/job-listings-${job.title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '')}-${job.experience?.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'senior'}-${job.jobType?.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'full-time'}-${job.company.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '')}-${job.city?.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'remote'}-${job.id}?utm_source=whatsapp&utm_medium=social&utm_campaign=job_posting`)}`}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="p-2 rounded-lg bg-green-500 hover:bg-green-600 text-white transition-colors duration-200"
@@ -1493,6 +1676,7 @@ export default function JobPostings() {
             <Badge variant="outline" className="bg-orange-50 text-orange-700">
               {jobPostings.filter((job) => job.status === "active").length} Active
             </Badge>
+            
             {!apiAvailable && (
               <Badge variant="outline" className="bg-yellow-50 text-yellow-700 border-yellow-300">
                 Demo Mode
@@ -1525,7 +1709,10 @@ export default function JobPostings() {
           </Button>
           <Dialog open={isAddDialogOpen} onOpenChange={(open) => {
             setIsAddDialogOpen(open);
-            if (!open) resetAIStates();
+            if (!open) {
+              resetAIStates();
+              clearForm();
+            }
           }}>
             <DialogTrigger asChild>
               <Button className="bg-blue-600 hover:bg-blue-700">
@@ -1584,7 +1771,7 @@ export default function JobPostings() {
                           variant="outline"
                           size="sm"
                           onClick={() => setAiPrompt(`
-  Create a comprehensive job posting using ONLY the following fields and values. Do not introduce any new fields. Fill every field with the detailed information exactly as provided. company: Appit Software Solutions department: Technology/AI & Machine Learning jobTitle: Senior AI Specialist internalSPOC: Dr. Priya Sharma (AI Team Lead) recruiter: Hemanth Avvaru (Senior Recruiter) email: careers@appitsoftware.com jobType: Full-time experienceLevel: Mid level (3-5 years) country: India city: Hyderabad fullLocation: HITEC City, Hyderabad, Telangana, India workType: ONSITE jobStatus: ACTIVE salaryMin: 800000 salaryMax: 1200000 priority: high description: We are seeking a talented Senior AI Specialist to join our cutting-edge AI team at Appit Software Solutions. You will be responsible for developing innovative machine learning solutions, implementing state-of-the-art algorithms, and collaborating with cross-functional teams to deliver AI-powered products that transform industries. This role offers excellent growth opportunities and the chance to work on groundbreaking projects in computer vision, natural language processing, and predictive analytics. You will lead AI initiatives, mentor junior developers, and contribute to our AI strategy and roadmap. requirements: Bachelor's degree in Computer Science, AI, or related field; 3+ years of experience in machine learning and AI development; Strong proficiency in Python, TensorFlow, PyTorch, and scikit-learn; Experience with deep learning, computer vision, and natural language processing; Knowledge of cloud platforms (AWS, Azure, GCP) and MLOps; Strong problem-solving and analytical skills; Excellent communication and teamwork abilities; Experience with Docker, Kubernetes, and CI/CD pipelines; Knowledge of SQL, NoSQL databases, and data engineering; Understanding of software development best practices and agile methodologies requiredSkills: Python, TensorFlow, PyTorch, Scikit-learn, Pandas, NumPy, OpenCV, NLTK, spaCy, AWS SageMaker, Azure ML, Docker, Kubernetes, Git, SQL, MongoDB, REST APIs, FastAPI, Flask, React, Node.js, Linux, Bash scripting, Jupyter Notebooks, MLflow, Kubeflow benefits: Health insurance with family coverage, dental insurance, vision insurance, 401K retirement plan with company match, paid time off (25 days annually), flexible working hours, professional development budget ($5000/year), gym membership reimbursement, free lunch and snacks, remote work options (2 days/week), annual performance bonus, stock options, health and wellness programs, team building events, conference attendance support, certification reimbursement, mentorship programs, career advancement opportunities Output the final as a polished job posting that clearly lists each field and its value in human-readable form, but do not add or remove fields. Ensure every field above is present in the output.
+  Create a comprehensive job posting using ONLY the following fields and values. Do not introduce any new fields. Fill every field with the detailed information exactly as provided. company: Appit Software Solutions department: Technology/AI & Machine Learning jobTitle: Senior AI Specialist internalSPOC: Dr. Priya Sharma (AI Team Lead) recruiter: Hemanth Avvaru (Senior Recruiter) email: careers@appitsoftware.com jobType: Full-time experienceLevel: Mid level (3-5 years) country: India city: Hyderabad fullLocation: HITEC City, Hyderabad, Telangana, India workType: ONSITE jobStatus: ACTIVE salaryMin: 800000 salaryMax: 1200000 priority: high description: We are seeking a talented Senior AI Specialist to join our cutting-edge AI team at Appit Software Solutions. You will be responsible for developing innovative machine learning solutions, implementing state-of-the-art algorithms, and collaborating with cross-functional teams to deliver AI-powered products that transform industries. This role offers excellent growth opportunities and the chance to work on groundbreaking projects in computer vision, natural language processing, and predictive analytics. You will lead AI initiatives, mentor junior developers, and contribute to our AI strategy and roadmap. requirements: Bachelor's degree in Computer Science, AI, or related field; 3+ years of experience in machine learning and AI development; Strong proficiency in Python, TensorFlow, PyTorch, and scikit-learn; Experience with deep learning, computer vision, and natural language processing; Knowledge of cloud platforms (AWS, Azure, GCP) and MLOps; Strong problem-solving and analytical skills; Excellent communication and teamwork abilities; Experience with Docker, Kubernetes, and CI/CD pipelines; Knowledge of SQL, NoSQL databases, and data engineering; Understanding of software development best practices and agile methodologies requiredSkills: Python, TensorFlow, PyTorch, Scikit-learn, Pandas, NumPy, OpenCV, NLTK, spaCy, AWS SageMaker, Azure ML, Docker, Kubernetes, Git, SQL, MongoDB, REST APIs, FastAPI, Flask, React, Node.js, Linux, Bash scripting, Jupyter Notebooks, MLflow, Kubeflow benefits: Health insurance with family coverage, dental insurance, vision insurance, 401K retirement plan with company match, paid time off (25 days annually), flexible working hours, professional development budget (₹5000/year), gym membership reimbursement, free lunch and snacks, remote work options (2 days/week), annual performance bonus, stock options, health and wellness programs, team building events, conference attendance support, certification reimbursement, mentorship programs, career advancement opportunities Output the final as a polished job posting that clearly lists each field and its value in human-readable form, but do not add or remove fields. Ensure every field above is present in the output.
 `)}
                           className="text-blue-600 border-gray-300 hover:bg-blue-50"
                         >
@@ -1627,7 +1814,7 @@ export default function JobPostings() {
                   <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-2">
                       <Label htmlFor="title">
-                        Job Title *
+                        Job Title <span className="text-red-500">*</span>
                       </Label>
                       <Input
                         id="title"
@@ -1642,7 +1829,7 @@ export default function JobPostings() {
                     </div>
                     <div className="space-y-2">
                       <Label htmlFor="company">
-                        Company *
+                        Company <span className="text-red-500">*</span>
                       </Label>
                       <Input
                         id="company"
@@ -1658,7 +1845,7 @@ export default function JobPostings() {
                   </div>
                   <div className="grid grid-cols-3 gap-4">
                     <div className="space-y-2">
-                      <Label htmlFor="department">Department</Label>
+                      <Label htmlFor="department">Department <span className="text-red-500">*</span></Label>
                       <Input
                         id="department"
                         value={newJob.department || ""}
@@ -1670,7 +1857,7 @@ export default function JobPostings() {
                       {renderCharacterCount(newJob.department, 'department')}
                     </div>
                     <div className="space-y-2">
-                      <Label htmlFor="internalSPOC">Internal SPOC *</Label>
+                      <Label htmlFor="internalSPOC">Internal SPOC <span className="text-red-500">*</span></Label>
                       <Input
                         id="internalSPOC"
                         value={newJob.internalSPOC || ""}
@@ -1683,7 +1870,7 @@ export default function JobPostings() {
                       {renderCharacterCount(newJob.internalSPOC, 'internalSPOC')}
                     </div>
                     <div className="space-y-2">
-                      <Label htmlFor="recruiter">Recruiter</Label>
+                      <Label htmlFor="recruiter">Recruiter <span className="text-red-500">*</span></Label>
                       <Input
                         id="recruiter"
                         value={newJob.recruiter || ""}
@@ -1695,7 +1882,7 @@ export default function JobPostings() {
                       {renderCharacterCount(newJob.recruiter, 'recruiter')}
                     </div>
                     <div className="space-y-2">
-                      <Label htmlFor="email">Email *</Label>
+                      <Label htmlFor="email">Email <span className="text-red-500">*</span></Label>
                       <Input
                         id="email"
                         type="email"
@@ -1716,7 +1903,7 @@ export default function JobPostings() {
                   <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-2">
                       <Label htmlFor="jobType">
-                        Job Type *
+                        Job Type <span className="text-red-500">*</span>
                       </Label>
                       <Select
                         value={newJob.jobType || ""}
@@ -1736,7 +1923,7 @@ export default function JobPostings() {
                     </div>
                     <div className="space-y-2">
                       <Label htmlFor="experience">
-                        Experience Level
+                        Experience Level <span className="text-red-500">*</span>
                       </Label>
                       <Select
                         value={newJob.experience || ""}
@@ -1757,53 +1944,40 @@ export default function JobPostings() {
 
                   <div className="grid grid-cols-3 gap-4">
                     <div className="space-y-2">
-                      <Label htmlFor="country">Country *</Label>
-                      <Select
+                      <Label htmlFor="country">Country <span className="text-red-500">*</span></Label>
+                      <Input
+                        id="country"
                         value={newJob.country || ""}
-                        onValueChange={(value) => {
+                        onChange={(e) => {
+                          const value = e.target.value;
                           setNewJob({ ...newJob, country: value, city: "", location: "" })
                         }}
-                      >
-                        <SelectTrigger className={`${newJob.country ? 'bg-blue-50 border-blue-300 text-blue-900' : ''}`}>
-                          <SelectValue placeholder="Select country" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {COUNTRIES.map((country) => (
-                            <SelectItem key={country.code} value={country.code}>
-                              {country.name}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                        placeholder="Enter country name"
+                        required
+                        className={`${newJob.country ? 'bg-blue-50 border-blue-300 text-blue-900' : ''}`}
+                      />
                     </div>
                     <div className="space-y-2">
-                      <Label htmlFor="city">City *</Label>
-                      <Select
+                      <Label htmlFor="city">City <span className="text-red-500">*</span></Label>
+                      <Input
+                        id="city"
                         value={newJob.city || ""}
-                        onValueChange={(value) => {
-                          const fullLocation = `${value}, ${newJob.country ? COUNTRIES.find((c) => c.code === newJob.country)?.name : ""}`
+                        onChange={(e) => {
+                          const value = e.target.value;
+                          const fullLocation = `${value}, ${newJob.country || ""}`
                           setNewJob({
                             ...newJob,
                             city: value,
                             location: fullLocation,
                           })
                         }}
-                        disabled={!newJob.country}
-                      >
-                        <SelectTrigger className={`${newJob.city ? 'bg-indigo-50 border-indigo-300 text-indigo-900' : ''}`}>
-                          <SelectValue placeholder={newJob.country ? "Select city" : "Select country first"} />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {newJob.country && getCitiesByCountry(newJob.country).map((city) => (
-                            <SelectItem key={city} value={city}>
-                              {city}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                        placeholder="Enter city name"
+                        required
+                        className={`${newJob.city ? 'bg-indigo-50 border-indigo-300 text-indigo-900' : ''}`}
+                      />
                     </div>
                     <div className="space-y-2">
-                      <Label htmlFor="location">Full Location *</Label>
+                      <Label htmlFor="location">Full Location <span className="text-red-500">*</span></Label>
                       <Input
                         id="location"
                         value={newJob.location || ""}
@@ -1822,7 +1996,7 @@ export default function JobPostings() {
                   <h3 className="text-lg font-semibold">Work Type & Status</h3>
                   <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-2">
-                      <Label htmlFor="workType">Work Type</Label>
+                      <Label htmlFor="workType">Work Type <span className="text-red-500">*</span></Label>
                       <Select
                         value={newJob.workType || ""}
                         onValueChange={(value) => setNewJob({ ...newJob, workType: value as "ONSITE" | "REMOTE" | "HYBRID" | "" })}
@@ -1838,7 +2012,7 @@ export default function JobPostings() {
                       </Select>
                     </div>
                     <div className="space-y-2">
-                      <Label htmlFor="jobStatus">Job Status</Label>
+                      <Label htmlFor="jobStatus">Job Status <span className="text-red-500">*</span></Label>
                       <Select
                         value={newJob.jobStatus || ""}
                         onValueChange={(value) => setNewJob({ ...newJob, jobStatus: value as "ACTIVE" | "PAUSED" | "CLOSED" | "FILLED" | "" })}
@@ -1861,29 +2035,39 @@ export default function JobPostings() {
                   <h3 className="text-lg font-semibold">Salary Information</h3>
                   <div className="grid grid-cols-3 gap-4">
                     <div className="space-y-2">
-                      <Label htmlFor="salaryMin">Minimum Salary</Label>
-                      <Input
-                        id="salaryMin"
-                        type="number"
-                        value={newJob.salaryMin || ""}
-                        onChange={(e) => setNewJob({ ...newJob, salaryMin: e.target.value })}
-                        placeholder="50000"
-                        className={`${newJob.salaryMin ? 'bg-pink-50 border-pink-300 text-pink-900 placeholder-pink-700' : ''}`}
-                      />
+                      <Label htmlFor="salaryMin">Minimum Salary <span className="text-red-500">*</span></Label>
+                      <div className="relative">
+                        <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500 text-sm">
+                          {newJob.country ? getCurrencyByCountry(newJob.country).symbol : "₹"}
+                        </span>
+                        <Input
+                          id="salaryMin"
+                          type="number"
+                          value={newJob.salaryMin || ""}
+                          onChange={(e) => setNewJob({ ...newJob, salaryMin: e.target.value })}
+                          placeholder="50000"
+                          className={`${newJob.salaryMin ? 'bg-pink-50 border-pink-300 text-pink-900 placeholder-pink-700' : ''} pl-8`}
+                        />
+                      </div>
                     </div>
                     <div className="space-y-2">
-                      <Label htmlFor="salaryMax">Maximum Salary</Label>
-                      <Input
-                        id="salaryMax"
-                        type="number"
-                        value={newJob.salaryMax || ""}
-                        onChange={(e) => setNewJob({ ...newJob, salaryMax: e.target.value })}
-                        placeholder="120000"
-                        className={`${newJob.salaryMax ? 'bg-pink-50 border-pink-300 text-pink-900 placeholder-pink-700' : ''}`}
-                      />
+                      <Label htmlFor="salaryMax">Maximum Salary <span className="text-red-500">*</span></Label>
+                      <div className="relative">
+                        <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500 text-sm">
+                          {newJob.country ? getCurrencyByCountry(newJob.country).symbol : "₹"}
+                        </span>
+                        <Input
+                          id="salaryMax"
+                          type="number"
+                          value={newJob.salaryMax || ""}
+                          onChange={(e) => setNewJob({ ...newJob, salaryMax: e.target.value })}
+                          placeholder="120000"
+                          className={`${newJob.salaryMax ? 'bg-pink-50 border-pink-300 text-pink-900 placeholder-pink-700' : ''} pl-8`}
+                        />
+                      </div>
                     </div>
                     <div className="space-y-2">
-                      <Label htmlFor="priority">Priority</Label>
+                      <Label htmlFor="priority">Priority <span className="text-red-500">*</span></Label>
                       <Select
                         value={newJob.priority || ""}
                         onValueChange={(value) => setNewJob({ ...newJob, priority: value as "urgent" | "high" | "medium" | "low" | "" })}
@@ -1905,7 +2089,7 @@ export default function JobPostings() {
                 <div className="space-y-4">
                   <h3 className="text-lg font-semibold">Job Details</h3>
                   <div className="space-y-2">
-                    <Label htmlFor="description">Job Description *</Label>
+                    <Label htmlFor="description">Job Description <span className="text-red-500">*</span></Label>
                     <Textarea
                       id="description"
                       value={newJob.description || ""}
@@ -1919,7 +2103,7 @@ export default function JobPostings() {
                     {renderCharacterCount(newJob.description, 'description')}
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="requirements">Requirements (one per line)</Label>
+                    <Label htmlFor="requirements">Requirements (one per line) <span className="text-red-500">*</span></Label>
                     <Textarea
                       id="requirements"
                       value={newJob.requirements || ""}
@@ -1933,7 +2117,7 @@ export default function JobPostings() {
                   </div>
                   <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-2">
-                      <Label htmlFor="skills">Required Skills (comma-separated)</Label>
+                      <Label htmlFor="skills">Required Skills (comma-separated) <span className="text-red-500">*</span></Label>
                       <Input
                         id="skills"
                         value={newJob.skills || ""}
@@ -1945,7 +2129,7 @@ export default function JobPostings() {
                       {renderCharacterCount(newJob.skills, 'skills')}
                     </div>
                     <div className="space-y-2">
-                      <Label htmlFor="benefits">Benefits (comma-separated)</Label>
+                      <Label htmlFor="benefits">Benefits (comma-separated) <span className="text-red-500">*</span></Label>
                       <Input
                         id="benefits"
                         value={newJob.benefits || ""}
@@ -1967,19 +2151,31 @@ export default function JobPostings() {
                   Cancel
                 </Button>
                 <Button
-                  onClick={handleAddJob}
-                  className="bg-blue-600 hover:bg-blue-700"
-                  disabled={!newJob.title || !newJob.company || !newJob.country || !newJob.city || !newJob.description || isPostingJob}
+                  onClick={() => {
+                    setIsAddDialogOpen(false)
+                    setIsViewDialogOpen(true)
+                  }}
+                  disabled={!isFormComplete()}
+                  className="bg-green-600 hover:bg-green-700 disabled:bg-gray-400 disabled:cursor-not-allowed flex items-center space-x-2"
                 >
-                  {isPostingJob ? (
-                    <>
-                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                      Posting Job...
-                    </>
-                  ) : (
-                    'Create Job Posting'
-                  )}
+                  <Eye className="w-4 h-4" />
+                  <span>View & Finalize</span>
                 </Button>
+              </div>
+              
+              {/* Form completion indicator */}
+              <div className="mt-3 text-center">
+                {!isFormComplete() ? (
+                  <p className="text-sm text-amber-600 flex items-center justify-center space-x-2">
+                    <AlertCircle className="w-4 h-4" />
+                    <span>Complete all required fields to enable the View & Finalize button</span>
+                  </p>
+                ) : (
+                  <p className="text-sm text-green-600 flex items-center justify-center space-x-2">
+                    <CheckCircle className="w-4 h-4" />
+                    <span>All required fields completed! You can now review and finalize your job posting.</span>
+                  </p>
+                )}
               </div>
             </DialogContent>
           </Dialog>
@@ -2000,7 +2196,7 @@ export default function JobPostings() {
                     <h3 className="text-lg font-semibold">Basic Information</h3>
                     <div className="grid grid-cols-2 gap-4">
                       <div className="space-y-2">
-                        <Label htmlFor="edit-title">Job Title *</Label>
+                        <Label htmlFor="edit-title">Job Title <span className="text-red-500">*</span></Label>
                         <Input
                           id="edit-title"
                           value={editingJob.title}
@@ -2012,7 +2208,7 @@ export default function JobPostings() {
                         {renderCharacterCount(editingJob.title, 'title')}
                       </div>
                       <div className="space-y-2">
-                        <Label htmlFor="edit-company">Company *</Label>
+                        <Label htmlFor="edit-company">Company <span className="text-red-500">*</span></Label>
                         <Input
                           id="edit-company"
                           value={editingJob.company}
@@ -2026,7 +2222,7 @@ export default function JobPostings() {
                     </div>
                     <div className="grid grid-cols-3 gap-4">
                       <div className="space-y-2">
-                        <Label htmlFor="edit-department">Department</Label>
+                        <Label htmlFor="edit-department">Department <span className="text-red-500">*</span></Label>
                         <Input
                           id="edit-department"
                           value={editingJob.department}
@@ -2037,7 +2233,7 @@ export default function JobPostings() {
                         {renderCharacterCount(editingJob.department, 'department')}
                       </div>
                       <div className="space-y-2">
-                        <Label htmlFor="edit-internalSPOC">Internal SPOC *</Label>
+                        <Label htmlFor="edit-internalSPOC">Internal SPOC <span className="text-red-500">*</span></Label>
                         <Input
                           id="edit-internalSPOC"
                           value={editingJob.internalSPOC}
@@ -2049,7 +2245,7 @@ export default function JobPostings() {
                         {renderCharacterCount(editingJob.internalSPOC, 'internalSPOC')}
                       </div>
                       <div className="space-y-2">
-                        <Label htmlFor="edit-recruiter">Recruiter</Label>
+                        <Label htmlFor="edit-recruiter">Recruiter <span className="text-red-500">*</span></Label>
                         <Input
                           id="edit-recruiter"
                           value={editingJob.recruiter}
@@ -2060,7 +2256,7 @@ export default function JobPostings() {
                         {renderCharacterCount(editingJob.recruiter, 'recruiter')}
                       </div>
                       <div className="space-y-2">
-                        <Label htmlFor="edit-email">Email *</Label>
+                        <Label htmlFor="edit-email">Email <span className="text-red-500">*</span></Label>
                         <Input
                           id="edit-email"
                           type="email"
@@ -2079,7 +2275,7 @@ export default function JobPostings() {
                     <h3 className="text-lg font-semibold">Job Type & Location</h3>
                     <div className="grid grid-cols-2 gap-4">
                       <div className="space-y-2">
-                        <Label htmlFor="edit-jobType">Job Type *</Label>
+                        <Label htmlFor="edit-jobType">Job Type <span className="text-red-500">*</span></Label>
                         <Select
                           value={editingJob.jobType}
                           onValueChange={(value) => setEditingJob({ ...editingJob, jobType: value as JobType })}
@@ -2097,7 +2293,7 @@ export default function JobPostings() {
                         </Select>
                       </div>
                       <div className="space-y-2">
-                        <Label htmlFor="edit-experience">Experience Level</Label>
+                        <Label htmlFor="edit-experience">Experience Level <span className="text-red-500">*</span></Label>
                         <Select
                           value={editingJob.experience}
                           onValueChange={(value) => setEditingJob({ ...editingJob, experience: value })}
@@ -2117,53 +2313,38 @@ export default function JobPostings() {
 
                     <div className="grid grid-cols-3 gap-4">
                       <div className="space-y-2">
-                        <Label htmlFor="edit-country">Country *</Label>
-                        <Select
+                        <Label htmlFor="edit-country">Country <span className="text-red-500">*</span></Label>
+                        <Input
+                          id="edit-country"
                           value={editingJob.country}
-                          onValueChange={(value) => {
+                          onChange={(e) => {
+                            const value = e.target.value;
                             setEditingJob({ ...editingJob, country: value, city: "", location: "" })
                           }}
-                        >
-                          <SelectTrigger>
-                            <SelectValue placeholder="Select country" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {COUNTRIES.map((country) => (
-                              <SelectItem key={country.code} value={country.code}>
-                                {country.name}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
+                          placeholder="Enter country name"
+                          required
+                        />
                       </div>
                       <div className="space-y-2">
-                        <Label htmlFor="edit-city">City *</Label>
-                        <Select
+                        <Label htmlFor="edit-city">City <span className="text-red-500">*</span></Label>
+                        <Input
+                          id="edit-city"
                           value={editingJob.city}
-                          onValueChange={(value) => {
-                            const fullLocation = `${value}, ${editingJob.country ? COUNTRIES.find((c) => c.code === editingJob.country)?.name : ""}`
+                          onChange={(e) => {
+                            const value = e.target.value;
+                            const fullLocation = `${value}, ${editingJob.country || ""}`
                             setEditingJob({
                               ...editingJob,
                               city: value,
                               location: fullLocation,
                             })
                           }}
-                          disabled={!editingJob.country}
-                        >
-                          <SelectTrigger>
-                            <SelectValue placeholder={editingJob.country ? "Select city" : "Select country first"} />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {editingJob.country && getCitiesByCountry(editingJob.country).map((city) => (
-                              <SelectItem key={city} value={city}>
-                                {city}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
+                          placeholder="Enter city name"
+                          required
+                        />
                       </div>
                       <div className="space-y-2">
-                        <Label htmlFor="edit-location">Full Location *</Label>
+                        <Label htmlFor="edit-location">Full Location <span className="text-red-500">*</span></Label>
                         <Input
                           id="edit-location"
                           value={editingJob.location}
@@ -2180,7 +2361,7 @@ export default function JobPostings() {
                     <h3 className="text-lg font-semibold">Work Type & Status</h3>
                     <div className="grid grid-cols-2 gap-4">
                       <div className="space-y-2">
-                        <Label htmlFor="edit-workType">Work Type</Label>
+                        <Label htmlFor="edit-workType">Work Type <span className="text-red-500">*</span></Label>
                         <Select
                           value={editingJob.workType}
                           onValueChange={(value) => setEditingJob({ ...editingJob, workType: value as "ONSITE" | "REMOTE" | "HYBRID" })}
@@ -2196,7 +2377,7 @@ export default function JobPostings() {
                         </Select>
                       </div>
                       <div className="space-y-2">
-                        <Label htmlFor="edit-jobStatus">Job Status</Label>
+                        <Label htmlFor="edit-jobStatus">Job Status <span className="text-red-500">*</span></Label>
                         <Select
                           value={editingJob.jobStatus}
                           onValueChange={(value) => setEditingJob({ ...editingJob, jobStatus: value as "ACTIVE" | "PAUSED" | "CLOSED" | "FILLED" })}
@@ -2219,27 +2400,39 @@ export default function JobPostings() {
                     <h3 className="text-lg font-semibold">Salary Information</h3>
                     <div className="grid grid-cols-3 gap-4">
                       <div className="space-y-2">
-                        <Label htmlFor="edit-salaryMin">Minimum Salary</Label>
-                        <Input
-                          id="edit-salaryMin"
-                          type="number"
-                          value={editingJob.salaryMin}
-                          onChange={(e) => setEditingJob({ ...editingJob, salaryMin: Number(e.target.value) })}
-                          placeholder="50000"
-                        />
+                        <Label htmlFor="edit-salaryMin">Minimum Salary <span className="text-red-500">*</span></Label>
+                        <div className="relative">
+                          <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500 text-sm">
+                            {editingJob.country ? getCurrencyByCountry(editingJob.country).symbol : "₹"}
+                          </span>
+                          <Input
+                            id="edit-salaryMin"
+                            type="number"
+                            value={editingJob.salaryMin}
+                            onChange={(e) => setEditingJob({ ...editingJob, salaryMin: Number(e.target.value) })}
+                            placeholder="50000"
+                            className="pl-8"
+                          />
+                        </div>
                       </div>
                       <div className="space-y-2">
-                        <Label htmlFor="edit-salaryMax">Maximum Salary</Label>
-                        <Input
-                          id="edit-salaryMax"
-                          type="number"
-                          value={editingJob.salaryMax}
-                          onChange={(e) => setEditingJob({ ...editingJob, salaryMax: Number(e.target.value) })}
-                          placeholder="120000"
-                        />
+                        <Label htmlFor="edit-salaryMax">Maximum Salary <span className="text-red-500">*</span></Label>
+                        <div className="relative">
+                          <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500 text-sm">
+                            {editingJob.country ? getCurrencyByCountry(editingJob.country).symbol : "₹"}
+                          </span>
+                          <Input
+                            id="edit-salaryMax"
+                            type="number"
+                            value={editingJob.salaryMax}
+                            onChange={(e) => setEditingJob({ ...editingJob, salaryMax: Number(e.target.value) })}
+                            placeholder="120000"
+                            className="pl-8"
+                          />
+                        </div>
                       </div>
                       <div className="space-y-2">
-                        <Label htmlFor="edit-priority">Priority</Label>
+                        <Label htmlFor="edit-priority">Priority <span className="text-red-500">*</span></Label>
                         <Select
                           value={editingJob.priority}
                           onValueChange={(value) => setEditingJob({ ...editingJob, priority: value as "urgent" | "high" | "medium" | "low" })}
@@ -2261,7 +2454,7 @@ export default function JobPostings() {
                   <div className="space-y-4">
                     <h3 className="text-lg font-semibold">Job Details</h3>
                     <div className="space-y-2">
-                      <Label htmlFor="edit-description">Job Description *</Label>
+                      <Label htmlFor="edit-description">Job Description <span className="text-red-500">*</span></Label>
                       <Textarea
                         id="edit-description"
                         value={editingJob.description}
@@ -2273,7 +2466,7 @@ export default function JobPostings() {
                       {renderCharacterCount(editingJob.description, 'description')}
                     </div>
                     <div className="space-y-2">
-                      <Label htmlFor="edit-requirements">Requirements (one per line)</Label>
+                      <Label htmlFor="edit-requirements">Requirements (one per line) <span className="text-red-500">*</span></Label>
                       <Textarea
                         id="edit-requirements"
                         value={editingJob.requirements.join('\n')}
@@ -2285,7 +2478,7 @@ export default function JobPostings() {
                     </div>
                     <div className="grid grid-cols-2 gap-4">
                       <div className="space-y-2">
-                        <Label htmlFor="edit-skills">Required Skills (comma-separated)</Label>
+                        <Label htmlFor="edit-skills">Required Skills (comma-separated) <span className="text-red-500">*</span></Label>
                         <Input
                           id="edit-skills"
                           value={editingJob.skills.join(', ')}
@@ -2295,7 +2488,7 @@ export default function JobPostings() {
                         {renderCharacterCount(editingJob.skills.join(', '), 'skills')}
                       </div>
                       <div className="space-y-2">
-                        <Label htmlFor="edit-benefits">Benefits (comma-separated)</Label>
+                        <Label htmlFor="edit-benefits">Benefits (comma-separated) <span className="text-red-500">*</span></Label>
                         <Input
                           id="edit-benefits"
                           value={editingJob.benefits.join(', ')}
@@ -2331,6 +2524,16 @@ export default function JobPostings() {
           </Dialog>
         </div>
       </div>
+
+      {/* View & Finalize Job Posting Dialog */}
+      <ViewFinalizeJobPosting
+        isOpen={isViewDialogOpen}
+        onClose={() => setIsViewDialogOpen(false)}
+        onBack={handleBackFromView}
+        onFinalize={handleFinalizeJob}
+        jobData={newJob}
+        isFinalizing={isPostingJob}
+      />
 
       <Card>
         <CardHeader>
@@ -2370,6 +2573,120 @@ export default function JobPostings() {
           </Tabs>
         </CardContent>
       </Card>
+
+      {/* Custom Delete Confirmation Dialog */}
+      <Dialog open={showDeleteConfirm} onOpenChange={setShowDeleteConfirm}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center space-x-2">
+              <AlertCircle className="w-6 h-6 text-red-500" />
+              <span>Confirm Deletion</span>
+            </DialogTitle>
+            <DialogDescription>
+              Are you sure you want to delete this job posting? This action cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          
+          {jobToDelete && (
+            <div className="space-y-4">
+              <div className="p-4 bg-red-50 border border-red-200 rounded-lg">
+                <h4 className="font-semibold text-red-800">{jobToDelete.title}</h4>
+                <p className="text-sm text-red-600">{jobToDelete.company}</p>
+                <p className="text-sm text-red-600">{jobToDelete.location}</p>
+              </div>
+              
+              <div className="flex justify-end space-x-2">
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    setShowDeleteConfirm(false)
+                    setJobToDelete(null)
+                  }}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  variant="destructive"
+                  onClick={confirmDeleteJob}
+                  disabled={isDeletingJob}
+                >
+                  {isDeletingJob ? (
+                    <>
+                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                      Deleting...
+                    </>
+                  ) : (
+                    <>
+                      <Trash2 className="w-4 h-4 mr-2" />
+                      Delete Job
+                    </>
+                  )}
+                </Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Custom Copy Success Popup */}
+      {showCopySuccess && (
+        <div className="fixed bottom-4 right-4 z-50">
+          <div className="bg-green-500 text-white px-6 py-4 rounded-lg shadow-lg border border-green-400 animate-in slide-in-from-bottom-2 duration-300">
+            <div className="flex items-center space-x-3">
+              <CheckCircle className="w-5 h-5 text-green-100" />
+              <div>
+                <h4 className="font-semibold">Link Copied!</h4>
+                <p className="text-sm text-green-100">Job application link copied to clipboard</p>
+                <p className="text-xs text-green-200 mt-1 break-all max-w-xs">
+                  {copiedLink}
+                </p>
+              </div>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setShowCopySuccess(false)}
+                className="text-green-100 hover:text-white hover:bg-green-600 ml-2"
+              >
+                <X className="w-4 h-4" />
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Custom Dropdown Change Notification Popup */}
+      {showDropdownNotification && dropdownNotificationData && (
+        <div className="fixed bottom-4 left-4 z-50">
+          <div className="bg-blue-500 text-white px-6 py-4 rounded-lg shadow-lg border border-blue-400 animate-in slide-in-from-bottom-2 duration-300 max-w-md">
+            <div className="flex items-center space-x-3">
+              <div className="flex-shrink-0">
+                <div className="w-8 h-8 bg-blue-400 rounded-full flex items-center justify-center">
+                  <CheckCircle className="w-5 h-5 text-white" />
+                </div>
+              </div>
+              <div className="flex-1 min-w-0">
+                <h4 className="font-semibold text-sm">Field Updated!</h4>
+                <p className="text-xs text-blue-100 mt-1">
+                  <span className="font-medium">{dropdownNotificationData.field}</span> changed from{' '}
+                  <span className="font-medium text-blue-200">{dropdownNotificationData.oldValue}</span> to{' '}
+                  <span className="font-medium text-blue-200">{dropdownNotificationData.newValue}</span>
+                </p>
+                <p className="text-xs text-blue-200 mt-1 truncate">
+                  Job: {dropdownNotificationData.jobTitle}
+                </p>
+              </div>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setShowDropdownNotification(false)}
+                className="text-blue-100 hover:text-white hover:bg-blue-600 ml-2 flex-shrink-0"
+              >
+                <X className="w-4 h-4" />
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

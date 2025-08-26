@@ -15,7 +15,7 @@ import { Checkbox } from "@/components/ui/checkbox"
 import {
   Building2,
   MapPin,
-  DollarSign,
+  IndianRupee,
   Clock,
   Upload,
   FileText,
@@ -968,7 +968,7 @@ export default function ApplyJobPage() {
                 </div>
                 <div className="flex items-center space-x-4 text-sm text-gray-600">
                   <div className="flex items-center space-x-1">
-                    <DollarSign className="w-4 h-4" />
+                    <IndianRupee className="w-4 h-4" />
                     <span>
                       {formatSalary(job.salaryMin, job.jobType, job.country, true, job.salaryMin)} -{" "}
                       {formatSalary(job.salaryMax, job.jobType, job.country)}

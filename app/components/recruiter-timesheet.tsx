@@ -12,7 +12,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { CalendarIcon, FilterIcon, SearchIcon, ClockIcon, UserIcon, BuildingIcon, DollarSignIcon, PaperclipIcon, CheckCircleIcon, Trash2Icon, EditIcon, EyeIcon, UploadIcon, PlusIcon, FileSpreadsheetIcon } from "lucide-react";
+import { CalendarIcon, FilterIcon, SearchIcon, ClockIcon, UserIcon, BuildingIcon, IndianRupeeIcon, PaperclipIcon, CheckCircleIcon, Trash2Icon, EditIcon, EyeIcon, UploadIcon, PlusIcon, FileSpreadsheetIcon } from "lucide-react";
 import { format } from "date-fns";
 import BASE_API_URL from '../../BaseUrlApi.js';
 
@@ -1249,7 +1249,7 @@ const RecruiterTimesheet = () => {
           <CardContent className="p-4">
             <div className="flex items-center space-x-3">
               <div className="p-2 bg-purple-500 rounded-lg">
-                <DollarSignIcon className="h-6 w-6 text-white" />
+                <IndianRupeeIcon className="h-6 w-6 text-white" />
               </div>
               <div>
                 <p className="text-sm font-medium text-purple-700">Billable Hours</p>

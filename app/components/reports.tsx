@@ -15,7 +15,7 @@ import {
   TrendingDown,
   Users,
   Briefcase,
-  DollarSign,
+  IndianRupee,
   Clock,
   Calendar,
   Target,

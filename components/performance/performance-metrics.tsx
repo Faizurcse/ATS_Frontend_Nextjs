@@ -7,7 +7,7 @@ import {
   Users,
   Calendar,
   CheckCircle,
-  DollarSign,
+  IndianRupee,
   Clock,
   TrendingUp,
   Star,
@@ -66,7 +66,7 @@ export function KPIGrid({ metrics }: KPIGridProps) {
     {
       title: "Revenue Generated",
       value: metrics.totalRevenue,
-      icon: <DollarSign className="w-4 h-4 text-green-600" />,
+      icon: <IndianRupee className="w-4 h-4 text-green-600" />,
       color: "text-green-600",
       target: metrics.targetRevenue,
       unit: "$",

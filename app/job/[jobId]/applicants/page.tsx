@@ -13,7 +13,7 @@ import {
   Phone,
   Mail,
   MapPin,
-  DollarSign,
+  IndianRupee,
   Calendar,
   User,
   MessageCircle,
@@ -270,7 +270,7 @@ export default function JobApplicantsPage() {
                     <span>{jobPosting.location}</span>
                   </div>
                   <div className="flex items-center space-x-2 mt-1 text-blue-600">
-                    <DollarSign className="w-4 h-4" />
+                    <IndianRupee className="w-4 h-4" />
                     <span>
                       {formatSalary(jobPosting.salaryMin, jobPosting.jobType as any, jobPosting.country, true)} -
                       {formatSalary(jobPosting.salaryMax, jobPosting.jobType as any, jobPosting.country)}
@@ -400,7 +400,7 @@ export default function JobApplicantsPage() {
                   <div className="grid grid-cols-2 gap-4 mb-4 text-sm">
                     <div>
                       <div className="flex items-center space-x-1 text-gray-600 mb-1">
-                        <DollarSign className="w-3 h-3" />
+                        <IndianRupee className="w-3 h-3" />
                         <span>Current</span>
                       </div>
                       <div className="font-medium">

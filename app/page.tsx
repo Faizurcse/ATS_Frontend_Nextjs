@@ -35,7 +35,7 @@ import {
   Database,
   Rocket,
   Activity,
-  DollarSign,
+  IndianRupee,
   LogOut,
 } from "lucide-react"
 

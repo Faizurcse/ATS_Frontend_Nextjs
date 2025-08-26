@@ -18,7 +18,7 @@ import {
 } from "@/components/ui/dropdown-menu"
 import {
   Clock,
-  DollarSign,
+  IndianRupee,
   MapPin,
   Mail,
   Calendar,
@@ -914,8 +914,11 @@ export default function PipelineView() {
               {/* Salary and Experience */}
               <div className="space-y-1 text-xs text-gray-600">
                 <div className="flex items-center space-x-1">
-                  <DollarSign className="w-3 h-3" />
-                  <span>${candidate.expectedSalary.toLocaleString()}</span>
+                  <span>{candidate.expectedSalary.toLocaleString("en-IN", {
+                    style: "currency",
+                    currency: "INR",
+                    minimumFractionDigits: 0,
+                  })}</span>
                 </div>
                 <div className="flex items-center space-x-1">
                   <Award className="w-3 h-3" />

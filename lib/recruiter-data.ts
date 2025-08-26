@@ -134,7 +134,7 @@ export const MOCK_JOBS: Job[] = [
     type: "full-time",
     status: "open",
     priority: "high",
-    salary: { min: 120000, max: 180000, currency: "USD" },
+    salary: { min: 120000, max: 180000, currency: "INR" },
     description: "We are looking for a Senior Software Engineer to join our growing team...",
     requirements: [
       "5+ years of software development experience",
@@ -160,7 +160,7 @@ export const MOCK_JOBS: Job[] = [
     type: "full-time",
     status: "open",
     priority: "medium",
-    salary: { min: 80000, max: 120000, currency: "USD" },
+    salary: { min: 80000, max: 120000, currency: "INR" },
     description: "Join our dynamic marketing team as a Marketing Manager...",
     requirements: [
       "3+ years of marketing experience",
@@ -186,7 +186,7 @@ export const MOCK_JOBS: Job[] = [
     type: "full-time",
     status: "filled",
     priority: "urgent",
-    salary: { min: 100000, max: 150000, currency: "USD" },
+    salary: { min: 100000, max: 150000, currency: "INR" },
     description: "We're seeking a talented Data Scientist to join our analytics team...",
     requirements: [
       "PhD or Master's in Data Science, Statistics, or related field",
@@ -212,7 +212,7 @@ export const MOCK_JOBS: Job[] = [
     type: "full-time",
     status: "open",
     priority: "high",
-    salary: { min: 90000, max: 140000, currency: "USD" },
+    salary: { min: 90000, max: 140000, currency: "INR" },
     description: "Looking for a Frontend Engineer to build amazing user experiences...",
     requirements: [
       "3+ years of frontend development experience",
@@ -238,7 +238,7 @@ export const MOCK_JOBS: Job[] = [
     type: "full-time",
     status: "filled",
     priority: "medium",
-    salary: { min: 110000, max: 160000, currency: "USD" },
+    salary: { min: 110000, max: 160000, currency: "INR" },
     description: "Seeking an experienced Product Manager to drive product strategy...",
     requirements: [
       "5+ years of product management experience",
@@ -633,7 +633,7 @@ export const formatCurrency = (amount: number): string => {
   try {
     return new Intl.NumberFormat("en-US", {
       style: "currency",
-      currency: "USD",
+      currency: "INR",
       minimumFractionDigits: 0,
       maximumFractionDigits: 0,
     }).format(amount || 0)

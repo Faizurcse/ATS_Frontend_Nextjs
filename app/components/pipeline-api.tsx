@@ -14,7 +14,7 @@ import {
 } from "@/components/ui/dropdown-menu"
 import {
   Clock,
-  DollarSign,
+  IndianRupee,
   MapPin,
   Mail,
   Search,
@@ -253,7 +253,7 @@ export default function PipelineAPI() {
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('en-US', {
       style: 'currency',
-      currency: 'USD',
+              currency: 'INR',
       minimumFractionDigits: 0,
       maximumFractionDigits: 0,
     }).format(amount)
@@ -541,7 +541,6 @@ export default function PipelineAPI() {
                                   <span>{candidate.currentLocation}</span>
                                 </div>
                                 <div className="flex items-center space-x-2 text-gray-600">
-                                  <DollarSign className="w-3 h-3 text-green-500 flex-shrink-0" />
                                   <span>Expected Salary: {formatCurrency(candidate.salaryExpectation)}</span>
                                 </div>
                                 <div className="flex items-center space-x-2 text-gray-600">

@@ -47,7 +47,7 @@ export default function RecruiterJobs({ recruiterId }: RecruiterJobsProps) {
     if (!salary || typeof salary.min !== "number" || typeof salary.max !== "number") {
       return "Salary not specified"
     }
-    return `$${salary.min.toLocaleString()} - $${salary.max.toLocaleString()}`
+    return `₹${salary.min.toLocaleString()} - ₹${salary.max.toLocaleString()}`
   }
 
   const getPriorityColor = (priority: string | undefined) => {

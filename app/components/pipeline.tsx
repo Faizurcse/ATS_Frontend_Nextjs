@@ -17,7 +17,7 @@ import {
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import {
   Clock,
-  DollarSign,
+  IndianRupee,
   MapPin,
   Mail,
   User,
@@ -615,9 +615,9 @@ export default function Pipeline() {
                   <div className="text-xs text-gray-500">
                     {stageCandidates
                       .reduce((sum, c) => sum + c.expectedSalary, 0)
-                      .toLocaleString("en-US", {
+                      .toLocaleString("en-IN", {
                         style: "currency",
-                        currency: "USD",
+                        currency: "INR",
                         minimumFractionDigits: 0,
                       })}
                   </div>
@@ -722,11 +722,10 @@ export default function Pipeline() {
                               <span>{candidate.currentLocation}</span>
                             </div>
                             <div className="flex items-center space-x-1">
-                              <DollarSign className="w-3 h-3" />
                               <span>
-                                {candidate.expectedSalary.toLocaleString("en-US", {
+                                {candidate.expectedSalary.toLocaleString("en-IN", {
                                   style: "currency",
-                                  currency: "USD",
+                                  currency: "INR",
                                   minimumFractionDigits: 0,
                                 })}
                               </span>

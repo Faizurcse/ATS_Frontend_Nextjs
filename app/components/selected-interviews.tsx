@@ -12,7 +12,7 @@ import {
   RefreshCw,
   Mail,
   Building,
-  DollarSign,
+  IndianRupee,
   Briefcase,
   GraduationCap,
   Phone as PhoneIcon,
@@ -96,7 +96,7 @@ export default function SelectedInterviews() {
   const formatSalary = (salary: number) => {
     return new Intl.NumberFormat("en-US", {
       style: "currency",
-      currency: "USD",
+              currency: "INR",
       minimumFractionDigits: 0,
       maximumFractionDigits: 0,
     }).format(salary)
@@ -223,7 +223,7 @@ export default function SelectedInterviews() {
                 </p>
               </div>
               <div className="p-3 bg-indigo-100 rounded-full">
-                <DollarSign className="w-8 h-8 text-indigo-600" />
+                <IndianRupee className="w-8 h-8 text-indigo-600" />
               </div>
             </div>
           </CardContent>

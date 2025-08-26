@@ -36,7 +36,7 @@ import {
   Users,
   Calendar,
   MapPin,
-  DollarSign,
+  IndianRupee,
   Building2,
   Clock,
   TrendingUp,
@@ -299,7 +299,7 @@ export default function MyJobs() {
   const formatSalary = (amount: number) => {
     return new Intl.NumberFormat('en-US', {
       style: 'currency',
-      currency: 'USD',
+              currency: 'INR',
       minimumFractionDigits: 0,
       maximumFractionDigits: 0,
     }).format(amount)
@@ -575,8 +575,7 @@ export default function MyJobs() {
                           </div>
                           <div className="flex items-center gap-6 text-sm text-gray-600">
                             <span className="flex items-center gap-2">
-                              <DollarSign className="h-4 w-4 text-green-600" />
-                              <span className="font-medium">{formatSalary(job.salaryMin)} - {formatSalary(job.salaryMax)}</span>
+                              <span className="font-medium">₹{job.salaryMin.toLocaleString()} - ₹{job.salaryMax.toLocaleString()}/year</span>
                             </span>
                             <span className="flex items-center gap-2">
                               <Calendar className="h-4 w-4 text-blue-600" />
@@ -762,9 +761,8 @@ export default function MyJobs() {
                         <span className="font-medium text-gray-900">{selectedJob.fullLocation}</span>
                       </div>
                       <div className="flex items-center gap-3 p-4 bg-white rounded-xl border border-gray-200">
-                        <DollarSign className="h-5 w-5 text-green-600" />
                         <span className="font-medium text-gray-900">
-                          {formatSalary(selectedJob.salaryMin)} - {formatSalary(selectedJob.salaryMax)}
+                          ₹{selectedJob.salaryMin.toLocaleString()} - ₹{selectedJob.salaryMax.toLocaleString()}/year
                         </span>
                       </div>
                       <div className="flex items-center gap-3 p-4 bg-white rounded-xl border border-gray-200">

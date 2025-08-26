@@ -12,7 +12,7 @@ import {
   MoreHorizontal,
   MapPin,
   Globe,
-  DollarSign,
+  IndianRupee,
   Calendar,
   Users,
   TrendingUp,
@@ -822,7 +822,7 @@ export default function CustomerManagement() {
                            <TableCell className="whitespace-nowrap">
                              {customer.annualRevenue ? (
                                <div className="flex items-center gap-1.5 text-slate-700">
-                                 <DollarSign className="w-3.5 h-3.5 flex-shrink-0" />
+                                 <IndianRupee className="w-3.5 h-3.5 flex-shrink-0" />
                                  <span className="font-medium truncate">{customer.annualRevenue}</span>
                                </div>
                              ) : (
@@ -1129,7 +1129,7 @@ function CustomerForm({
       <div className="space-y-6">
         <div className="flex items-center gap-3">
           <div className="p-2 bg-green-100 rounded-lg">
-            <DollarSign className="w-5 h-5 text-green-600" />
+            <IndianRupee className="w-5 h-5 text-green-600" />
           </div>
           <h3 className="text-lg font-semibold text-slate-900">Financial Information</h3>
         </div>
@@ -1140,7 +1140,7 @@ function CustomerForm({
             <Input
               value={formData.annualRevenue}
               onChange={(e) => handleInputChange('annualRevenue', e.target.value, (value) => setFormData({ ...formData, annualRevenue: value }))}
-              placeholder="e.g., $1M-$10M"
+                                  placeholder="e.g., ₹1M-₹10M"
               className="h-12 border-slate-200 focus:border-blue-500 focus:ring-blue-500"
               maxLength={characterLimits.annualRevenue}
             />
