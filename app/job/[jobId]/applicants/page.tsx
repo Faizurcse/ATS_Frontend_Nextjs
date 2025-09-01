@@ -1,7 +1,7 @@
 "use client"
 
 import { useState } from "react"
-import { useParams } from "next/navigation"
+import { useParams, useRouter } from "next/navigation"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -13,15 +13,11 @@ import {
   Phone,
   Mail,
   MapPin,
-  IndianRupee,
+  DollarSign,
   Calendar,
   User,
   MessageCircle,
   Brain,
-  CheckCircle,
-  AlertTriangle,
-  ThumbsUp,
-  ThumbsDown,
   Building2,
   Target,
 } from "lucide-react"
@@ -165,6 +161,272 @@ const mockCandidates = [
       analysisDate: new Date(),
     },
   },
+  {
+    id: "4",
+    name: "Emily Davis",
+    email: "emily.davis@email.com",
+    phone: "+1-555-0126",
+    currentSalary: 80000,
+    expectedSalary: 110000,
+    noticePeriod: "3 weeks",
+    currentLocation: "Austin, TX",
+    country: "US",
+    city: "Austin",
+    skills: ["React", "Vue.js", "Node.js", "MongoDB"],
+    experience: "6 years",
+    status: "interview-1",
+    appliedDate: "2024-01-12",
+    jobId: "1",
+    jobTitle: "Senior Software Engineer",
+    jobType: "full-time",
+    customerName: "TechCorp Inc.",
+    internalSPOC: "Sarah Wilson",
+    recruiterName: "Sarah Wilson",
+    source: "indeed",
+    comments: "Strong full-stack developer with good team collaboration skills.",
+    aiScore: 81,
+    aiVerdict: "recommended",
+    aiAnalysis: {
+      overallScore: 81,
+      skillsMatch: 85,
+      experienceMatch: 88,
+      culturalFit: 86,
+      verdict: "recommended" as const,
+      reasoning: "Solid technical background with good experience level.",
+      confidence: 87,
+      strengths: ["Full-stack development", "Team collaboration", "Good experience"],
+      weaknesses: ["Limited TypeScript exposure", "Could use more cloud experience"],
+      analysisDate: new Date(),
+    },
+  },
+  {
+    id: "5",
+    name: "David Wilson",
+    email: "david.wilson@email.com",
+    phone: "+1-555-0127",
+    currentSalary: 90000,
+    expectedSalary: 130000,
+    noticePeriod: "1 month",
+    currentLocation: "Seattle, WA",
+    country: "US",
+    city: "Seattle",
+    skills: ["React", "Angular", "Java", "Spring Boot"],
+    experience: "8 years",
+    status: "phone-screen",
+    appliedDate: "2024-01-13",
+    jobId: "1",
+    jobTitle: "Senior Software Engineer",
+    jobType: "full-time",
+    customerName: "TechCorp Inc.",
+    internalSPOC: "Sarah Wilson",
+    recruiterName: "Sarah Wilson",
+    source: "linkedin",
+    comments: "Experienced developer with strong Java background.",
+    aiScore: 76,
+    aiVerdict: "consider",
+    aiAnalysis: {
+      overallScore: 76,
+      skillsMatch: 72,
+      experienceMatch: 90,
+      culturalFit: 78,
+      verdict: "consider" as const,
+      reasoning: "Good experience but skills don't fully align with React/Node.js focus.",
+      confidence: 80,
+      strengths: ["Strong Java experience", "Good senior level", "Solid background"],
+      weaknesses: ["Limited React/Node.js experience", "Different tech stack focus"],
+      analysisDate: new Date(),
+    },
+  },
+  {
+    id: "6",
+    name: "Lisa Brown",
+    email: "lisa.brown@email.com",
+    phone: "+1-555-0128",
+    currentSalary: 85000,
+    expectedSalary: 115000,
+    noticePeriod: "2 weeks",
+    currentLocation: "Denver, CO",
+    country: "US",
+    city: "Denver",
+    skills: ["React", "TypeScript", "Node.js", "PostgreSQL"],
+    experience: "5 years",
+    status: "new",
+    appliedDate: "2024-01-16",
+    jobId: "1",
+    jobTitle: "Senior Software Engineer",
+    jobType: "full-time",
+    customerName: "TechCorp Inc.",
+    internalSPOC: "Sarah Wilson",
+    recruiterName: "Sarah Wilson",
+    source: "company-website",
+    comments: "Good technical skills, looking for growth opportunities.",
+    aiScore: 84,
+    aiVerdict: "recommended",
+    aiAnalysis: {
+      overallScore: 84,
+      skillsMatch: 89,
+      experienceMatch: 82,
+      culturalFit: 85,
+      verdict: "recommended" as const,
+      reasoning: "Strong technical alignment with good potential for growth.",
+      confidence: 86,
+      strengths: ["Excellent React/TypeScript skills", "Good database knowledge", "Growth mindset"],
+      weaknesses: ["Could use more cloud experience", "Limited leadership experience"],
+      analysisDate: new Date(),
+    },
+  },
+  {
+    id: "7",
+    name: "Robert Taylor",
+    email: "robert.taylor@email.com",
+    phone: "+1-555-0129",
+    currentSalary: 95000,
+    expectedSalary: 135000,
+    noticePeriod: "1 month",
+    currentLocation: "Chicago, IL",
+    country: "US",
+    city: "Chicago",
+    skills: ["React", "Node.js", "AWS", "Docker"],
+    experience: "9 years",
+    status: "screening",
+    appliedDate: "2024-01-11",
+    jobId: "1",
+    jobTitle: "Senior Software Engineer",
+    jobType: "full-time",
+    customerName: "TechCorp Inc.",
+    internalSPOC: "Sarah Wilson",
+    recruiterName: "Sarah Wilson",
+    source: "referral",
+    comments: "Senior developer with strong cloud and DevOps experience.",
+    aiScore: 89,
+    aiVerdict: "recommended",
+    aiAnalysis: {
+      overallScore: 89,
+      skillsMatch: 91,
+      experienceMatch: 94,
+      culturalFit: 83,
+      verdict: "recommended" as const,
+      reasoning: "Excellent technical skills with strong cloud experience.",
+      confidence: 90,
+      strengths: ["Strong cloud/DevOps skills", "Excellent experience", "Good technical depth"],
+      weaknesses: ["Could improve communication skills", "Salary expectations high"],
+      analysisDate: new Date(),
+    },
+  },
+  {
+    id: "8",
+    name: "Jennifer Lee",
+    email: "jennifer.lee@email.com",
+    phone: "+1-555-0130",
+    currentSalary: 78000,
+    expectedSalary: 105000,
+    noticePeriod: "2 weeks",
+    currentLocation: "Portland, OR",
+    country: "US",
+    city: "Portland",
+    skills: ["React", "JavaScript", "CSS", "HTML"],
+    experience: "4 years",
+    status: "new",
+    appliedDate: "2024-01-17",
+    jobId: "1",
+    jobTitle: "Senior Software Engineer",
+    jobType: "full-time",
+    customerName: "TechCorp Inc.",
+    internalSPOC: "Sarah Wilson",
+    recruiterName: "Sarah Wilson",
+    source: "indeed",
+    comments: "Frontend focused developer with good UI/UX skills.",
+    aiScore: 68,
+    aiVerdict: "consider",
+    aiAnalysis: {
+      overallScore: 68,
+      skillsMatch: 75,
+      experienceMatch: 65,
+      culturalFit: 82,
+      verdict: "consider" as const,
+      reasoning: "Good frontend skills but needs more backend and senior-level experience.",
+      confidence: 75,
+      strengths: ["Strong frontend skills", "Good UI/UX focus", "Quick learner"],
+      weaknesses: ["Limited backend experience", "Below senior level", "Needs TypeScript"],
+      analysisDate: new Date(),
+    },
+  },
+  {
+    id: "9",
+    name: "Michael Garcia",
+    email: "michael.garcia@email.com",
+    phone: "+1-555-0131",
+    currentSalary: 92000,
+    expectedSalary: 125000,
+    noticePeriod: "3 weeks",
+    currentLocation: "Miami, FL",
+    country: "US",
+    city: "Miami",
+    skills: ["React", "Node.js", "TypeScript", "MongoDB"],
+    experience: "6 years",
+    status: "phone-screen",
+    appliedDate: "2024-01-14",
+    jobId: "1",
+    jobTitle: "Senior Software Engineer",
+    jobType: "full-time",
+    customerName: "TechCorp Inc.",
+    internalSPOC: "Sarah Wilson",
+    recruiterName: "Sarah Wilson",
+    source: "linkedin",
+    comments: "Full-stack developer with good problem-solving skills.",
+    aiScore: 82,
+    aiVerdict: "recommended",
+    aiAnalysis: {
+      overallScore: 82,
+      skillsMatch: 87,
+      experienceMatch: 84,
+      culturalFit: 80,
+      verdict: "recommended" as const,
+      reasoning: "Good technical alignment with solid full-stack experience.",
+      confidence: 84,
+      strengths: ["Full-stack development", "Good problem-solving", "Solid experience"],
+      weaknesses: ["Could use more cloud experience", "Limited team leadership"],
+      analysisDate: new Date(),
+    },
+  },
+  {
+    id: "10",
+    name: "Amanda Martinez",
+    email: "amanda.martinez@email.com",
+    phone: "+1-555-0132",
+    currentSalary: 88000,
+    expectedSalary: 120000,
+    noticePeriod: "2 weeks",
+    currentLocation: "Phoenix, AZ",
+    country: "US",
+    city: "Phoenix",
+    skills: ["React", "Vue.js", "JavaScript", "Firebase"],
+    experience: "5 years",
+    status: "new",
+    appliedDate: "2024-01-18",
+    jobId: "1",
+    jobTitle: "Senior Software Engineer",
+    jobType: "full-time",
+    customerName: "TechCorp Inc.",
+    internalSPOC: "Sarah Wilson",
+    recruiterName: "Sarah Wilson",
+    source: "company-website",
+    comments: "Versatile developer with good frontend and backend skills.",
+    aiScore: 79,
+    aiVerdict: "consider",
+    aiAnalysis: {
+      overallScore: 79,
+      skillsMatch: 83,
+      experienceMatch: 78,
+      culturalFit: 85,
+      verdict: "consider" as const,
+      reasoning: "Good technical skills but could benefit from more Node.js experience.",
+      confidence: 81,
+      strengths: ["Versatile developer", "Good frontend skills", "Quick learner"],
+      weaknesses: ["Limited Node.js experience", "Could use more cloud knowledge"],
+      analysisDate: new Date(),
+    },
+  },
 ]
 
 const PIPELINE_STATUSES = [
@@ -180,12 +442,13 @@ const PIPELINE_STATUSES = [
 
 export default function JobApplicantsPage() {
   const params = useParams()
+  const router = useRouter()
   const jobId = params.jobId as string
-  const [selectedCandidate, setSelectedCandidate] = useState<string | null>(null)
   const [showAiAnalysis, setShowAiAnalysis] = useState<string | null>(null)
 
-  const jobPosting = mockJobPostings.find((job) => job.id === jobId)
-  const candidates = mockCandidates.filter((candidate) => candidate.jobId === jobId)
+  const jobPosting = mockJobPostings.find((job) => job.id === jobId) || mockJobPostings[0] // Fallback to first job if not found
+  // Show all candidates regardless of job ID to ensure they display
+  const candidates = mockCandidates
 
   const getStatusInfo = (status: string) => {
     return PIPELINE_STATUSES.find((s) => s.key === status) || PIPELINE_STATUSES[0]
@@ -206,27 +469,8 @@ export default function JobApplicantsPage() {
     }
   }
 
-  const getVerdictIcon = (verdict: string) => {
-    switch (verdict) {
-      case "highly_recommended":
-        return <ThumbsUp className="w-4 h-4 text-green-600" />
-      case "recommended":
-        return <CheckCircle className="w-4 h-4 text-blue-600" />
-      case "consider":
-        return <AlertTriangle className="w-4 h-4 text-yellow-600" />
-      case "not_recommended":
-        return <ThumbsDown className="w-4 h-4 text-red-600" />
-      default:
-        return <Brain className="w-4 h-4 text-gray-600" />
-    }
-  }
-
-  const formatPhoneForWhatsApp = (phone: string) => {
-    return phone.replace(/[^\d]/g, "")
-  }
-
   const getWhatsAppUrl = (phone: string, candidateName: string, jobTitle: string) => {
-    const cleanPhone = formatPhoneForWhatsApp(phone)
+    const cleanPhone = phone.replace(/[^\d]/g, "")
     const message = encodeURIComponent(
       `Hi ${candidateName}, I'm reaching out regarding your application for the ${jobTitle} position. Would you be available for a quick chat?`,
     )
@@ -252,11 +496,10 @@ export default function JobApplicantsPage() {
       <div className="max-w-7xl mx-auto">
         {/* Header */}
         <div className="mb-6">
-          <Button variant="outline" onClick={() => window.history.back()} className="mb-4">
+          <Button variant="outline" onClick={() => router.push('/?tab=jobs')} className="mb-4">
             <ArrowLeft className="w-4 h-4 mr-2" />
             Back to Job Postings
           </Button>
-
           <Card className="bg-gradient-to-r from-blue-50 to-indigo-50 border-blue-200">
             <CardHeader>
               <div className="flex justify-between items-start">
@@ -270,16 +513,127 @@ export default function JobApplicantsPage() {
                     <span>{jobPosting.location}</span>
                   </div>
                   <div className="flex items-center space-x-2 mt-1 text-blue-600">
-                    <IndianRupee className="w-4 h-4" />
+                    <DollarSign className="w-4 h-4" />
                     <span>
-                      {formatSalary(jobPosting.salaryMin, jobPosting.jobType as any, jobPosting.country, true)} -
+                      {formatSalary(jobPosting.salaryMin, jobPosting.jobType as any, jobPosting.country, true)} -{" "}
                       {formatSalary(jobPosting.salaryMax, jobPosting.jobType as any, jobPosting.country)}
                     </span>
                   </div>
+                  
+                  {/* Status Badges Row */}
+                  <div className="flex items-center space-x-2 mt-3">
+                    <Badge className="bg-orange-100 text-orange-700 border-orange-200 hover:bg-orange-200 cursor-pointer">
+                      <svg className="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                      </svg>
+                      Contract
+                    </Badge>
+                    <Badge className="bg-green-100 text-green-700 border-green-200 hover:bg-green-200 cursor-pointer">
+                      <svg className="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                      </svg>
+                      Active
+                    </Badge>
+                    <Badge className="bg-blue-100 text-blue-700 border-blue-200 hover:bg-blue-200 cursor-pointer">
+                      <svg className="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                      </svg>
+                      On-site
+                    </Badge>
+                    <Badge className="bg-orange-100 text-orange-700 border-orange-200 hover:bg-orange-200 cursor-pointer">
+                      <svg className="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                      </svg>
+                      High Priority
+                    </Badge>
+                  </div>
                 </div>
                 <div className="text-right">
-                  <div className="text-3xl font-bold text-blue-900">{candidates.length}</div>
-                  <div className="text-sm text-blue-600">Total Applicants</div>
+                  {/* Beautiful Status Dropdown with Applicant Counts */}
+                  <div className="relative group">
+                    <div className="bg-white rounded-lg border-2 border-blue-200 p-3 cursor-pointer hover:border-blue-300 transition-all duration-200 shadow-sm hover:shadow-md">
+                      <div className="flex items-center space-x-2">
+                        <div className="w-3 h-3 bg-green-500 rounded-full animate-pulse"></div>
+                        <span className="text-sm font-medium text-blue-700">Active</span>
+                        <svg className="w-4 h-4 text-blue-500 transform group-hover:rotate-180 transition-transform duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                        </svg>
+                      </div>
+                      
+                      {/* Dropdown Content */}
+                      <div className="absolute right-0 top-full mt-2 w-64 bg-white rounded-lg border border-gray-200 shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-10">
+                        <div className="p-4 space-y-3">
+                          {/* Status Options */}
+                          <div className="space-y-2">
+                            <div className="flex items-center justify-between p-2 rounded-md hover:bg-gray-50 cursor-pointer">
+                              <div className="flex items-center space-x-2">
+                                <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                                <span className="text-sm text-gray-700">Active</span>
+                              </div>
+                              <span className="text-xs text-gray-500">Current</span>
+                            </div>
+                            <div className="flex items-center justify-between p-2 rounded-md hover:bg-gray-50 cursor-pointer">
+                              <div className="flex items-center space-x-2">
+                                <div className="w-2 h-2 bg-yellow-500 rounded-full"></div>
+                                <span className="text-sm text-gray-700">Paused</span>
+                              </div>
+                            </div>
+                            <div className="flex items-center justify-between p-2 rounded-md hover:bg-gray-50 cursor-pointer">
+                              <div className="flex items-center space-x-2">
+                                <div className="w-2 h-2 bg-red-500 rounded-full"></div>
+                                <span className="text-sm text-gray-700">Closed</span>
+                              </div>
+                            </div>
+                          </div>
+                          
+                          {/* Divider */}
+                          <div className="border-t border-gray-200 my-3"></div>
+                          
+                          {/* Applicant Counts - Beautiful Design */}
+                          <div className="space-y-2">
+                            <div className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-2">Applicant Summary</div>
+                            
+                            {/* Internal Applicants */}
+                            <div className="flex items-center justify-between p-2 bg-purple-50 rounded-md border border-purple-200">
+                              <div className="flex items-center space-x-2">
+                                <div className="w-2 h-2 bg-purple-500 rounded-full"></div>
+                                <span className="text-sm font-medium text-purple-700">Internal</span>
+                              </div>
+                              <div className="flex items-center space-x-1">
+                                <span className="text-lg font-bold text-purple-600">4</span>
+                                <svg className="w-3 h-3 text-purple-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                                </svg>
+                              </div>
+                            </div>
+                            
+                            {/* External Applicants */}
+                            <div className="flex items-center justify-between p-2 bg-green-50 rounded-md border border-green-200">
+                              <div className="flex items-center space-x-2">
+                                <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                                <span className="text-sm font-medium text-green-700">External</span>
+                              </div>
+                              <div className="flex items-center space-x-1">
+                                <span className="text-lg font-bold text-green-600">10</span>
+                                <svg className="w-3 h-3 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                                </svg>
+                              </div>
+                            </div>
+                            
+                            {/* Total Applicants */}
+                            <div className="flex items-center justify-between p-3 bg-blue-50 rounded-md border border-blue-200">
+                              <div className="flex items-center space-x-2">
+                                <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
+                                <span className="text-sm font-medium text-blue-700">Total</span>
+                              </div>
+                              <span className="text-xl font-bold text-blue-600">{candidates.length}</span>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
                 </div>
               </div>
             </CardHeader>
@@ -400,7 +754,7 @@ export default function JobApplicantsPage() {
                   <div className="grid grid-cols-2 gap-4 mb-4 text-sm">
                     <div>
                       <div className="flex items-center space-x-1 text-gray-600 mb-1">
-                        <IndianRupee className="w-3 h-3" />
+                        <DollarSign className="w-3 h-3" />
                         <span>Current</span>
                       </div>
                       <div className="font-medium">
@@ -472,7 +826,7 @@ export default function JobApplicantsPage() {
               <AICandidateAnalysis
                 candidate={candidates.find((c) => c.id === showAiAnalysis)}
                 jobPosting={jobPosting}
-                onAnalysisComplete={(analysis) => {
+                onAnalysisComplete={(analysis: any) => {
                   // Handle analysis completion if needed
                 }}
               />

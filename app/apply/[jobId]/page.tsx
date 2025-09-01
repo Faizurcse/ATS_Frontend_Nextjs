@@ -155,6 +155,35 @@ export default function ApplyJobPage() {
 
   const { toast } = useToast();
 
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case "active":
+        return "bg-green-100 text-green-800 border-green-200"
+      case "paused":
+        return "bg-yellow-100 text-yellow-800 border-yellow-200"
+      case "closed":
+        return "bg-red-100 text-red-800 border-red-200"
+      case "filled":
+        return "bg-blue-100 text-blue-800 border-blue-200"
+      default:
+        return "bg-gray-100 text-gray-800 border-gray-200"
+    }
+  }
+
+  const getPriorityColor = (priority: string) => {
+    switch (priority) {
+      case "urgent":
+        return "bg-red-100 text-red-800 border-red-200"
+      case "high":
+        return "bg-orange-100 text-orange-800 border-orange-200"
+      case "medium":
+        return "bg-yellow-100 text-yellow-800 border-yellow-200"
+      case "low":
+        return "bg-green-100 text-green-800 border-green-200"
+      default:
+        return "bg-gray-100 text-gray-800 border-gray-200"
+    }
+  }
 
   useEffect(() => {
     // Extract UTM parameters from URL
@@ -238,26 +267,26 @@ export default function ApplyJobPage() {
             customQuestions: [
               {
                 id: "keySkills",
-                question: "What are your key skills relevant to this position?",
+                question: "Which skills do you possess that would help you excel in this position?",
                 type: "text",
                 required: true,
               },
               {
                 id: "salaryExpectation",
-                question: "What is your salary expectation?",
+                question: "What are your salary expectations?",
                 type: "number",
                 required: true,
               },
               {
                 id: "noticePeriod",
-                question: "What is your notice period?",
+                question: "How long is your notice period?",
                 type: "select",
                 required: true,
                 options: ["Immediate", "2 weeks", "1 month", "2 months", "3 months"],
               },
                              {
                  id: "yearsOfExperience",
-                 question: "How many years of experience do you have?",
+                 question: "How many years of relevant experience do you have?",
                  type: "select",
                  required: true,
                  options: ["0-1 years", "2-3 years", "4-5 years", "6-10 years", "10+ years"],
@@ -270,7 +299,7 @@ export default function ApplyJobPage() {
               },
               {
                 id: "startDate",
-                question: "When can you start?",
+                question: "When can we expect you to start working with us?",
                 type: "select",
                 required: true,
                 options: ["Immediately", "Within 2 weeks", "Within 1 month", "Within 2 months", "More than 2 months"],
@@ -938,384 +967,419 @@ export default function ApplyJobPage() {
   const countryInfo = COUNTRIES.find((country) => country.code === job.country)
 
   return (
-    <div className="min-h-screen bg-gray-50 py-8">
-      <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
-        {/* Job Header */}
-        <Card className="mb-8">
-          <CardContent className="p-6">
-            <div className="flex items-start justify-between mb-4">
-              <div className="flex-1">
-                <h1 className="text-2xl font-bold text-gray-900 mb-2">{job.title}</h1>
-                <div className="flex items-center space-x-4 text-sm text-gray-600 mb-3">
-                  <div className="flex items-center space-x-1">
-                    <Building2 className="w-4 h-4" />
-                    <span>{job.company}</span>
-                  </div>
-                  <div className="flex items-center space-x-1">
-                    <MapPin className="w-4 h-4" />
-                    <span>{job.location}</span>
-                  </div>
-                  <div className="flex items-center space-x-1">
-                    <Briefcase className="w-4 h-4" />
-                    <span>{jobTypeInfo?.label}</span>
-                  </div>
-                  {job.remote && (
-                    <div className="flex items-center space-x-1">
-                      <Globe className="w-4 h-4" />
-                      <span>Remote</span>
-                    </div>
-                  )}
-                </div>
-                <div className="flex items-center space-x-4 text-sm text-gray-600">
-                  <div className="flex items-center space-x-1">
-                    <IndianRupee className="w-4 h-4" />
-                    <span>
-                      {formatSalary(job.salaryMin, job.jobType, job.country, true, job.salaryMin)} -{" "}
-                      {formatSalary(job.salaryMax, job.jobType, job.country)}
-                    </span>
-                  </div>
-                  <div className="flex items-center space-x-1">
-                    <Clock className="w-4 h-4" />
-                    <span>{job.experience}</span>
-                  </div>
-                </div>
+    <div className="min-h-screen bg-gray-50 py-6">
+      <div className="max-w-4xl mx-auto px-3 md:px-4">
+        {/* Simple Professional Job Description */}
+        <div className="bg-transparent md:bg-white border-0 md:border border-gray-200 p-4 md:p-6 mb-6">
+          {/* Header */}
+          <div className="flex justify-between items-start mb-4 md:mb-6">
+            <div className="flex-1 pr-4">
+              <h1 className="text-xl md:text-2xl font-bold text-gray-900 mb-1">{job.title}</h1>
+              <div className="flex items-center text-gray-600 mb-1">
+                <Building2 className="w-4 h-4 mr-2" />
+                <span>{job.company}</span>
               </div>
-              <div className="flex flex-col space-y-2">
-                <Badge className="bg-green-100 text-green-800">{job.status}</Badge>
-                <Badge variant="outline">{job.priority} priority</Badge>
+              <div className="flex items-center text-gray-500">
+                <MapPin className="w-4 h-4 mr-2" />
+                <span>{job.location}</span>
               </div>
             </div>
-
-            <div className="mb-4">
-              <h3 className="font-semibold text-gray-900 mb-2">About this role</h3>
-              <p className="text-gray-700 text-sm">{job.description}</p>
+            <div className="flex-shrink-0">
+              <img 
+                src="/Appit Logo.png" 
+                alt={`${job.company} Logo`}
+                className="w-12 h-12 md:w-16 md:h-16 object-contain"
+                onError={(e) => {
+                  const target = e.target as HTMLImageElement;
+                  target.style.display = 'none';
+                }}
+              />
             </div>
+          </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div>
-                <h4 className="font-semibold text-gray-900 mb-2">Requirements</h4>
-                <ul className="text-sm text-gray-700 space-y-1">
-                  {job.requirements.map((req, index) => (
-                    <li key={index} className="flex items-start space-x-2">
-                      <span className="text-blue-600 mt-1">•</span>
-                      <span>{req}</span>
-                    </li>
-                  ))}
-                </ul>
+          {/* Job Details */}
+          <div className="border-b border-gray-200 pb-3 md:pb-4 mb-3 md:mb-4">
+            <div className="flex flex-col md:flex-row md:flex-wrap gap-2 md:gap-6 text-sm">
+              <div className="flex items-center">
+                <IndianRupee className="w-4 h-4 text-gray-500 mr-2" />
+                <span className="font-medium">
+                  {job.salaryMin.toLocaleString()} - {job.salaryMax.toLocaleString()}/year
+                </span>
               </div>
-              <div>
-                <h4 className="font-semibold text-gray-900 mb-2">Skills</h4>
-                <div className="flex flex-wrap gap-2">
-                  {job.skills.map((skill, index) => (
-                    <Badge key={index} variant="outline" className="text-xs">
-                      {skill}
-                    </Badge>
-                  ))}
-                </div>
+              <div className="flex items-center">
+                <Briefcase className="w-4 h-4 text-gray-500 mr-2" />
+                <span className="font-medium">{jobTypeInfo?.label}</span>
+              </div>
+              <div className="flex items-center">
+                <Clock className="w-4 h-4 text-gray-500 mr-2" />
+                <span className="font-medium">{job.experience}</span>
               </div>
             </div>
+          </div>
 
-            {job.benefits.length > 0 && (
-              <div className="mt-6">
-                <h4 className="font-semibold text-gray-900 mb-2">Benefits</h4>
-                <div className="flex flex-wrap gap-2">
-                  {job.benefits.map((benefit, index) => (
-                    <Badge key={index} variant="outline" className="text-xs bg-blue-50 text-blue-700">
-                      {benefit}
-                    </Badge>
-                  ))}
-                </div>
+          {/* Job Description */}
+          <div className="mb-4 md:mb-6">
+            <h3 className="font-semibold text-gray-900 mb-2">Job Description</h3>
+            <p className="text-gray-700 text-sm leading-relaxed">{job.description}</p>
+          </div>
+
+          {/* Requirements */}
+          <div className="mb-4 md:mb-6">
+            <h3 className="font-semibold text-gray-900 mb-2">Requirements</h3>
+            <ul className="text-sm text-gray-700 space-y-1">
+              {job.requirements.map((req, index) => (
+                <li key={index} className="flex items-start">
+                  <span className="text-gray-400 mr-2 mt-1">•</span>
+                  <span>{req}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+
+          {/* Skills */}
+          <div className="mb-4 md:mb-6">
+            <h3 className="font-semibold text-gray-900 mb-2">Required Skills</h3>
+            <div className="flex flex-wrap gap-2">
+              {job.skills.map((skill, index) => (
+                <span key={index} className="text-xs bg-gray-100 text-gray-700 px-2 py-1 rounded">{skill}</span>
+              ))}
+            </div>
+          </div>
+
+          {/* Benefits */}
+          {job.benefits.length > 0 && (
+            <div className="mb-4 md:mb-6">
+              <h3 className="font-semibold text-gray-900 mb-2">Benefits</h3>
+              <div className="flex flex-wrap gap-2">
+                {job.benefits.map((benefit, index) => (
+                  <span key={index} className="text-xs bg-gray-100 text-gray-700 px-2 py-1 rounded">{benefit}</span>
+                ))}
               </div>
-            )}
-          </CardContent>
-        </Card>
+            </div>
+          )}
+        </div>
 
         {/* Application Form */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center space-x-2">
-              <FileText className="w-5 h-5" />
-              <span>Apply for this position</span>
-            </CardTitle>
-            <div className="text-sm text-gray-600 mt-2 p-3 bg-blue-50 border border-blue-200 rounded-lg">
-              <div className="flex items-start space-x-2">
-                <Sparkles className="w-4 h-4 text-blue-600 mt-0.5 flex-shrink-0" />
-                <div>
-                  <p className="font-medium text-blue-800">AI-Powered Resume Parsing</p>
-                  <p className="text-blue-700">Upload your resume and we'll automatically fill in your information using AI. You can still edit any field after auto-filling.</p>
-                </div>
-              </div>
-            </div>
-          </CardHeader>
-          <CardContent>
-                         <form onSubmit={handleSubmit} className="space-y-6">
-                               {/* Resume Upload - Compact Professional Design */}
-                <div className="space-y-4">
-                  <div className="space-y-3">
-                    <Label htmlFor="resume" className="text-base font-semibold text-gray-900">Resume *</Label>
-                    <div className="relative">
-                      <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center hover:border-blue-400 transition-all duration-300 hover:shadow-md bg-gradient-to-br from-gray-50 to-white">
-                        {/* File Upload Area */}
-                        <div className="space-y-3">
-                          {/* Upload Icon */}
-                          <div className="flex justify-center">
-                            <div className="w-12 h-12 bg-gradient-to-br from-blue-100 to-purple-100 rounded-full flex items-center justify-center">
-                              <Upload className="w-6 h-6 text-blue-600" />
-                            </div>
-                          </div>
-                          
-                                                     {/* File Info */}
-                           <div className="space-y-2">
-                             {applicationData.resumeFile ? (
-                               <div className="space-y-2">
-                                 <div className="flex items-center justify-center space-x-2 text-green-600">
-                                   <CheckCircle className="w-4 h-4" />
-                                   <span className="font-medium text-sm">Resume uploaded</span>
-                                 </div>
-                                 <p className="text-xs text-gray-500">Processing with AI...</p>
-                               </div>
-                             ) : (
-                               <div className="space-y-1">
-                                 <p className="text-sm font-medium text-gray-900">Drop your resume here</p>
-                                 <p className="text-xs text-gray-500">or click to browse</p>
-                                 <p className="text-xs text-gray-400">Supports various file formats: PDF, DOCX, DOC, TXT, RTF, PNG, JPG, JPEG (max 5MB)</p>
-                               </div>
-                             )}
-                           </div>
-                          
-                          {/* Progress Bar */}
-                          {isUploading && (
-                            <div className="w-full max-w-xs mx-auto">
-                              <div className="w-full bg-gray-200 rounded-full h-2 overflow-hidden shadow-inner">
-                                <div 
-                                  className="h-2 rounded-full transition-all duration-500 ease-out bg-gradient-to-r from-blue-500 via-purple-500 to-pink-500 relative"
-                                  style={{ width: `${uploadProgress}%` }}
-                                >
-                                  <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white to-transparent opacity-30 animate-pulse"></div>
-                                </div>
-                              </div>
-                              <p className="text-xs text-blue-600 font-medium mt-1 animate-pulse">
-                                Uploading... {uploadProgress}%
-                              </p>
-                            </div>
-                          )}
-                          
-                          {/* Parsing Status */}
-                          {isParsing && (
-                            <div className="flex items-center justify-center space-x-2 text-purple-600 bg-purple-50 border border-purple-200 rounded-lg p-3 max-w-sm mx-auto">
-                              <Loader2 className="w-4 h-4 animate-spin" />
-                              <div>
-                                <p className="text-sm font-medium">Parsing resume with AI...</p>
-                                <p className="text-xs text-purple-500">Extracting information...</p>
-                              </div>
-                            </div>
-                          )}
-                          
-                          {/* Parsed Data Success */}
-                          {parsedData && !isParsing && (
-                            <div className="max-w-md mx-auto">
-                              <div className="flex items-center justify-center space-x-2 text-green-600 bg-green-50 border border-green-200 rounded-lg p-3">
-                                <CheckCircle className="w-4 h-4" />
-                                <div className="text-center">
-                                  <p className="text-sm font-medium text-green-800">Successfully extracted!</p>
-                                  <p className="text-xs text-green-700">Form fields have been auto-filled</p>
-                                </div>
-                              </div>
-                            </div>
-                          )}
-                          
-                                                     {/* Action Buttons */}
-                           <div className="flex justify-center space-x-3">
-                             <input
-                               type="file"
-                               id="resume"
-                               accept=".pdf,.doc,.docx,.txt,.rtf,.png,.jpg,.jpeg"
-                               onChange={handleFileUpload}
-                               className="hidden"
-                             />
-                             <Button
-                               type="button"
-                               onClick={() => document.getElementById("resume")?.click()}
-                               disabled={isUploading || isParsing}
-                               className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 hover:shadow-md disabled:opacity-50"
-                             >
-                               {isUploading ? "Uploading..." : isParsing ? "Parsing..." : "Choose File"}
-                             </Button>
-                             
-                             {/* Cancel Button - Show after resume is loaded */}
-                             {applicationData.resumeFile && (
-                               <Button
-                                 type="button"
-                                 variant="outline"
-                                 onClick={() => {
-                                   setApplicationData(prev => ({
-                                     ...prev,
-                                     resumeFile: null
-                                   }))
-                                   setParsedData(null)
-                                   setAutoFilledFields(new Set())
-                                   // Clear all auto-filled form fields
-                                   setApplicationData(prev => ({
-                                     ...prev,
-                                     firstName: "",
-                                     lastName: "",
-                                     email: "",
-                                     phone: "",
-                                     currentLocation: "",
-                                     coverLetter: "",
-                                     customAnswers: {
-                                       keySkills: "",
-                                       salaryExpectation: "",
-                                       noticePeriod: "",
-                                       yearsOfExperience: "",
-                                       remoteWork: false,
-                                       startDate: "",
-                                       portfolioUrl: ""
-                                     }
-                                   }))
-                                 }}
-                                 className="border-red-300 text-red-600 hover:bg-red-50 hover:border-red-400 px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200"
-                               >
-                                 Cancel & Clear
-                               </Button>
-                             )}
-                           </div>
-                        </div>
+        <div className="bg-transparent md:bg-white rounded-lg border-0 md:border border-gray-200 p-4 md:p-6">
+          <h2 className="text-xl md:text-2xl font-semibold text-gray-900 mb-4">Apply for this position</h2>
+          
+          <div className="bg-blue-50 border border-blue-200 p-3 md:p-4 rounded-lg mb-4 md:mb-6">
+            <p className="text-sm text-blue-800">
+              <strong>AI-Powered Resume Parsing:</strong> Upload your resume and we'll automatically fill in your information using AI. You can still edit any field after auto-filling.
+            </p>
+          </div>
+          <form onSubmit={handleSubmit} className="space-y-4 md:space-y-6">
+            {/* Resume Upload */}
+            <div>
+              <Label htmlFor="resume" className="block text-sm font-medium mb-3">Resume</Label>
+              {applicationData.resumeFile ? (
+                <div className="bg-green-50 border border-green-200 rounded-lg p-3 md:p-4">
+                  <div className="flex flex-col md:flex-row md:items-center md:justify-between space-y-3 md:space-y-0">
+                    <div className="flex items-center space-x-3">
+                      <div className="bg-green-100 p-2 rounded-full flex-shrink-0">
+                        <FileText className="w-4 h-4 md:w-5 md:h-5 text-green-600" />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <p className="text-sm font-medium text-gray-900 truncate">{applicationData.resumeFile.name}</p>
+                        <p className="text-xs text-gray-500">{(applicationData.resumeFile.size / 1024 / 1024).toFixed(2)} MB</p>
+                        {isParsing && <p className="text-xs text-blue-600 mt-1">🔄 Processing with AI...</p>}
+                        {parsedData && !isParsing && <p className="text-xs text-green-600 mt-1">✅ Form auto-filled from resume</p>}
                       </div>
                     </div>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        setApplicationData(prev => ({
+                          ...prev,
+                          resumeFile: null
+                        }))
+                        setParsedData(null)
+                        setAutoFilledFields(new Set())
+                        setApplicationData(prev => ({
+                          ...prev,
+                          firstName: "",
+                          lastName: "",
+                          email: "",
+                          phone: "",
+                          currentLocation: "",
+                          coverLetter: "",
+                          customAnswers: {
+                            keySkills: "",
+                            salaryExpectation: "",
+                            noticePeriod: "",
+                            yearsOfExperience: "",
+                            remoteWork: false,
+                            startDate: "",
+                            portfolioUrl: ""
+                          }
+                        }))
+                      }}
+                      className="text-red-600 hover:text-red-700 hover:bg-red-50 w-full md:w-auto"
+                    >
+                      Remove
+                    </Button>
                   </div>
                 </div>
+              ) : (
+                <div 
+                  className="border-2 border-dashed border-gray-300 rounded-lg p-6 md:p-8 text-center hover:border-gray-400 transition-colors cursor-pointer"
+                  onClick={() => document.getElementById("resume")?.click()}
+                >
+                  <div className="space-y-3">
+                    <div className="mx-auto w-10 h-10 md:w-12 md:h-12 bg-gray-100 rounded-full flex items-center justify-center">
+                      <FileText className="w-5 h-5 md:w-6 md:h-6 text-gray-400" />
+                    </div>
+                    <div>
+                      <p className="text-sm font-medium text-gray-900">Upload your resume</p>
+                      <p className="text-xs text-gray-500 mt-1 px-2">PDF, DOCX, DOC, TXT, RTF, PNG, JPG, JPEG (max 5MB)</p>
+                    </div>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      disabled={isUploading || isParsing}
+                      className="mt-2 w-full md:w-auto"
+                    >
+                      {isUploading ? "Uploading..." : isParsing ? "Parsing..." : "Choose File"}
+                    </Button>
+                  </div>
+                  <input
+                    type="file"
+                    id="resume"
+                    accept=".pdf,.doc,.docx,.txt,.rtf,.png,.jpg,.jpeg"
+                    onChange={handleFileUpload}
+                    className="hidden"
+                  />
+                </div>
+              )}
+              <p className={`text-xs mt-2 ${applicationData.resumeFile ? 'text-green-600' : 'text-red-500'}`}>
+                {applicationData.resumeFile ? '✓ Filled' : 'Required'}
+              </p>
+            </div>
 
-               {/* Personal Information */}
-               <div className="space-y-4">
-                 <h3 className="text-lg font-semibold text-gray-900">Personal Information</h3>
-                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                   <div className="space-y-2">
-                     <Label htmlFor="firstName">First Name *</Label>
-                     <Input
-                       id="firstName"
-                       value={applicationData.firstName}
-                       onChange={(e) => handleInputChange("firstName", e.target.value)}
-                       placeholder="John"
-                       required
-                       className={getInputClassName('firstName', '')}
-                     />
-                     {isFieldAutoFilled('firstName') && (
-                       <p className="text-xs text-green-600 flex items-center space-x-1">
-                         <Sparkles className="w-3 h-3" />
-                         <span>Auto-filled from resume</span>
-                       </p>
-                     )}
-                   </div>
-                   <div className="space-y-2">
-                     <Label htmlFor="lastName">Last Name *</Label>
-                     <Input
-                       id="lastName"
-                       value={applicationData.lastName}
-                       onChange={(e) => handleInputChange("lastName", e.target.value)}
-                       placeholder="Smith"
-                       required
-                       className={getInputClassName('lastName', '')}
-                     />
-                     {isFieldAutoFilled('lastName') && (
-                       <p className="text-xs text-green-600 flex items-center space-x-1">
-                         <Sparkles className="w-3 h-3" />
-                         <span>Auto-filled from resume</span>
-                       </p>
-                     )}
-                   </div>
-                 </div>
-                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                   <div className="space-y-2">
-                     <Label htmlFor="email">Email Address *</Label>
-                     <Input
-                       id="email"
-                       type="email"
-                       value={applicationData.email}
-                       onChange={(e) => handleInputChange("email", e.target.value)}
-                       placeholder="john.smith@email.com"
-                       required
-                       className={getInputClassName('email', '')}
-                     />
-                     {isFieldAutoFilled('email') && (
-                       <p className="text-xs text-green-600 flex items-center space-x-1">
-                         <Sparkles className="w-3 h-3" />
-                         <span>Auto-filled from resume</span>
-                       </p>
-                     )}
-                   </div>
-                   <div className="space-y-2">
-                     <Label htmlFor="phone">Phone Number *</Label>
-                     <Input
-                       id="phone"
-                       value={applicationData.phone}
-                       onChange={(e) => handleInputChange("phone", e.target.value)}
-                       placeholder="+1 (555) 123-4567"
-                       required
-                       className={getInputClassName('phone', '')}
-                     />
-                     {isFieldAutoFilled('phone') && (
-                       <p className="text-xs text-green-600 flex items-center space-x-1">
-                         <Sparkles className="w-3 h-3" />
-                         <span>Auto-filled from resume</span>
-                       </p>
-                     )}
-                   </div>
-                 </div>
-                 <div className="space-y-2">
-                   <Label htmlFor="currentLocation">Current Location</Label>
-                   <Input
-                     id="currentLocation"
-                     value={applicationData.currentLocation}
-                     onChange={(e) => handleInputChange("currentLocation", e.target.value)}
-                     placeholder="San Francisco, CA"
-                     className={getInputClassName('currentLocation', '')}
-                   />
-                   {isFieldAutoFilled('currentLocation') && (
-                     <p className="text-xs text-green-600 flex items-center space-x-1">
-                       <Sparkles className="w-3 h-3" />
-                       <span>Auto-filled from resume</span>
-                     </p>
-                   )}
-                 </div>
-               </div>
+            {/* Personal Information */}
+            <div>
+              <h3 className="text-lg font-semibold text-gray-900 mb-3 md:mb-4">Personal Information</h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3 md:gap-4">
+                <div>
+                  <Label htmlFor="firstName" className="block text-sm font-medium mb-1">First Name</Label>
+                  <Input
+                    id="firstName"
+                    value={applicationData.firstName}
+                    onChange={(e) => handleInputChange("firstName", e.target.value)}
+                    placeholder="John"
+                    required
+                    className={getInputClassName('firstName', '')}
+                  />
+                                {isFieldAutoFilled('firstName') ? (
+                <p className="text-xs text-green-600 mt-1">✓ Auto-filled from resume</p>
+              ) : (
+                <p className={`text-xs mt-1 ${applicationData.firstName.trim() ? 'text-green-600' : 'text-red-500'}`}>
+                  {applicationData.firstName.trim() ? '✓ Filled' : 'Required'}
+                </p>
+              )}
+                </div>
+                <div>
+                  <Label htmlFor="lastName" className="block text-sm font-medium mb-1">Last Name</Label>
+                  <Input
+                    id="lastName"
+                    value={applicationData.lastName}
+                    onChange={(e) => handleInputChange("lastName", e.target.value)}
+                    placeholder="Smith"
+                    required
+                    className={getInputClassName('lastName', '')}
+                  />
+                                {isFieldAutoFilled('lastName') ? (
+                <p className="text-xs text-green-600 mt-1">✓ Auto-filled from resume</p>
+              ) : (
+                <p className={`text-xs mt-1 ${applicationData.lastName.trim() ? 'text-green-600' : 'text-red-500'}`}>
+                  {applicationData.lastName.trim() ? '✓ Filled' : 'Required'}
+                </p>
+              )}
+                </div>
+                <div>
+                  <Label htmlFor="email" className="block text-sm font-medium mb-1">Email Address</Label>
+                  <Input
+                    id="email"
+                    type="email"
+                    value={applicationData.email}
+                    onChange={(e) => handleInputChange("email", e.target.value)}
+                    placeholder="john.smith@email.com"
+                    required
+                    className={getInputClassName('email', '')}
+                  />
+                                {isFieldAutoFilled('email') ? (
+                <p className="text-xs text-green-600 mt-1">✓ Auto-filled from resume</p>
+              ) : (
+                <p className={`text-xs mt-1 ${applicationData.email.trim() ? 'text-green-600' : 'text-red-500'}`}>
+                  {applicationData.email.trim() ? '✓ Filled' : 'Required'}
+                </p>
+              )}
+                </div>
+                <div>
+                  <Label htmlFor="phone" className="block text-sm font-medium mb-1">Phone Number</Label>
+                  <Input
+                    id="phone"
+                    value={applicationData.phone}
+                    onChange={(e) => handleInputChange("phone", e.target.value)}
+                    placeholder="+1 (555) 123-4567"
+                    required
+                    className={getInputClassName('phone', '')}
+                  />
+                                {isFieldAutoFilled('phone') ? (
+                <p className="text-xs text-green-600 mt-1">✓ Auto-filled from resume</p>
+              ) : (
+                <p className={`text-xs mt-1 ${applicationData.phone.trim() ? 'text-green-600' : 'text-red-500'}`}>
+                  {applicationData.phone.trim() ? '✓ Filled' : 'Required'}
+                </p>
+              )}
+                </div>
+              </div>
+              <div className="mt-4">
+                <Label htmlFor="currentLocation" className="block text-sm font-medium mb-1">Current Location</Label>
+                <Input
+                  id="currentLocation"
+                  value={applicationData.currentLocation}
+                  onChange={(e) => handleInputChange("currentLocation", e.target.value)}
+                  placeholder="San Francisco, CA"
+                  className={getInputClassName('currentLocation', '')}
+                />
+                              {isFieldAutoFilled('currentLocation') ? (
+                <p className="text-xs text-green-600 mt-1">✓ Auto-filled from resume</p>
+              ) : (
+                <p className={`text-xs mt-1 ${applicationData.currentLocation.trim() ? 'text-green-600' : 'text-red-500'}`}>
+                  {applicationData.currentLocation.trim() ? '✓ Filled' : 'Required'}
+                </p>
+              )}
+              </div>
+            </div>
 
-               {/* Cover Letter */}
-               <div className="space-y-4">
-                 <h3 className="text-lg font-semibold text-gray-900">Cover Letter</h3>
-                 <div className="space-y-2">
-                   <Label htmlFor="coverLetter">Cover Letter (Professional format from resume)</Label>
-                   <Textarea
-                     id="coverLetter"
-                     value={applicationData.coverLetter}
-                     onChange={(e) => handleInputChange("coverLetter", e.target.value)}
-                     placeholder="Tell us why you're interested in this position..."
-                     rows={4}
-                     className={getInputClassName('coverLetter', 'min-h-[100px] resize-none')}
-                   />
-                   {isFieldAutoFilled('coverLetter') && (
-                     <p className="text-xs text-green-600 flex items-center space-x-1">
-                       <Sparkles className="w-3 h-3" />
-                       <span>Auto-filled in professional cover letter format</span>
-                     </p>
-                   )}
-                 </div>
-               </div>
+            {/* Cover Letter */}
+            <div>
+              <h3 className="text-lg font-semibold text-gray-900 mb-4">Cover Letter</h3>
+              <div>
+                <Label htmlFor="coverLetter" className="block text-sm font-medium mb-1">Cover Letter Template (In professional format)</Label>
+                <Textarea
+                  id="coverLetter"
+                  value={applicationData.coverLetter}
+                  onChange={(e) => handleInputChange("coverLetter", e.target.value)}
+                  placeholder="Could You Please Tell us why you are interested in this position."
+                  rows={4}
+                  className={getInputClassName('coverLetter', '')}
+                />
+                              {isFieldAutoFilled('coverLetter') ? (
+                <p className="text-xs text-green-600 mt-1">✓ Auto-filled from resume</p>
+              ) : (
+                <p className={`text-xs mt-1 ${applicationData.coverLetter.trim() ? 'text-green-600' : 'text-red-500'}`}>
+                  {applicationData.coverLetter.trim() ? '✓ Filled' : 'Required'}
+                </p>
+              )}
+              </div>
+            </div>
 
-              {/* Custom Questions */}
-              {job.customQuestions && job.customQuestions.length > 0 && (
-                <div className="space-y-4">
-                  <h3 className="text-lg font-semibold text-gray-900">Additional Questions</h3>
-                  <div className="space-y-4">
-                    {job.customQuestions.map((question, index) => (
-                      <div key={question.id} className="space-y-2">
-                        <Label htmlFor={question.id}>
-                          Q{index + 1}. {question.question}
-                          {question.required && <span className="text-red-500 ml-1">*</span>}
-                        </Label>
+            {/* Custom Questions */}
+            {job.customQuestions && job.customQuestions.length > 0 && (
+              <div>
+                <h3 className="text-lg font-semibold text-gray-900 mb-3 md:mb-4">Additional Questions</h3>
+                <div className="space-y-4 md:space-y-6">
+                  {/* Group small fields (select, number, boolean) in rows */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3 md:gap-4">
+                    {job.customQuestions
+                      .filter(q => q.type === "select" || q.type === "number" || q.type === "boolean")
+                      .sort((a, b) => job.customQuestions!.indexOf(a) - job.customQuestions!.indexOf(b))
+                      .map((question, index) => (
+                        <div key={question.id}>
+                          <Label htmlFor={question.id} className="block text-sm font-medium mb-2">
+                            Q{index + 1}. {question.question}
+                          </Label>
 
-                        {question.type === "text" && (
-                          <div className="space-y-2">
+                          {question.type === "number" && (
+                            <div>
+                              <Input
+                                id={question.id}
+                                type="number"
+                                value={applicationData.customAnswers[question.id] || ""}
+                                onChange={(e) => handleCustomAnswerChange(question.id, e.target.value)}
+                                placeholder="Enter amount..."
+                                required={question.required}
+                                className={getInputClassName(question.id, '')}
+                              />
+                              {isFieldAutoFilled(question.id) ? (
+                                <p className="text-xs text-green-600 mt-1">✓ Auto-filled from resume</p>
+                              ) : (
+                                <p className={`text-xs mt-1 ${applicationData.customAnswers[question.id] ? 'text-green-600' : 'text-red-500'}`}>
+                                  {applicationData.customAnswers[question.id] ? '✓ Filled' : 'Required'}
+                                </p>
+                              )}
+                            </div>
+                          )}
+
+                          {question.type === "select" && question.options && (
+                            <div>
+                              <Select
+                                value={applicationData.customAnswers[question.id] || ""}
+                                onValueChange={(value) => handleCustomAnswerChange(question.id, value)}
+                              >
+                                <SelectTrigger className={getInputClassName(question.id, '')}>
+                                  <SelectValue placeholder="Select an option..." />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {question.options.map((option) => (
+                                    <SelectItem key={option} value={option}>
+                                      {option}
+                                    </SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                              {isFieldAutoFilled(question.id) ? (
+                                <p className="text-xs text-green-600 mt-1">✓ Auto-filled from resume</p>
+                              ) : (
+                                <p className={`text-xs mt-1 ${applicationData.customAnswers[question.id] ? 'text-green-600' : 'text-red-500'}`}>
+                                  {applicationData.customAnswers[question.id] ? '✓ Filled' : 'Required'}
+                                </p>
+                              )}
+                            </div>
+                          )}
+
+                          {question.type === "boolean" && (
+                            <div>
+                              <div className="flex items-center space-x-2">
+                                <Checkbox
+                                  id={question.id}
+                                  checked={applicationData.customAnswers[question.id] || false}
+                                  onCheckedChange={(checked) => handleCustomAnswerChange(question.id, checked)}
+                                />
+                                <Label htmlFor={question.id} className="text-sm">
+                                  Yes
+                                </Label>
+                              </div>
+                              {isFieldAutoFilled(question.id) ? (
+                                <p className="text-xs text-green-600 mt-1">✓ Auto-filled from resume</p>
+                              ) : (
+                                <p className={`text-xs mt-1 ${applicationData.customAnswers[question.id] ? 'text-green-600' : (question.required ? 'text-red-500' : 'text-gray-500')}`}>
+                                  {applicationData.customAnswers[question.id] ? '✓ Filled' : (question.required ? 'Required' : 'Optional')}
+                                </p>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                    ))}
+                  </div>
+
+                  {/* Full-width text fields */}
+                  {job.customQuestions
+                    .filter(q => q.type === "text")
+                    .sort((a, b) => job.customQuestions!.indexOf(a) - job.customQuestions!.indexOf(b))
+                    .map((question, index) => {
+                      const smallFieldsCount = job.customQuestions!.filter(q => q.type === "select" || q.type === "number" || q.type === "boolean").length;
+                      return (
+                        <div key={question.id}>
+                          <Label htmlFor={question.id} className="block text-sm font-medium mb-2">
+                            Q{smallFieldsCount + index + 1}. {question.question}
+                          </Label>
+                          <div>
                             <Input
                               id={question.id}
                               value={applicationData.customAnswers[question.id] || ""}
@@ -1324,133 +1388,73 @@ export default function ApplyJobPage() {
                               required={question.required}
                               className={getInputClassName(question.id, '')}
                             />
-                            {isFieldAutoFilled(question.id) && (
-                              <p className="text-xs text-green-600 flex items-center space-x-1">
-                                <Sparkles className="w-3 h-3" />
-                                <span>Auto-filled from resume</span>
+                            {isFieldAutoFilled(question.id) ? (
+                              <p className="text-xs text-green-600 mt-1">✓ Auto-filled from resume</p>
+                            ) : (
+                              <p className={`text-xs mt-1 ${applicationData.customAnswers[question.id]?.toString().trim() ? 'text-green-600' : 'text-red-500'}`}>
+                                {applicationData.customAnswers[question.id]?.toString().trim() ? '✓ Filled' : 'Required'}
                               </p>
                             )}
                           </div>
-                        )}
-
-                        {question.type === "number" && (
-                          <div className="space-y-2">
-                            <Input
-                              id={question.id}
-                              type="number"
-                              value={applicationData.customAnswers[question.id] || ""}
-                              onChange={(e) => handleCustomAnswerChange(question.id, e.target.value)}
-                              placeholder="Enter amount..."
-                              required={question.required}
-                              className={getInputClassName(question.id, '')}
-                            />
-                            {isFieldAutoFilled(question.id) && (
-                              <p className="text-xs text-green-600 flex items-center space-x-1">
-                                <Sparkles className="w-3 h-3" />
-                                <span>Auto-filled from resume</span>
-                              </p>
-                            )}
-                          </div>
-                        )}
-
-                        {question.type === "select" && question.options && (
-                          <div className="space-y-2">
-                            <Select
-                              value={applicationData.customAnswers[question.id] || ""}
-                              onValueChange={(value) => handleCustomAnswerChange(question.id, value)}
-                            >
-                              <SelectTrigger className={getInputClassName(question.id, '')}>
-                                <SelectValue placeholder="Select an option..." />
-                              </SelectTrigger>
-                              <SelectContent>
-                                {question.options.map((option) => (
-                                  <SelectItem key={option} value={option}>
-                                    {option}
-                                  </SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
-                            {isFieldAutoFilled(question.id) && (
-                              <p className="text-xs text-green-600 flex items-center space-x-1">
-                                <Sparkles className="w-3 h-3" />
-                                <span>Auto-filled from resume</span>
-                              </p>
-                            )}
-                          </div>
-                        )}
-
-                        {question.type === "boolean" && (
-                          <div className="space-y-2">
-                            <div className="flex items-center space-x-2">
-                              <Checkbox
-                                id={question.id}
-                                checked={applicationData.customAnswers[question.id] || false}
-                                onCheckedChange={(checked) => handleCustomAnswerChange(question.id, checked)}
-                              />
-                              <Label htmlFor={question.id} className="text-sm font-normal">
-                                Yes
-                              </Label>
-                            </div>
-                            {isFieldAutoFilled(question.id) && (
-                              <p className="text-xs text-green-600 flex items-center space-x-1">
-                                <Sparkles className="w-3 h-3" />
-                                <span>Auto-filled from resume</span>
-                              </p>
-                            )}
-                          </div>
-                        )}
-                      </div>
-                    ))}
-                  </div>
+                        </div>
+                      );
+                    })}
                 </div>
-              )}
-
-              {/* Error Message */}
-              {error && (
-                <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-4">
-                  <div className="flex items-start space-x-3">
-                    <AlertCircle className="w-5 h-5 text-red-500 mt-0.5" />
-                    <div className="flex-1">
-                      <h3 className="text-red-800 font-semibold text-sm mb-1">
-                        {error.includes("Missing required fields") ? "Missing Required Fields" : "Application Submission Failed"}
-                      </h3>
-                      <p className="text-red-700 text-sm">{error}</p>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {/* Submit Button */}
-              <div className="flex justify-end space-x-4">
-                <Button type="button" variant="outline" onClick={() => router.back()} disabled={submitting}>
-                  Cancel
-                </Button>
-                <Button type="submit" disabled={submitting} className="bg-blue-600 hover:bg-blue-700 min-w-[120px]">
-                  {submitting ? (
-                    <>
-                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                      Submitting...
-                    </>
-                  ) : (
-                    "Submit Application"
-                  )}
-                </Button>
               </div>
-            </form>
-          </CardContent>
-        </Card>
+            )}
+
+            {/* Error Message */}
+            {error && (
+              <div className="bg-red-50 border border-red-200 p-4 rounded-lg mb-4">
+                <div className="flex items-start space-x-2">
+                  <AlertCircle className="w-5 h-5 text-red-500 mt-0.5 flex-shrink-0" />
+                  <div>
+                    <h3 className="text-red-800 font-semibold text-sm mb-1">
+                      {error.includes("Missing required fields") ? "Missing Required Fields" : "Application Submission Failed"}
+                    </h3>
+                    <p className="text-red-700 text-sm">{error}</p>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Submit Button */}
+            <div className="flex justify-end space-x-4 pt-4 border-t border-gray-200">
+              <Button type="button" variant="outline" onClick={() => router.back()} disabled={submitting}>
+                Cancel
+              </Button>
+              <Button type="submit" disabled={submitting} className="bg-blue-600 hover:bg-blue-700">
+                {submitting ? (
+                  <>
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                    Submitting...
+                  </>
+                ) : (
+                  "Submit Application"
+                )}
+              </Button>
+            </div>
+
+            {/* Validation Message at Bottom */}
+            <div className="mt-4 p-3 bg-amber-50 border border-amber-200 rounded-lg">
+              <div className="flex items-start space-x-2">
+                <AlertCircle className="w-4 h-4 text-amber-600 mt-0.5 flex-shrink-0" />
+                <div>
+                  <p className="text-amber-800 text-sm font-medium">Important:</p>
+                  <p className="text-amber-700 text-sm">Please ensure all required fields are filled before submitting your application.</p>
+                </div>
+              </div>
+            </div>
+          </form>
+        </div>
 
         {/* Source Tracking Info */}
         {applicationData.utmSource && (
-          <Card className="mt-4">
-            <CardContent className="p-4">
-              <div className="text-xs text-gray-500">
-                <p>Application source: {applicationData.utmSource}</p>
-                {applicationData.utmMedium && <p>Medium: {applicationData.utmMedium}</p>}
-                {applicationData.utmCampaign && <p>Campaign: {applicationData.utmCampaign}</p>}
-              </div>
-            </CardContent>
-          </Card>
+          <div className="mt-4 text-xs text-gray-500">
+            <p>Application source: {applicationData.utmSource}</p>
+            {applicationData.utmMedium && <p>Medium: {applicationData.utmMedium}</p>}
+            {applicationData.utmCampaign && <p>Campaign: {applicationData.utmCampaign}</p>}
+          </div>
         )}
       </div>
     </div>

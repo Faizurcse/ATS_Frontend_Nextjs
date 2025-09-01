@@ -129,7 +129,7 @@ export default function Dashboard() {
         { id: "jobs", label: "Job Postings", icon: Briefcase, component: JobPostings},
         { id: "interviews", label: "Interviews", icon: Calendar, component: InterviewManagement},
         { id: "pipeline", label: "Pipeline", icon: Target, component: PipelineAPI },
-        { id: "ai-recruitment", label: "AI Recruitment", icon: Brain, component: AIRecruitmentPlanning, badge: "New" },
+        // { id: "ai-recruitment", label: "AI Recruitment", icon: Brain, component: AIRecruitmentPlanning, badge: "New" },
         // { id: "ai-analysis", label: "AI Analysis", icon: Brain, component: AICandidateAnalysis, badge: "New" },
       ],
     },

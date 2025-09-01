@@ -100,7 +100,7 @@ interface JobPosting {
   jobStatus: "ACTIVE" | "PAUSED" | "CLOSED" | "FILLED"
 }
 
-export default function JobPostings() {
+export default function JobPostings({ setActiveTab }: { setActiveTab?: (tab: string) => void }) {
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false)
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false)
   const [isViewDialogOpen, setIsViewDialogOpen] = useState(false)
@@ -1078,12 +1078,23 @@ export default function JobPostings() {
   }
 
   const renderJobCard = (job: JobPosting) => {
+    // Navigation handlers
+    const handleInternalNavigation = () => {
+      // Navigate to candidates module using setActiveTab
+      if (setActiveTab) {
+        setActiveTab("candidates")
+      }
+    }
+
+
+
     return (
       <Card key={job.id} className="mb-4 hover:shadow-lg transition-shadow relative">
         <CardContent className="p-6">
           <div className="flex justify-between items-start mb-4">
             <div className="flex-1">
               <h3 className="font-semibold text-xl mb-2">{job.title}</h3>
+              
               <div className="flex items-center space-x-2 text-sm text-gray-600 mb-2">
                 <Building2 className="w-4 h-4" />
                 <span>{job.company}</span>
@@ -1101,8 +1112,9 @@ export default function JobPostings() {
               </div>
             </div>
 
-            <div className="flex items-center space-x-2">
-              <Select
+            <div className="flex flex-col items-end space-y-2">
+              <div className="flex items-center space-x-2">
+                <Select
                 value={job.jobType}
                 onValueChange={async (value) => {
                   try {
@@ -1356,8 +1368,8 @@ export default function JobPostings() {
                     </div>
                   </SelectItem>
                 </SelectContent>
-              </Select>
-              <Select
+                </Select>
+                <Select
                 value={job.priority}
                 onValueChange={async (value) => {
                   try {
@@ -1451,7 +1463,20 @@ export default function JobPostings() {
                     </div>
                   </SelectItem>
                 </SelectContent>
-              </Select>
+                </Select>
+              </div>
+              <div 
+                onClick={handleInternalNavigation}
+                className="flex items-center space-x-1 px-3 py-1 bg-green-50 border border-green-200 rounded-full cursor-pointer hover:bg-green-100 transition-colors"
+              >
+                <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                <span className="text-green-700 font-medium text-sm">
+                  External
+                </span>
+                <svg className="w-3 h-3 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                </svg>
+              </div>
             </div>
           </div>
 
@@ -1659,6 +1684,8 @@ export default function JobPostings() {
       </Card>
     )
   }
+
+
 
   return (
     <div className="space-y-6">
