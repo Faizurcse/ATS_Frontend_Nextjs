@@ -1,8 +1,5 @@
-import type { Config } from "tailwindcss";
-
-// all in fixtures is set to tailwind v3 as interims solutions
-
-const config: Config = {
+/** @type {import('tailwindcss').Config} */
+module.exports = {
     darkMode: ["class"],
     content: [
     "./pages/**/*.{js,ts,jsx,tsx,mdx}",
@@ -96,4 +93,3 @@ const config: Config = {
   },
   plugins: [require("tailwindcss-animate")],
 };
-export default config;
