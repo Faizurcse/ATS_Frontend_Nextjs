@@ -138,7 +138,13 @@ export default function EnhancedPipeline() {
 
         {/* AI Interview Integration */}
         <div className="mt-3 pt-3 border-t border-gray-100">
-          <InterviewIntegration candidateId={candidate.id} source="pipeline" />
+          <InterviewIntegration 
+            candidates={[candidate]} 
+            onScheduleInterview={(candidateId) => {
+              // Handle interview scheduling for this specific candidate
+              console.log('Schedule interview for candidate:', candidateId)
+            }} 
+          />
         </div>
 
         {/* Rest of existing card content */}
