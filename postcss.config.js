@@ -1,6 +1,6 @@
 module.exports = {
   plugins: {
-    tailwindcss: {},
-    autoprefixer: {},
+    // tailwindcss: {}, // Disabled for VPS build
+    // autoprefixer: {}, // Disabled for VPS build
   },
 };
