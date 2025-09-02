@@ -10,8 +10,7 @@ const nextConfig = {
     unoptimized: true,
   },
   devIndicators: {
-    buildActivity: false,
-    buildActivityPosition: 'bottom-right',
+    position: 'bottom-right',
   },
   experimental: {
     // Reduce hydration warnings in development
