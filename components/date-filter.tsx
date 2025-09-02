@@ -1,7 +1,7 @@
 "use client"
 
 import { useState } from "react"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/select"
 import { Calendar as CalendarIcon, X } from "lucide-react"
 import { format } from "date-fns"
 

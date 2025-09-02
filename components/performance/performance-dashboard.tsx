@@ -1,11 +1,11 @@
 "use client"
 
 import { useState } from "react"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import { Card, CardContent, CardHeader, CardTitle } from "./card"
+import { Badge } from "./badge"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./select"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "./tabs"
+import { Avatar, AvatarFallback, AvatarImage } from "./avatar"
 import { Users, TrendingUp, Award, Target, IndianRupee, Clock, ArrowUp } from "lucide-react"
 
 import IndividualPerformance from "./individual-performance"

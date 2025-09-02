@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { Toaster } from "@/components/ui/toaster"
+import { Toaster } from "./toaster"
 
 export function ClientToaster() {
   const [mounted, setMounted] = useState(false)

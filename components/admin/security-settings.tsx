@@ -1,15 +1,15 @@
 "use client"
 
 import { useState } from "react"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Switch } from "@/components/ui/switch"
-import { Separator } from "@/components/ui/separator"
-import { Badge } from "@/components/ui/badge"
-import { Progress } from "@/components/ui/progress"
+import { Card, CardContent, CardHeader, CardTitle } from "./card"
+import { Button } from "./button"
+import { Input } from "./input"
+import { Label } from "./label"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./select"
+import { Switch } from "./switch"
+import { Separator } from "./separator"
+import { Badge } from "./badge"
+import { Progress } from "./progress"
 import {
   Shield,
   Lock,

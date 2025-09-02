@@ -1,9 +1,9 @@
 "use client"
 
 import { useState } from "react"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Card, CardContent, CardHeader, CardTitle } from "./card"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./select"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "./tabs"
 import { TrendingUp, TrendingDown, BarChart3, Calendar, Target, Award, AlertTriangle, CheckCircle } from "lucide-react"
 import {
   Line,
@@ -18,7 +18,7 @@ import {
   Bar,
   BarChart,
 } from "recharts"
-import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart"
+import { ChartContainer, ChartTooltip, ChartTooltipContent } from "./chart"
 import { type TrendData, MOCK_TREND_DATA, MOCK_PERFORMANCE_DATA, formatCurrency } from "../../lib/performance-data"
 
 export default function TrendsInsights() {

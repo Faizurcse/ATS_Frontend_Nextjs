@@ -171,8 +171,101 @@ function fixAllImportsInApp(dir) {
   return fixedCount;
 }
 
+// Function to fix imports in components directory files
+function fixImportsInComponentsFile(filePath) {
+  try {
+    let content = fs.readFileSync(filePath, 'utf8');
+    let modified = false;
+
+    // Check if this is a UI component file
+    const isUIComponent = filePath.includes('components/ui/');
+    
+    if (isUIComponent) {
+      // For UI components, other UI components are in the same directory
+      const uiImportRegex = /from ["']@\/components\/ui\/([^"']+)["']/g;
+      content = content.replace(uiImportRegex, (match, component) => {
+        modified = true;
+        return `from "./${component}"`;
+      });
+    } else {
+      // Calculate relative path to ui directory
+      const relativePath = path.relative(path.dirname(filePath), path.join(__dirname, '..', 'components', 'ui'));
+      const normalizedPath = relativePath.replace(/\\/g, '/');
+
+      // For files in components/ directory, UI components are in relative path
+      const uiImportRegex = /from ["']@\/components\/ui\/([^"']+)["']/g;
+      content = content.replace(uiImportRegex, (match, component) => {
+        modified = true;
+        return `from "${normalizedPath}/${component}"`;
+      });
+    }
+
+    // Fix @/hooks/ imports to relative paths
+    const hooksImportRegex = /from ["']@\/hooks\/([^"']+)["']/g;
+    content = content.replace(hooksImportRegex, (match, hook) => {
+      modified = true;
+      return `from "../hooks/${hook}"`;
+    });
+
+    // Fix @/lib/ imports to relative paths
+    const libImportRegex = /from ["']@\/lib\/([^"']+)["']/g;
+    content = content.replace(libImportRegex, (match, lib) => {
+      modified = true;
+      return `from "../lib/${lib}"`;
+    });
+
+    // Fix @/PythonApi imports
+    const pythonApiRegex = /from ["']@\/PythonApi["']/g;
+    content = content.replace(pythonApiRegex, () => {
+      modified = true;
+      return `from "../PythonApi"`;
+    });
+
+    // Fix @/BaseUrlApi imports
+    const baseUrlApiRegex = /from ["']@\/BaseUrlApi["']/g;
+    content = content.replace(baseUrlApiRegex, () => {
+      modified = true;
+      return `from "../BaseUrlApi"`;
+    });
+
+    if (modified) {
+      fs.writeFileSync(filePath, content, 'utf8');
+      console.log(`✅ Fixed imports in: ${filePath}`);
+      return true;
+    }
+    return false;
+  } catch (error) {
+    console.error(`❌ Error fixing imports in ${filePath}:`, error.message);
+    return false;
+  }
+}
+
+// Function to recursively find and fix all .tsx files in components directory
+function fixAllImportsInComponents(dir) {
+  const files = fs.readdirSync(dir);
+  let fixedCount = 0;
+
+  files.forEach(file => {
+    const filePath = path.join(dir, file);
+    const stat = fs.statSync(filePath);
+
+    if (stat.isDirectory()) {
+      fixedCount += fixAllImportsInComponents(filePath);
+    } else if (file.endsWith('.tsx') || file.endsWith('.ts')) {
+      if (fixImportsInComponentsFile(filePath)) {
+        fixedCount++;
+      }
+    }
+  });
+
+  return fixedCount;
+}
+
 // Main execution
 console.log('🔧 Starting import path fixes...');
 const appDir = path.join(__dirname, '..', 'app');
-const fixedCount = fixAllImportsInApp(appDir);
-console.log(`🎉 Fixed imports in ${fixedCount} files!`);
+const componentsDir = path.join(__dirname, '..', 'components');
+const appFixedCount = fixAllImportsInApp(appDir);
+const componentsFixedCount = fixAllImportsInComponents(componentsDir);
+const totalFixed = appFixedCount + componentsFixedCount;
+console.log(`🎉 Fixed imports in ${totalFixed} files! (App: ${appFixedCount}, Components: ${componentsFixedCount})`);
