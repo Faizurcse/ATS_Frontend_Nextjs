@@ -46,7 +46,7 @@ import {
   RefreshCw,
 } from "lucide-react"
 import { formatDate, isDateInRange } from "../../lib/date-utils"
-import { DateFilter } from "@/components/date-filter"
+import { DateFilter } from "../../components/date-filter"
 
 // Enhanced pipeline statuses with better visual design and workflow logic
 const PIPELINE_STATUSES = [

@@ -1,7 +1,7 @@
 import type React from "react"
 import type { Metadata } from "next"
 import "./globals.css"
-import { ClientToaster } from "@/components/ui/client-toaster"
+import { ClientToaster } from "../components/ui/client-toaster"
 import Script from "next/script"
 
 export const metadata: Metadata = {

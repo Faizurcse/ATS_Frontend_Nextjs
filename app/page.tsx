@@ -3,13 +3,13 @@
 import type React from "react"
 
 import { useState, useEffect } from "react"
-import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
-import { Input } from "@/components/ui/input"
-import { ScrollArea } from "@/components/ui/scroll-area"
+import { Button } from "../components/ui/button"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../components/ui/card"
+import { Badge } from "../components/ui/badge"
+import { Avatar, AvatarFallback, AvatarImage } from "../components/ui/avatar"
+import { Popover, PopoverContent, PopoverTrigger } from "../components/ui/popover"
+import { Input } from "../components/ui/input"
+import { ScrollArea } from "../components/ui/scroll-area"
 import {
   Users,
   Building2,

@@ -40,8 +40,8 @@ import {
   XCircle,
 } from "lucide-react"
 import { isDateInRange } from "../../lib/date-utils"
-import { DateFilter } from "@/components/date-filter"
-import { RecruiterFilter } from "@/components/recruiter-filter"
+import { DateFilter } from "../../components/date-filter"
+import { RecruiterFilter } from "../../components/recruiter-filter"
 import AIInterviewScheduler from "./ai-interview-scheduler"
 import InterviewIntegration from "./interview-integration"
 

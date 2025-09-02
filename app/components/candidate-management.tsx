@@ -40,8 +40,8 @@ import {
   Eye,
 } from "lucide-react"
 import { isDateInRange } from "../../lib/date-utils"
-import { DateFilter } from "@/components/date-filter"
-import { AdvancedSearch, type SearchFilters } from "@/components/advanced-search"
+import { DateFilter } from "../../components/date-filter"
+import { AdvancedSearch, type SearchFilters } from "../../components/advanced-search"
 import {
   JOB_TYPES,
   formatSalary,
