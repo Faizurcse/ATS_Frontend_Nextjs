@@ -14,6 +14,13 @@ const nextConfig = {
     // Reduce hydration warnings in development
     optimizePackageImports: ['@radix-ui/react-toast'],
   },
+  webpack: (config) => {
+    config.resolve.alias = {
+      ...config.resolve.alias,
+      '@': require('path').resolve(__dirname),
+    }
+    return config
+  },
   // Suppress hydration warnings for specific patterns
   onDemandEntries: {
     // period (in ms) where the server will keep pages in the buffer
