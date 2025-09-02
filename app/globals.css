@@ -1,4 +1,4 @@
-/* Clean CSS without TailwindCSS directives */
+/* Basic CSS without any TailwindCSS directives */
 body {
   font-family: Arial, Helvetica, sans-serif;
   margin: 0;
@@ -7,7 +7,7 @@ body {
   color: #000000;
 }
 
-/* Custom slider styling for file reduction */
+/* Custom slider styling */
 .slider-orange::-webkit-slider-thumb {
   appearance: none;
   height: 16px;
