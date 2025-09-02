@@ -30,7 +30,7 @@ import {
 import { formatSalary, JOB_TYPES, COUNTRIES } from "../../../lib/location-data"
 import BASE_API_URL from '../../../BaseUrlApi';
 import PYTHON_API_URL from '../../../PythonApi';
-import { useToast } from "@/components/ui/use-toast";
+import { useToast } from "../../../components/ui/use-toast";
 
 interface JobPosting {
   id: string

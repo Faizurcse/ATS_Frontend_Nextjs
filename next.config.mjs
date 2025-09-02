@@ -9,7 +9,10 @@ const nextConfig = {
   images: {
     unoptimized: true,
   },
-  devIndicators: false,
+  devIndicators: {
+    buildActivity: false,
+    buildActivityPosition: 'bottom-right',
+  },
   experimental: {
     // Reduce hydration warnings in development
     optimizePackageImports: ['@radix-ui/react-toast'],
