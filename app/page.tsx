@@ -82,10 +82,16 @@ export default function Dashboard() {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
   const [showQuickActions, setShowQuickActions] = useState(true)
   const [userEmail, setUserEmail] = useState("")
+  const [isClient, setIsClient] = useState(false)
+
+  // Mark component as mounted on client
+  useEffect(() => {
+    setIsClient(true)
+  }, [])
 
   // Check URL parameters on component mount
   useEffect(() => {
-    if (typeof window !== "undefined") {
+    if (isClient) {
       try {
         const urlParams = new URLSearchParams(window.location.search)
         const tabParam = urlParams.get("tab")
@@ -98,11 +104,11 @@ export default function Dashboard() {
         console.warn("Error parsing URL parameters:", error)
       }
     }
-  }, [])
+  }, [isClient])
 
   // Auth guard
   useEffect(() => {
-    if (typeof window !== "undefined") {
+    if (isClient) {
       try {
         const isAuthenticated = localStorage.getItem("authenticated") === "true"
         if (!isAuthenticated) {
@@ -113,7 +119,7 @@ export default function Dashboard() {
         console.warn("Error accessing localStorage:", error)
       }
     }
-  }, [])
+  }, [isClient, router])
 
   const handleLogout = () => {
     localStorage.removeItem("authenticated")
@@ -208,11 +214,25 @@ export default function Dashboard() {
     .filter((category) => category.items.length > 0)
 
   useEffect(() => {
-    if (typeof window !== "undefined") {
+    if (isClient) {
       const email = localStorage.getItem("auth_email") || ""
       setUserEmail(email)
     }
-  }, [])
+  }, [isClient])
+
+  // Show loading state during SSR
+  if (!isClient) {
+    return (
+      <div className="flex h-screen bg-gray-50 items-center justify-center">
+        <div className="text-center">
+          <div className="w-12 h-12 bg-gradient-to-br from-blue-600 to-purple-600 rounded-full flex items-center justify-center mx-auto mb-4 animate-spin">
+            <Rocket className="w-6 h-6 text-white" />
+          </div>
+          <p className="text-gray-600">Loading...</p>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="flex h-screen bg-gray-50">
@@ -393,7 +413,7 @@ function DashboardOverview({ setActiveTab, showQuickActions, setShowQuickActions
     }, 0)
     
     // Get user data from localStorage
-    if (typeof window !== "undefined") {
+    if (isClient) {
       try {
         const email = localStorage.getItem("auth_email") || ""
         setUserEmail(email)
@@ -428,7 +448,7 @@ function DashboardOverview({ setActiveTab, showQuickActions, setShowQuickActions
     }
 
     return () => clearTimeout(timer)
-  }, [])
+  }, [isClient])
 
   // Fetch dashboard data with timeout and retry
   useEffect(() => {
