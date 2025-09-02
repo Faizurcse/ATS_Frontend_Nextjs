@@ -1,9 +1,9 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../../components/ui/card"
+import { Badge } from "../../components/ui/badge"
+import { Avatar, AvatarFallback, AvatarImage } from "../../components/ui/avatar"
 import {
   Users,
   CheckCircle,
@@ -19,7 +19,7 @@ import {
   Mail as MailIcon,
   MapPin as MapPinIcon,
 } from "lucide-react"
-import BASE_API_URL from "@/BaseUrlApi"
+import BASE_API_URL from "../../BaseUrlApi"
 
 interface Candidate {
   id: number
