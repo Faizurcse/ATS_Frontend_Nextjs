@@ -109,29 +109,39 @@ export default function CandidateMatching({ jobs }: CandidateMatchingProps) {
     // Limit to first 10 jobs for better performance
     const limitedJobs = jobs.slice(0, 10)
     
+    // Use deterministic values to prevent hydration mismatch
+    const getStableRandom = (seed: number, min: number, max: number) => {
+      const x = Math.sin(seed) * 10000
+      return Math.floor((x - Math.floor(x)) * (max - min + 1)) + min
+    }
+    
     limitedJobs.forEach((job, jobIndex) => {
       // Reduce candidates per job from 2000 to 200 for better performance
-      const candidatesForJob = Array.from({ length: Math.floor(Math.random() * 200) + 50 }, (_, i) => ({
-        id: `candidate-${job.id}-${i + 1}`,
-        name: `Candidate ${jobIndex * 200 + i + 1}`,
-        email: `candidate${jobIndex * 200 + i + 1}@example.com`,
-        skills: skills.slice(0, Math.floor(Math.random() * 6) + 2),
-        experience: Math.floor(Math.random() * 15) + 1,
-        education: education[Math.floor(Math.random() * education.length)],
-        location: locations[Math.floor(Math.random() * locations.length)],
-        matchScore: Math.floor(Math.random() * 50) + 50, // 50-100% match
-        status: pipelineStatuses[Math.floor(Math.random() * pipelineStatuses.length)] as Candidate["status"],
-        appliedDate: new Date(Date.now() - Math.random() * 30 * 24 * 60 * 60 * 1000).toISOString(),
-        lastContact: new Date(Date.now() - Math.random() * 7 * 24 * 60 * 60 * 1000).toISOString(),
-        jobTitle: job.title,
-        company: job.company,
-        aiInsights: {
-          skillMatch: Math.floor(Math.random() * 40) + 60,
-          experienceMatch: Math.floor(Math.random() * 40) + 60,
-          cultureFit: Math.floor(Math.random() * 40) + 60,
-          growthPotential: Math.floor(Math.random() * 40) + 60
+      const candidateCount = getStableRandom(jobIndex + 100, 50, 200)
+      const candidatesForJob = Array.from({ length: candidateCount }, (_, i) => {
+        const candidateSeed = jobIndex * 200 + i + 1000
+        return {
+          id: `candidate-${job.id}-${i + 1}`,
+          name: `Candidate ${jobIndex * 200 + i + 1}`,
+          email: `candidate${jobIndex * 200 + i + 1}@example.com`,
+          skills: skills.slice(0, getStableRandom(candidateSeed + 1, 2, 8)),
+          experience: getStableRandom(candidateSeed + 2, 1, 16),
+          education: education[getStableRandom(candidateSeed + 3, 0, education.length - 1)],
+          location: locations[getStableRandom(candidateSeed + 4, 0, locations.length - 1)],
+          matchScore: getStableRandom(candidateSeed + 5, 50, 100), // 50-100% match
+          status: pipelineStatuses[getStableRandom(candidateSeed + 6, 0, pipelineStatuses.length - 1)] as Candidate["status"],
+          appliedDate: new Date(Date.now() - getStableRandom(candidateSeed + 7, 0, 30) * 24 * 60 * 60 * 1000).toISOString(),
+          lastContact: new Date(Date.now() - getStableRandom(candidateSeed + 8, 0, 7) * 24 * 60 * 60 * 1000).toISOString(),
+          jobTitle: job.title,
+          company: job.company,
+          aiInsights: {
+            skillMatch: getStableRandom(candidateSeed + 9, 60, 100),
+            experienceMatch: getStableRandom(candidateSeed + 10, 60, 100),
+            cultureFit: getStableRandom(candidateSeed + 11, 60, 100),
+            growthPotential: getStableRandom(candidateSeed + 12, 60, 100)
+          }
         }
-      }))
+      })
       allCandidates.push(...candidatesForJob)
     })
     

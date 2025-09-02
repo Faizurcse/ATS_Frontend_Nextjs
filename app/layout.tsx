@@ -1,7 +1,8 @@
 import type React from "react"
 import type { Metadata } from "next"
 import "./globals.css"
-import { Toaster } from "@/components/ui/toaster"
+import { ClientToaster } from "@/components/ui/client-toaster"
+import Script from "next/script"
 
 export const metadata: Metadata = {
   title: "APPIT Software - AI Powered ATS | Intelligent Recruitment Platform",
@@ -17,9 +18,36 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body>
+      <body suppressHydrationWarning={true}>
         {children}
-        <Toaster />
+        <ClientToaster />
+        <Script
+          id="hydration-fix"
+          strategy="afterInteractive"
+          dangerouslySetInnerHTML={{
+            __html: `
+              // Fix hydration mismatch caused by browser extensions
+              if (typeof window !== 'undefined') {
+                const observer = new MutationObserver((mutations) => {
+                  mutations.forEach((mutation) => {
+                    if (mutation.type === 'attributes' && mutation.target === document.body) {
+                      // Suppress hydration warnings for extension attributes
+                      const body = document.body;
+                      if (body.getAttribute('data-testim-main-word-scripts-loaded')) {
+                        body.setAttribute('data-testim-main-word-scripts-loaded', 'true');
+                      }
+                    }
+                  });
+                });
+                
+                observer.observe(document.body, {
+                  attributes: true,
+                  attributeFilter: ['data-testim-main-word-scripts-loaded']
+                });
+              }
+            `,
+          }}
+        />
       </body>
     </html>
   )

@@ -55,20 +55,28 @@ export default function AIRecruitmentPlanning() {
   const [currentPage, setCurrentPage] = useState(1)
   const itemsPerPage = 5
 
-  // Mock data for demonstration
-  const mockJobs: JobPost[] = Array.from({ length: 1000 }, (_, i) => ({
-    id: `job-${i + 1}`,
-    title: `Senior ${["Developer", "Designer", "Manager", "Analyst", "Engineer"][i % 5]} - ${["React", "Python", "UX", "Product", "Data"][i % 5]}`,
-    company: `Company ${Math.floor(i / 10) + 1}`,
-    location: ["Remote", "New York", "San Francisco", "London", "Berlin", "Toronto", "Sydney", "Singapore", "Dubai", "Mumbai", "Tokyo", "Paris", "Amsterdam", "Stockholm", "Melbourne"][i % 15],
-    status: ["active", "paused", "closed"][i % 3] as JobPost["status"],
-    applicants: Math.floor(Math.random() * 2000) + 100,
-    matchRate: Math.floor(Math.random() * 40) + 60,
-    priority: ["high", "medium", "low"][i % 3] as JobPost["priority"],
-    lastUpdated: new Date(Date.now() - Math.random() * 30 * 24 * 60 * 60 * 1000).toISOString(),
-    aiScore: Math.floor(Math.random() * 40) + 60,
-    matchedCandidates: Math.floor(Math.random() * 500) + 50
-  }))
+  // Mock data for demonstration with stable values
+  const mockJobs: JobPost[] = Array.from({ length: 1000 }, (_, i) => {
+    // Use deterministic values to prevent hydration mismatch
+    const getStableRandom = (seed: number, min: number, max: number) => {
+      const x = Math.sin(seed) * 10000
+      return Math.floor((x - Math.floor(x)) * (max - min + 1)) + min
+    }
+    
+    return {
+      id: `job-${i + 1}`,
+      title: `Senior ${["Developer", "Designer", "Manager", "Analyst", "Engineer"][i % 5]} - ${["React", "Python", "UX", "Product", "Data"][i % 5]}`,
+      company: `Company ${Math.floor(i / 10) + 1}`,
+      location: ["Remote", "New York", "San Francisco", "London", "Berlin", "Toronto", "Sydney", "Singapore", "Dubai", "Mumbai", "Tokyo", "Paris", "Amsterdam", "Stockholm", "Melbourne"][i % 15],
+      status: ["active", "paused", "closed"][i % 3] as JobPost["status"],
+      applicants: getStableRandom(i + 1000, 100, 2100),
+      matchRate: getStableRandom(i + 2000, 60, 100),
+      priority: ["high", "medium", "low"][i % 3] as JobPost["priority"],
+      lastUpdated: new Date(Date.now() - getStableRandom(i + 3000, 0, 30) * 24 * 60 * 60 * 1000).toISOString(),
+      aiScore: getStableRandom(i + 4000, 60, 100),
+      matchedCandidates: getStableRandom(i + 5000, 50, 550)
+    }
+  })
 
   // Mock candidate data
   const mockMatchedCandidates: Candidate[] = [

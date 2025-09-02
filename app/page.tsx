@@ -85,20 +85,32 @@ export default function Dashboard() {
 
   // Check URL parameters on component mount
   useEffect(() => {
-    const urlParams = new URLSearchParams(window.location.search)
-    const tabParam = urlParams.get("tab")
+    if (typeof window !== "undefined") {
+      try {
+        const urlParams = new URLSearchParams(window.location.search)
+        const tabParam = urlParams.get("tab")
 
-    if (tabParam) {
-      setActiveTab(tabParam)
+        if (tabParam) {
+          setActiveTab(tabParam)
+        }
+      } catch (error) {
+        // Handle any URL parsing errors gracefully
+        console.warn("Error parsing URL parameters:", error)
+      }
     }
   }, [])
 
   // Auth guard
   useEffect(() => {
     if (typeof window !== "undefined") {
-      const isAuthenticated = localStorage.getItem("authenticated") === "true"
-      if (!isAuthenticated) {
-        router.replace("/login")
+      try {
+        const isAuthenticated = localStorage.getItem("authenticated") === "true"
+        if (!isAuthenticated) {
+          router.replace("/login")
+        }
+      } catch (error) {
+        // Handle localStorage access errors gracefully
+        console.warn("Error accessing localStorage:", error)
       }
     }
   }, [])
@@ -375,36 +387,47 @@ function DashboardOverview({ setActiveTab, showQuickActions, setShowQuickActions
   const [isClient, setIsClient] = useState(false)
 
   useEffect(() => {
-    // Mark component as mounted on client
-    setIsClient(true)
+    // Mark component as mounted on client with a small delay for production
+    const timer = setTimeout(() => {
+      setIsClient(true)
+    }, 0)
     
     // Get user data from localStorage
     if (typeof window !== "undefined") {
-      const email = localStorage.getItem("auth_email") || ""
-      setUserEmail(email)
-      
-      // Extract name from email (first part before @)
-      const nameFromEmail = email.split("@")[0]
-      // Capitalize first letter of the name
-      const formattedName = nameFromEmail.charAt(0).toUpperCase() + nameFromEmail.slice(1)
-      
-      setUserName(formattedName || "User")
-      
-      // Set current time
-      const now = new Date()
-      const timeString = now.toLocaleTimeString('en-US', { 
-        hour: 'numeric', 
-        minute: '2-digit',
-        hour12: true 
-      })
-      setCurrentTime(timeString)
-      
-      // Set greeting
-      const hour = now.getHours()
-      if (hour < 12) setGreeting("Good Morning")
-      else if (hour < 17) setGreeting("Good Afternoon")
-      else setGreeting("Good Evening")
+      try {
+        const email = localStorage.getItem("auth_email") || ""
+        setUserEmail(email)
+        
+        // Extract name from email (first part before @)
+        const nameFromEmail = email.split("@")[0]
+        // Capitalize first letter of the name
+        const formattedName = nameFromEmail.charAt(0).toUpperCase() + nameFromEmail.slice(1)
+        
+        setUserName(formattedName || "User")
+        
+        // Set current time
+        const now = new Date()
+        const timeString = now.toLocaleTimeString('en-US', { 
+          hour: 'numeric', 
+          minute: '2-digit',
+          hour12: true 
+        })
+        setCurrentTime(timeString)
+        
+        // Set greeting
+        const hour = now.getHours()
+        if (hour < 12) setGreeting("Good Morning")
+        else if (hour < 17) setGreeting("Good Afternoon")
+        else setGreeting("Good Evening")
+      } catch (error) {
+        // Handle localStorage access errors gracefully
+        console.warn("Error accessing localStorage in DashboardOverview:", error)
+        setUserName("User")
+        setGreeting("Welcome")
+      }
     }
+
+    return () => clearTimeout(timer)
   }, [])
 
   // Fetch dashboard data with timeout and retry

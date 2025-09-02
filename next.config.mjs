@@ -10,6 +10,26 @@ const nextConfig = {
     unoptimized: true,
   },
   devIndicators: false,
+  experimental: {
+    // Reduce hydration warnings in development
+    optimizePackageImports: ['@radix-ui/react-toast'],
+  },
+  // Suppress hydration warnings for specific patterns
+  onDemandEntries: {
+    // period (in ms) where the server will keep pages in the buffer
+    maxInactiveAge: 25 * 1000,
+    // number of pages that should be kept simultaneously without being disposed
+    pagesBufferLength: 2,
+  },
+  // Production-specific configurations
+  compiler: {
+    // Remove console logs in production
+    removeConsole: process.env.NODE_ENV === 'production',
+  },
+  // Ensure consistent rendering between server and client
+  reactStrictMode: true,
+  // Disable x-powered-by header
+  poweredByHeader: false,
 }
 
 export default nextConfig

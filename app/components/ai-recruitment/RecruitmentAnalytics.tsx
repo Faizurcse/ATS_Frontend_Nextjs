@@ -74,46 +74,52 @@ export default function RecruitmentAnalytics({ jobs }: RecruitmentAnalyticsProps
   const [selectedMetric, setSelectedMetric] = useState<string>("overall")
   const [analyticsData, setAnalyticsData] = useState<AnalyticsData | null>(null)
 
-  // Generate mock analytics data
+  // Generate mock analytics data with stable values for SSR
   const generateAnalyticsData = (): AnalyticsData => {
     const skills = ["React", "Python", "JavaScript", "Java", "SQL", "AWS", "Docker", "Machine Learning", "UI/UX", "Data Analysis"]
     
+    // Use deterministic values based on skill index to prevent hydration mismatch
+    const getStableRandom = (seed: number, min: number, max: number) => {
+      const x = Math.sin(seed) * 10000
+      return Math.floor((x - Math.floor(x)) * (max - min + 1)) + min
+    }
+    
     return {
-      timeToHire: Math.floor(Math.random() * 20) + 15, // 15-35 days
-      costPerHire: Math.floor(Math.random() * 5000) + 3000, // $3000-$8000
-      qualityOfHire: Math.floor(Math.random() * 30) + 70, // 70-100%
-      candidateSatisfaction: Math.floor(Math.random() * 20) + 80, // 80-100%
-      aiAccuracy: Math.floor(Math.random() * 15) + 85, // 85-100%
-      automationEfficiency: Math.floor(Math.random() * 20) + 80, // 80-100%
+      timeToHire: getStableRandom(1, 15, 35), // 15-35 days
+      costPerHire: getStableRandom(2, 3000, 8000), // $3000-$8000
+      qualityOfHire: getStableRandom(3, 70, 100), // 70-100%
+      candidateSatisfaction: getStableRandom(4, 80, 100), // 80-100%
+      aiAccuracy: getStableRandom(5, 85, 100), // 85-100%
+      automationEfficiency: getStableRandom(6, 80, 100), // 80-100%
       diversityMetrics: {
         gender: {
-          male: Math.floor(Math.random() * 20) + 50,
-          female: Math.floor(Math.random() * 20) + 40,
-          other: Math.floor(Math.random() * 5) + 5
+          male: getStableRandom(7, 50, 70),
+          female: getStableRandom(8, 40, 60),
+          other: getStableRandom(9, 5, 10)
         },
         age: {
-          under25: Math.floor(Math.random() * 15) + 20,
-          "25-35": Math.floor(Math.random() * 20) + 45,
-          "36-45": Math.floor(Math.random() * 15) + 25,
-          over45: Math.floor(Math.random() * 10) + 10
+          under25: getStableRandom(10, 20, 35),
+          "25-35": getStableRandom(11, 45, 65),
+          "36-45": getStableRandom(12, 25, 40),
+          over45: getStableRandom(13, 10, 20)
         },
         location: {
-          local: Math.floor(Math.random() * 20) + 60,
-          national: Math.floor(Math.random() * 20) + 30,
-          international: Math.floor(Math.random() * 10) + 10
+          local: getStableRandom(14, 60, 80),
+          national: getStableRandom(15, 30, 50),
+          international: getStableRandom(16, 10, 20)
         }
       },
-      skillGaps: skills.map(skill => ({
+      skillGaps: skills.map((skill, index) => ({
         skill,
-        demand: Math.floor(Math.random() * 40) + 60,
-        supply: Math.floor(Math.random() * 40) + 40,
-        gap: Math.floor(Math.random() * 30) + 10
+        demand: getStableRandom(index + 20, 60, 100),
+        supply: getStableRandom(index + 30, 40, 80),
+        gap: getStableRandom(index + 40, 10, 40)
       })),
       marketTrends: Array.from({ length: 12 }, (_, i) => ({
         month: new Date(2024, i, 1).toLocaleDateString('en-US', { month: 'short' }),
-        applications: Math.floor(Math.random() * 500) + 1000,
-        hires: Math.floor(Math.random() * 50) + 20,
-        aiScore: Math.floor(Math.random() * 20) + 80
+        applications: getStableRandom(i + 50, 1000, 1500),
+        hires: getStableRandom(i + 60, 20, 70),
+        aiScore: getStableRandom(i + 70, 80, 100)
       }))
     }
   }

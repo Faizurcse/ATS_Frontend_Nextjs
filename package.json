@@ -6,7 +6,9 @@
     "build": "next build",
     "dev": "next dev",
     "lint": "next lint",
-    "start": "next start"
+    "start": "next start",
+    "build:production": "node scripts/build-production.js",
+    "test:production": "npm run build && npm start"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.9.1",
