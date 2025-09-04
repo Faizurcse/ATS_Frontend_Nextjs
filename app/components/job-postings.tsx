@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useCallback } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "../../components/ui/card"
 import { Button } from "../../components/ui/button"
 import { Input } from "../../components/ui/input"
@@ -38,6 +38,7 @@ import {
   Trash2,
   Sparkles,
   CheckCircle,
+  XCircle,
 } from "lucide-react"
 import {
   JOB_TYPES,
@@ -48,7 +49,10 @@ import {
 } from "../../lib/location-data"
 import { useToast } from "../../components/ui/use-toast";
 import BASE_API_URL from '../../BaseUrlApi';
+
+;
 import ViewFinalizeJobPosting from './viewFinalizeJobPosting';
+import BulkJobPosting from './bulkJobPosting';
 
 // SearchFilters interface definition
 interface SearchFilters {
@@ -739,9 +743,21 @@ export default function JobPostings({ setActiveTab }: { setActiveTab?: (tab: str
   }
 
   // AI Job Posting Generation
-  const generateJobPosting = async () => {
+
+  // Optimized button handlers
+  const handleClearPrompt = useCallback(() => {
+    setAiPrompt("")
+    setAiMessage(null)
+  }, [])
+
+  const generateJobPosting = useCallback(async () => {
     if (!aiPrompt.trim()) {
       setAiMessage({ type: 'error', text: 'Please enter a prompt for job posting generation' })
+      return
+    }
+
+    if (aiPrompt.length < 50) {
+      setAiMessage({ type: 'error', text: `Please enter at least 50 characters. You have ${aiPrompt.length}/50 characters.` })
       return
     }
 
@@ -756,7 +772,20 @@ export default function JobPostings({ setActiveTab }: { setActiveTab?: (tab: str
       })
 
       if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`)
+        // Try to get the actual error message from the response
+        let errorMessage = `HTTP error! status: ${response.status}`
+        try {
+          const errorData = await response.json()
+          if (errorData.detail) {
+            errorMessage = errorData.detail
+          } else if (errorData.message) {
+            errorMessage = errorData.message
+          }
+        } catch (e) {
+          // If we can't parse the error response, use the generic message
+          console.warn('Could not parse error response:', e)
+        }
+        throw new Error(errorMessage)
       }
 
       const data = await response.json()
@@ -851,23 +880,37 @@ export default function JobPostings({ setActiveTab }: { setActiveTab?: (tab: str
       console.error('Error generating job posting:', error)
 
       let errorMessage = 'Failed to generate job posting'
+      let errorTitle = 'Error'
+      let isValidationError = false
+
       if (error instanceof TypeError && error.message.includes('Failed to fetch')) {
         errorMessage = 'API server is not available. Please start your backend server to use this feature.'
         setApiAvailable(false)
       } else if (error instanceof Error) {
         errorMessage = error.message
+        
+        // Check if it's a validation error from backend
+        if (error.message.includes('Invalid prompt') || 
+            error.message.includes('not related to job postings') ||
+            error.message.includes('Validation error') ||
+            error.message.includes('Please provide a job-related prompt') ||
+            error.message.includes('contains random characters') ||
+            error.message.includes('not a meaningful job description')) {
+          isValidationError = true
+          errorTitle = 'Invalid Prompt'
+        }
       }
 
       setAiMessage({ type: 'error', text: errorMessage })
       toast({
-        title: "Error",
+        title: errorTitle,
         description: errorMessage,
-        variant: "destructive",
+        variant: isValidationError ? "default" : "destructive",
       })
     } finally {
       setIsAIGenerating(false)
     }
-  }
+  }, [aiPrompt, toast])
 
   // Check if all required fields are filled for view button
   const isFormComplete = () => {
@@ -1729,11 +1772,13 @@ export default function JobPostings({ setActiveTab }: { setActiveTab?: (tab: str
               <>
                 <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                 
                 </svg>
-                Refresh Jobs
+                 Refresh
               </>
             )}
           </Button>
+          <BulkJobPosting onJobsCreated={fetchJobs} />
           <Dialog open={isAddDialogOpen} onOpenChange={(open) => {
             setIsAddDialogOpen(open);
             if (!open) {
@@ -1767,11 +1812,23 @@ export default function JobPostings({ setActiveTab }: { setActiveTab?: (tab: str
                   </div>
 
                   {aiMessage && (
-                    <div className={`p-3 rounded-lg ${aiMessage.type === 'success'
-                      ? 'bg-green-100 border border-green-300 text-green-800'
-                      : 'bg-red-100 border border-red-300 text-red-800'
-                      }`}>
-                      {aiMessage.text}
+                    <div className={`p-4 rounded-xl border-l-4 shadow-lg ${
+                      aiMessage.type === 'success'
+                        ? 'bg-gradient-to-r from-green-50 to-emerald-50 border-green-400 text-green-800'
+                        : 'bg-gradient-to-r from-red-50 to-rose-50 border-red-400 text-red-800'
+                    }`}>
+                      <div className="flex items-center space-x-3">
+                        <div className={`w-6 h-6 rounded-full flex items-center justify-center ${
+                          aiMessage.type === 'success' ? 'bg-green-500' : 'bg-red-500'
+                        }`}>
+                          {aiMessage.type === 'success' ? (
+                            <CheckCircle className="w-4 h-4 text-white" />
+                          ) : (
+                            <XCircle className="w-4 h-4 text-white" />
+                          )}
+                        </div>
+                        <span className="font-medium">{aiMessage.text}</span>
+                      </div>
                     </div>
                   )}
 
@@ -1779,14 +1836,29 @@ export default function JobPostings({ setActiveTab }: { setActiveTab?: (tab: str
                     <Label htmlFor="aiPrompt" className="text-blue-900">
                       Describe the job you want to generate:
                     </Label>
-                    <Textarea
-                      id="aiPrompt"
-                      value={aiPrompt}
-                      onChange={(e) => setAiPrompt(e.target.value)}
-                      placeholder="Generate a job posting for an AI Specialist position..."
-                      rows={3}
-                      className="border-blue-300 focus:border-blue-500 focus:ring-blue-500"
-                    />
+                    <div className="relative">
+                      <Textarea
+                        id="aiPrompt"
+                        value={aiPrompt}
+                        onChange={(e) => setAiPrompt(e.target.value)}
+                        placeholder="Generate a job posting for an AI Specialist position..."
+                        rows={3}
+                        className="border-blue-300 focus:border-blue-500 focus:ring-blue-500 pr-12"
+                      />
+                      <div className="absolute bottom-3 right-3 bg-white px-2 py-1 rounded text-xs text-gray-500 border border-gray-200">
+                        {aiPrompt.length}/50
+                      </div>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <div className="text-sm text-gray-600">
+                        {aiPrompt.length}/50 characters minimum
+                      </div>
+                      {aiPrompt.length < 50 && aiPrompt.length > 0 && (
+                        <div className="text-sm text-red-500 font-medium">
+                          Need {50 - aiPrompt.length} more characters
+                        </div>
+                      )}
+                    </div>
                     <div className="flex items-center justify-between">
                       <div className="flex items-center space-x-2">
                         <p className="text-sm text-blue-700">
@@ -1797,27 +1869,15 @@ export default function JobPostings({ setActiveTab }: { setActiveTab?: (tab: str
                         <Button
                           variant="outline"
                           size="sm"
-                          onClick={() => setAiPrompt(`
-  Create a comprehensive job posting using ONLY the following fields and values. Do not introduce any new fields. Fill every field with the detailed information exactly as provided. company: Appit Software Solutions department: Technology/AI & Machine Learning jobTitle: Senior AI Specialist internalSPOC: Dr. Priya Sharma (AI Team Lead) recruiter: Hemanth Avvaru (Senior Recruiter) email: careers@appitsoftware.com jobType: Full-time experienceLevel: Mid level (3-5 years) country: India city: Hyderabad fullLocation: HITEC City, Hyderabad, Telangana, India workType: ONSITE jobStatus: ACTIVE salaryMin: 800000 salaryMax: 1200000 priority: high description: We are seeking a talented Senior AI Specialist to join our cutting-edge AI team at Appit Software Solutions. You will be responsible for developing innovative machine learning solutions, implementing state-of-the-art algorithms, and collaborating with cross-functional teams to deliver AI-powered products that transform industries. This role offers excellent growth opportunities and the chance to work on groundbreaking projects in computer vision, natural language processing, and predictive analytics. You will lead AI initiatives, mentor junior developers, and contribute to our AI strategy and roadmap. requirements: Bachelor's degree in Computer Science, AI, or related field; 3+ years of experience in machine learning and AI development; Strong proficiency in Python, TensorFlow, PyTorch, and scikit-learn; Experience with deep learning, computer vision, and natural language processing; Knowledge of cloud platforms (AWS, Azure, GCP) and MLOps; Strong problem-solving and analytical skills; Excellent communication and teamwork abilities; Experience with Docker, Kubernetes, and CI/CD pipelines; Knowledge of SQL, NoSQL databases, and data engineering; Understanding of software development best practices and agile methodologies requiredSkills: Python, TensorFlow, PyTorch, Scikit-learn, Pandas, NumPy, OpenCV, NLTK, spaCy, AWS SageMaker, Azure ML, Docker, Kubernetes, Git, SQL, MongoDB, REST APIs, FastAPI, Flask, React, Node.js, Linux, Bash scripting, Jupyter Notebooks, MLflow, Kubeflow benefits: Health insurance with family coverage, dental insurance, vision insurance, 401K retirement plan with company match, paid time off (25 days annually), flexible working hours, professional development budget (₹5000/year), gym membership reimbursement, free lunch and snacks, remote work options (2 days/week), annual performance bonus, stock options, health and wellness programs, team building events, conference attendance support, certification reimbursement, mentorship programs, career advancement opportunities Output the final as a polished job posting that clearly lists each field and its value in human-readable form, but do not add or remove fields. Ensure every field above is present in the output.
-`)}
-                          className="text-blue-600 border-gray-300 hover:bg-blue-50"
-                        >
-                          Try Complete Sample
-                        </Button>
-
-
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={clearForm}
-                          className="text-gray-600 border-gray-300 hover:bg-gray-50"
+                          onClick={handleClearPrompt}
+                          className="text-gray-600 border-gray-300 hover:bg-gray-50 transition-colors duration-200"
                         >
                           Clear All
                         </Button>
                         <Button
                           onClick={generateJobPosting}
-                          disabled={isAIGenerating || !aiPrompt.trim()}
-                          className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white"
+                          disabled={isAIGenerating || !aiPrompt.trim() || aiPrompt.length < 50}
+                          className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
                         >
                           {isAIGenerating ? (
                             <>

@@ -143,7 +143,7 @@ export default function Dashboard() {
       label: "Recruitment",
       items: [
         { id: "candidates", label: "Candidates", icon: Users, component: CandidateManagement },
-        { id: "candidates-search", label: "Candidates Search", icon: Search, component: CandidatesSearch, badge: "AI" },
+        // { id: "candidates-search", label: "Candidates Search", icon: Search, component: CandidatesSearch, badge: "AI" },
         { id: "jobs", label: "Job Postings", icon: Briefcase, component: JobPostings},
         { id: "interviews", label: "Interviews", icon: Calendar, component: InterviewManagement},
         { id: "pipeline", label: "Pipeline", icon: Target, component: PipelineAPI },
