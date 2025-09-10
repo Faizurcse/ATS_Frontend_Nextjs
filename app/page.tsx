@@ -53,7 +53,7 @@ import MyJobs from "./components/my-jobs"
 import RecruiterTimesheet from "./components/recruiter-timesheet"
 // import RequirementTimesheet from "./components/requirement-timesheet"
 import BulkImport from "./components/bulk-import"
-// import AICandidateAnalysis from "./components/ai-candidate-analysis"
+import AICandidateAnalysis from "./components/ai-candidate-analysis"
 import EmailAnalytics from "./components/email-analytics"
 import UserManagement from "../components/admin/user-management"
 import CandidatesSearch from "./components/candidates-search"
@@ -461,7 +461,7 @@ function DashboardOverview({ setActiveTab, showQuickActions, setShowQuickActions
         const controller = new AbortController()
         const timeoutId = setTimeout(() => controller.abort(), 50000) // 10 second timeout
         
-        const response = await fetch('https://atsapi.workisy.in/api/dashboard', {
+        const response = await fetch('http://158.220.127.100:5000/api/dashboard', {
           signal: controller.signal
         })
         
@@ -483,6 +483,16 @@ function DashboardOverview({ setActiveTab, showQuickActions, setShowQuickActions
         
         if (error.name === 'AbortError') {
           setError('Request timed out. Please check your connection.')
+        } else if (error.message.includes('Failed to fetch') || error.message.includes('ERR_CONNECTION_REFUSED')) {
+          setError('API server is not running. Please start your backend server to view live data.')
+          // Set fallback data for demo purposes
+          setDashboardData({
+            totalJobs: 0,
+            totalCandidates: 0,
+            totalApplications: 0,
+            recentJobs: [],
+            recentApplications: []
+          })
         } else if (retryCount < 2) {
           // Retry after 2 seconds
           setTimeout(() => fetchDashboardData(retryCount + 1), 2000)

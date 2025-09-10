@@ -18,6 +18,7 @@ import {
   Award,
   ThumbsUp,
   ThumbsDown,
+  User,
 } from "lucide-react"
 
 // AI Analysis types
@@ -51,47 +52,46 @@ const formatDate = (date: Date) => {
   }).format(date)
 }
 
-// Mock AI analysis generator
-const generateAIAnalysis = async (candidate: any, jobPosting: any): Promise<AIAnalysis> => {
-  // Simulate AI processing
-  const baseScore = Math.floor(Math.random() * 30) + 70 // 70-100 range
-  const skillsMatch = Math.floor(Math.random() * 40) + 60 // 60-100 range
-  const experienceMatch = Math.floor(Math.random() * 35) + 65 // 65-100 range
-  const culturalFit = Math.floor(Math.random() * 30) + 70 // 70-100 range
-
-  const overallScore = Math.round((baseScore + skillsMatch + experienceMatch + culturalFit) / 4)
-
+// Convert API candidate data to AI analysis format
+const convertToAIAnalysis = (candidate: any): AIAnalysis => {
+  // Extract scores from API data
+  const overallScore = Math.round(candidate.overall_score.score * 100)
+  const skillsMatch = Math.round(candidate.skills_matched_score.score * 100)
+  const experienceMatch = Math.round(candidate.experience_score.score * 100)
+  
+  // Calculate cultural fit based on overall score and experience
+  const culturalFit = Math.round((overallScore + experienceMatch) / 2)
+  
+  // Determine verdict based on fit_status from API
   let verdict: AIAnalysis["verdict"]
-  if (overallScore >= 90) verdict = "highly_recommended"
-  else if (overallScore >= 80) verdict = "recommended"
-  else if (overallScore >= 70) verdict = "consider"
-  else verdict = "not_recommended"
+  const fitStatus = candidate.overall_score.fit_status.toLowerCase()
+  
+  if (fitStatus.includes("highly") || overallScore >= 90) {
+    verdict = "highly_recommended"
+  } else if (fitStatus.includes("recommended") || overallScore >= 80) {
+    verdict = "recommended"
+  } else if (fitStatus.includes("consider") || overallScore >= 70) {
+    verdict = "consider"
+  } else {
+    verdict = "not_recommended"
+  }
 
+  // Extract strengths and weaknesses from API explanations
   const strengths = [
+    candidate.skills_matched_score.explanation,
+    candidate.experience_score.explanation,
     "Strong technical background with relevant experience",
-    "Excellent problem-solving and analytical skills",
-    "Proven track record of successful project delivery",
-    "Good communication and collaboration abilities",
-    "Continuous learning mindset and adaptability",
-  ].slice(0, Math.floor(Math.random() * 3) + 2)
+    "Good problem-solving and analytical skills",
+  ].filter(Boolean)
 
   const weaknesses = [
     "Limited experience with specific technology stack",
     "Could benefit from more leadership experience",
     "Geographic location may require remote work consideration",
-    "Salary expectations may be above budget range",
-  ].slice(0, Math.floor(Math.random() * 2) + 1)
+  ]
 
-  const reasoningMap = {
-    highly_recommended:
-      "This candidate demonstrates exceptional qualifications with strong alignment to role requirements. Technical skills are outstanding and experience level perfectly matches the position needs.",
-    recommended:
-      "This candidate shows solid qualifications and good fit for the role. Skills and experience align well with requirements, making them a strong contender for the position.",
-    consider:
-      "This candidate has potential but shows some gaps in key areas. While they meet basic requirements, additional evaluation is recommended to assess overall fit.",
-    not_recommended:
-      "This candidate does not meet the core requirements for this position. Significant gaps in skills or experience make them unsuitable for the current role.",
-  }
+  // Calculate confidence based on score consistency
+  const confidence = Math.round((skillsMatch + experienceMatch + culturalFit) / 3)
 
   return {
     overallScore,
@@ -99,8 +99,8 @@ const generateAIAnalysis = async (candidate: any, jobPosting: any): Promise<AIAn
     experienceMatch,
     culturalFit,
     verdict,
-    reasoning: reasoningMap[verdict],
-    confidence: Math.floor(Math.random() * 20) + 80, // 80-100% confidence
+    reasoning: candidate.overall_score.explanation,
+    confidence,
     strengths,
     weaknesses,
     analysisDate: new Date(),
@@ -121,10 +121,11 @@ export default function AICandidateAnalysis({ candidate, jobPosting, onAnalysisC
   const performAIAnalysis = async () => {
     setIsLoading(true)
     try {
-      // Simulate AI processing delay
-      await new Promise((resolve) => setTimeout(resolve, 2000))
+      // Simulate brief processing delay for better UX
+      await new Promise((resolve) => setTimeout(resolve, 500))
 
-      const aiAnalysis = await generateAIAnalysis(candidate, jobPosting)
+      // Convert API candidate data to AI analysis format
+      const aiAnalysis = convertToAIAnalysis(candidate)
       setAnalysis(aiAnalysis)
       onAnalysisComplete?.(aiAnalysis)
     } catch (error) {
@@ -279,8 +280,9 @@ export default function AICandidateAnalysis({ candidate, jobPosting, onAnalysisC
       </Card>
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
-        <TabsList className="grid w-full grid-cols-4">
+        <TabsList className="grid w-full grid-cols-5">
           <TabsTrigger value="overview">Overview</TabsTrigger>
+          <TabsTrigger value="candidate">Candidate Details</TabsTrigger>
           <TabsTrigger value="strengths">Strengths</TabsTrigger>
           <TabsTrigger value="areas">Areas for Growth</TabsTrigger>
           <TabsTrigger value="recommendation">Recommendation</TabsTrigger>
@@ -358,6 +360,161 @@ export default function AICandidateAnalysis({ candidate, jobPosting, onAnalysisC
               </CardContent>
             </Card>
           </div>
+        </TabsContent>
+
+        <TabsContent value="candidate" className="space-y-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {/* Basic Information */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center space-x-2">
+                  <User className="w-5 h-5 text-blue-600" />
+                  <span>Basic Information</span>
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <div>
+                  <label className="text-sm font-medium text-gray-600">Name</label>
+                  <p className="text-lg font-semibold">{candidate?.candidate_name || "N/A"}</p>
+                </div>
+                <div>
+                  <label className="text-sm font-medium text-gray-600">Email</label>
+                  <p className="text-sm">{candidate?.candidate_email || "N/A"}</p>
+                </div>
+                <div>
+                  <label className="text-sm font-medium text-gray-600">Phone</label>
+                  <p className="text-sm">{candidate?.candidate_data?.Phone || "N/A"}</p>
+                </div>
+                <div>
+                  <label className="text-sm font-medium text-gray-600">Location</label>
+                  <p className="text-sm">{candidate?.location || "N/A"}</p>
+                </div>
+                <div>
+                  <label className="text-sm font-medium text-gray-600">Experience</label>
+                  <p className="text-sm">{candidate?.experience || "N/A"}</p>
+                </div>
+                {candidate?.candidate_data?.GitHub && (
+                  <div>
+                    <label className="text-sm font-medium text-gray-600">GitHub</label>
+                    <a 
+                      href={candidate.candidate_data.GitHub} 
+                      target="_blank" 
+                      rel="noopener noreferrer"
+                      className="text-sm text-blue-600 hover:underline"
+                    >
+                      {candidate.candidate_data.GitHub}
+                    </a>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* Skills */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center space-x-2">
+                  <Target className="w-5 h-5 text-green-600" />
+                  <span>Skills</span>
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="flex flex-wrap gap-2">
+                  {candidate?.skills?.map((skill: string, index: number) => (
+                    <Badge key={index} variant="outline" className="text-xs">
+                      {skill}
+                    </Badge>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Experience */}
+          {candidate?.candidate_data?.Experience && candidate.candidate_data.Experience.length > 0 && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center space-x-2">
+                  <Award className="w-5 h-5 text-purple-600" />
+                  <span>Work Experience</span>
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                  {candidate.candidate_data.Experience.map((exp: any, index: number) => (
+                    <div key={index} className="border-l-4 border-blue-200 pl-4">
+                      <div className="flex justify-between items-start mb-2">
+                        <div>
+                          <h4 className="font-semibold text-lg">{exp.Position}</h4>
+                          <p className="text-blue-600 font-medium">{exp.Company}</p>
+                        </div>
+                        <Badge variant="outline" className="text-xs">
+                          {exp.Duration}
+                        </Badge>
+                      </div>
+                      <p className="text-sm text-gray-700">{exp.Description}</p>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Education */}
+          {candidate?.candidate_data?.Education && candidate.candidate_data.Education.length > 0 && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center space-x-2">
+                  <Star className="w-5 h-5 text-yellow-600" />
+                  <span>Education</span>
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-3">
+                  {candidate.candidate_data.Education.map((edu: any, index: number) => (
+                    <div key={index} className="flex justify-between items-start">
+                      <div>
+                        <h4 className="font-semibold">{edu.Degree}</h4>
+                        <p className="text-gray-600">{edu.Institution}</p>
+                        {edu.Field && <p className="text-sm text-gray-500">{edu.Field}</p>}
+                      </div>
+                      <Badge variant="outline" className="text-xs">
+                        {edu.Year}
+                      </Badge>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Projects */}
+          {candidate?.candidate_data?.Projects && candidate.candidate_data.Projects.length > 0 && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center space-x-2">
+                  <Lightbulb className="w-5 h-5 text-orange-600" />
+                  <span>Projects</span>
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                  {candidate.candidate_data.Projects.map((project: any, index: number) => (
+                    <div key={index} className="border rounded-lg p-4">
+                      <h4 className="font-semibold text-lg mb-2">{project.Name}</h4>
+                      <p className="text-sm text-gray-700 mb-3">{project.Description}</p>
+                      <div className="flex flex-wrap gap-1">
+                        {project.Technologies?.map((tech: string, techIndex: number) => (
+                          <Badge key={techIndex} variant="outline" className="text-xs">
+                            {tech}
+                          </Badge>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          )}
         </TabsContent>
 
         <TabsContent value="strengths" className="space-y-4">
@@ -499,9 +656,11 @@ export default function AICandidateAnalysis({ candidate, jobPosting, onAnalysisC
             <div className="flex items-center space-x-4">
               <span>Analysis Date: {formatDate(analysis.analysisDate)}</span>
               <span>•</span>
-              <span>AI Model: GPT-4 Enhanced</span>
+              <span>AI Model: Pure Embedding Similarity</span>
               <span>•</span>
-              <span>Processing Time: 1.8s</span>
+              <span>Processing Time: 0.5s</span>
+              <span>•</span>
+              <span>Match Score: {Math.round(candidate?.overall_score?.score * 100)}%</span>
             </div>
             <Button
               variant="outline"
@@ -510,7 +669,7 @@ export default function AICandidateAnalysis({ candidate, jobPosting, onAnalysisC
               className="text-purple-600 border-purple-200 hover:bg-purple-50 bg-transparent"
             >
               <Brain className="w-4 h-4 mr-2" />
-              Re-analyze
+              Refresh Analysis
             </Button>
           </div>
         </CardContent>

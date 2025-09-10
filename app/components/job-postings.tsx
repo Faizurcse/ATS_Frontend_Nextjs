@@ -108,6 +108,7 @@ export default function JobPostings({ setActiveTab }: { setActiveTab?: (tab: str
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false)
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false)
   const [isViewDialogOpen, setIsViewDialogOpen] = useState(false)
+  const [isMinScoreDialogOpen, setIsMinScoreDialogOpen] = useState(false)
   const [editingJob, setEditingJob] = useState<JobPosting | null>(null)
   const [viewMode, setViewMode] = useState("all")
   const [statusFilter, setStatusFilter] = useState("all")
@@ -248,6 +249,35 @@ export default function JobPostings({ setActiveTab }: { setActiveTab?: (tab: str
     setTimeout(() => setShowDropdownNotification(false), 3000)
   }
 
+  // Function to fetch candidate count for a job
+  const fetchCandidateCount = async (jobId: string, minScore: string = "0.1"): Promise<number> => {
+    try {
+      const response = await fetch(`${BASE_API_URL}/api/v1/candidates-matching/candidates-matching/job/${jobId}/candidates-fast?min_score=${minScore}`)
+      if (response.ok) {
+        const data = await response.json()
+        return data.total_candidates || 0
+      }
+      return 0
+    } catch (error) {
+      console.error(`Error fetching candidate count for job ${jobId}:`, error)
+      return 0
+    }
+  }
+
+  // Function to refresh candidate counts for all jobs
+  const refreshCandidateCounts = async () => {
+    if (jobPostings.length === 0) return
+    
+    const jobsWithUpdatedCounts = await Promise.all(
+      jobPostings.map(async (job) => {
+        const candidateCount = await fetchCandidateCount(job.id, newJob.minScore)
+        return { ...job, applicants: candidateCount }
+      })
+    )
+    
+    setJobPostings(jobsWithUpdatedCounts)
+  }
+
   // Function to fetch jobs from API
   const fetchJobs = async () => {
     try {
@@ -306,7 +336,7 @@ export default function JobPostings({ setActiveTab }: { setActiveTab?: (tab: str
         })(),
         lastUpdated: job.updatedAt ? new Date(job.updatedAt).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
         createdAt: job.createdAt || job.postedDate || new Date().toISOString(), // Store the original createdAt timestamp
-        applicants: job.applicants || 0,
+        applicants: 0, // Will be updated below
         views: job.views || 0,
         internalSPOC: job.internalSPOC || "Not specified",
         recruiter: job.recruiter || "Not specified",
@@ -323,7 +353,15 @@ export default function JobPostings({ setActiveTab }: { setActiveTab?: (tab: str
         jobStatus: (job.jobStatus || "ACTIVE") as "ACTIVE" | "PAUSED" | "CLOSED" | "FILLED"
       }))
 
-      setJobPostings(transformedJobs)
+      // Fetch candidate counts for all jobs
+      const jobsWithCounts = await Promise.all(
+        transformedJobs.map(async (job) => {
+          const candidateCount = await fetchCandidateCount(job.id, newJob.minScore)
+          return { ...job, applicants: candidateCount }
+        })
+      )
+
+      setJobPostings(jobsWithCounts)
       
       // Log the sorted jobs to verify sorting is working
       console.log('Jobs sorted by createdAt (newest first):', 
@@ -420,11 +458,6 @@ export default function JobPostings({ setActiveTab }: { setActiveTab?: (tab: str
     }
   }
 
-  // Fetch jobs on component mount
-  useEffect(() => {
-    fetchJobs()
-  }, [])
-
   const [newJob, setNewJob] = useState({
     title: "",
     company: "",
@@ -446,8 +479,21 @@ export default function JobPostings({ setActiveTab }: { setActiveTab?: (tab: str
     remote: false,
     benefits: "",
     workType: "" as "ONSITE" | "REMOTE" | "HYBRID" | "",
-    jobStatus: "" as "ACTIVE" | "PAUSED" | "CLOSED" | "FILLED" | ""
+    jobStatus: "" as "ACTIVE" | "PAUSED" | "CLOSED" | "FILLED" | "",
+    minScore: "0.1"
   })
+
+  // Fetch jobs on component mount
+  useEffect(() => {
+    fetchJobs()
+  }, [])
+
+  // Refresh candidate counts when min score changes
+  useEffect(() => {
+    if (jobPostings.length > 0) {
+      refreshCandidateCounts()
+    }
+  }, [newJob.minScore])
 
   const statusOptions = [
     { key: "active", label: "Active" },
@@ -531,7 +577,8 @@ export default function JobPostings({ setActiveTab }: { setActiveTab?: (tab: str
         remote: false,
         benefits: "",
         workType: "",
-        jobStatus: ""
+        jobStatus: "",
+        minScore: "0.1"
       })
       resetAIStates()
       
@@ -918,7 +965,7 @@ export default function JobPostings({ setActiveTab }: { setActiveTab?: (tab: str
       'title', 'company', 'department', 'internalSPOC', 'recruiter', 'email',
       'jobType', 'experience', 'country', 'city', 'location', 'workType',
       'jobStatus', 'salaryMin', 'salaryMax', 'priority', 'description',
-      'requirements', 'skills', 'benefits'
+      'requirements', 'skills', 'benefits', 'minScore'
     ]
     
     return requiredFields.every(field => {
@@ -976,7 +1023,8 @@ export default function JobPostings({ setActiveTab }: { setActiveTab?: (tab: str
       remote: false,
       benefits: "",
       workType: "",
-      jobStatus: ""
+      jobStatus: "",
+      minScore: "0.1"
     })
     resetAIStates()
     // Reset any other states that might interfere
@@ -1127,6 +1175,13 @@ export default function JobPostings({ setActiveTab }: { setActiveTab?: (tab: str
       if (setActiveTab) {
         setActiveTab("candidates")
       }
+    }
+
+    const handleAnalysisNavigation = () => {
+      // Navigate to job applicants page for this specific job
+      console.log('Internal button clicked! Job ID:', job.id)
+      // Navigate to the job applicants page
+      window.location.href = `/job/${job.id}/applicants?source=internal`
     }
 
 
@@ -1508,17 +1563,34 @@ export default function JobPostings({ setActiveTab }: { setActiveTab?: (tab: str
                 </SelectContent>
                 </Select>
               </div>
-              <div 
-                onClick={handleInternalNavigation}
-                className="flex items-center space-x-1 px-3 py-1 bg-green-50 border border-green-200 rounded-full cursor-pointer hover:bg-green-100 transition-colors"
-              >
-                <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-                <span className="text-green-700 font-medium text-sm">
-                  External
-                </span>
-                <svg className="w-3 h-3 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                </svg>
+              <div className="flex items-center space-x-2">
+                <div 
+                  onClick={handleInternalNavigation}
+                  className="flex items-center space-x-1 px-3 py-1 bg-green-50 border border-green-200 rounded-full cursor-pointer hover:bg-green-100 transition-colors"
+                >
+                  <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                  <span className="text-green-700 font-medium text-sm">
+                    External
+                  </span>
+                  <svg className="w-3 h-3 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                  </svg>
+                </div>
+                <div 
+                  onClick={handleAnalysisNavigation}
+                  className="flex items-center space-x-1 px-3 py-1 bg-blue-50 border border-blue-200 rounded-full cursor-pointer hover:bg-blue-100 transition-colors"
+                >
+                  <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
+                  <span className="text-blue-700 font-medium text-sm">
+                    Internal
+                  </span>
+                  {/* <span className="bg-blue-600 text-white text-xs px-1.5 py-0.5 rounded-full font-medium">
+                    {job.applicants || 0}
+                  </span> */}
+                  <svg className="w-3 h-3 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                  </svg>
+                </div>
               </div>
             </div>
           </div>
@@ -1754,6 +1826,31 @@ export default function JobPostings({ setActiveTab }: { setActiveTab?: (tab: str
             )}
 
           </div>
+          
+          {/* Min Score Filter - Compact Design */}
+          {/* <div className="mt-3 inline-flex items-center space-x-2 bg-gray-50 px-3 py-2 rounded-lg border">
+            <Target className="w-4 h-4 text-gray-600" />
+            <span className="text-sm text-gray-700">Min Score:</span>
+            <input
+              type="number"
+              min="0"
+              max="1"
+              step="0.1"
+              value={newJob.minScore}
+              onChange={(e) => setNewJob({ ...newJob, minScore: e.target.value })}
+              className="w-16 px-2 py-1 text-sm border border-gray-300 rounded focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
+              placeholder="0.1"
+            />
+            <span className="text-xs text-gray-500">📊 Count on Internal</span>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setIsMinScoreDialogOpen(true)}
+              className="h-6 w-6 p-0 hover:bg-blue-100"
+            >
+              <Eye className="w-3 h-3 text-gray-600" />
+            </Button>
+          </div> */}
 
         </div>
         <div className="flex space-x-2">
@@ -1779,19 +1876,20 @@ export default function JobPostings({ setActiveTab }: { setActiveTab?: (tab: str
             )}
           </Button>
           <BulkJobPosting onJobsCreated={fetchJobs} />
-          <Dialog open={isAddDialogOpen} onOpenChange={(open) => {
-            setIsAddDialogOpen(open);
-            if (!open) {
-              resetAIStates();
-              clearForm();
-            }
-          }}>
-            <DialogTrigger asChild>
-              <Button className="bg-blue-600 hover:bg-blue-700">
-                <Plus className="w-4 h-4 mr-2" />
-                Create Job Posting
-              </Button>
-            </DialogTrigger>
+          <div className="flex flex-col space-y-3">
+            <Dialog open={isAddDialogOpen} onOpenChange={(open) => {
+              setIsAddDialogOpen(open);
+              if (!open) {
+                resetAIStates();
+                clearForm();
+              }
+            }}>
+              <DialogTrigger asChild>
+                <Button className="bg-blue-600 hover:bg-blue-700">
+                  <Plus className="w-4 h-4 mr-2" />
+                  Create Job Posting
+                </Button>
+              </DialogTrigger>
             <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
               <DialogHeader>
                 <div>
@@ -2266,6 +2364,7 @@ export default function JobPostings({ setActiveTab }: { setActiveTab?: (tab: str
               </div>
             </DialogContent>
           </Dialog>
+        </div>
 
           {/* Edit Job Dialog */}
           <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
@@ -2774,6 +2873,116 @@ export default function JobPostings({ setActiveTab }: { setActiveTab?: (tab: str
           </div>
         </div>
       )}
+
+      {/* Min Score Details Dialog - Landscape View */}
+      <Dialog open={isMinScoreDialogOpen} onOpenChange={setIsMinScoreDialogOpen}>
+        <DialogContent className="max-w-6xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center space-x-2">
+              <Target className="w-5 h-5 text-blue-600" />
+              <span>Min Score Filter - How It Works</span>
+            </DialogTitle>
+            <DialogDescription>
+              Understanding the minimum similarity score for candidate matching
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="space-y-6">
+            {/* Current Setting - Full Width */}
+            <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
+              <h3 className="font-semibold text-blue-800 mb-2">Current Setting</h3>
+              <div className="flex items-center space-x-2">
+                <span className="text-sm text-blue-700">Min Score:</span>
+                <span className="text-lg font-bold text-blue-900">{newJob.minScore}</span>
+                <span className="text-sm text-blue-600">({(parseFloat(newJob.minScore) * 100).toFixed(0)}% similarity)</span>
+              </div>
+            </div>
+
+            {/* Main Content - 3 Column Layout */}
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+              {/* Left Column - How It Works */}
+              <div className="space-y-4">
+                <h3 className="font-semibold text-gray-800">How Min Score Works</h3>
+                
+                <div className="space-y-3">
+                  <div className="bg-green-50 p-3 rounded-lg border border-green-200">
+                    <h4 className="font-medium text-green-800 mb-1">🎯 Pure Embedding Similarity</h4>
+                    <p className="text-xs text-green-700">
+                      Uses AI embeddings to compare job requirements with candidate skills and experience. 
+                      Higher scores mean better matches.
+                    </p>
+                  </div>
+                  
+                  <div className="bg-orange-50 p-3 rounded-lg border border-orange-200">
+                    <h4 className="font-medium text-orange-800 mb-1">📊 Score Range</h4>
+                    <p className="text-xs text-orange-700">
+                      Scores range from 0.0 (no match) to 1.0 (perfect match). 
+                      Only candidates above your threshold will be shown.
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Middle Column - Score Examples */}
+              <div className="space-y-4">
+                <h3 className="font-semibold text-gray-800">Score Examples</h3>
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between p-2 bg-gray-50 rounded-lg">
+                    <span className="text-xs font-medium">0.9 - 1.0</span>
+                    <span className="text-xs text-green-600">Excellent Match</span>
+                  </div>
+                  <div className="flex items-center justify-between p-2 bg-gray-50 rounded-lg">
+                    <span className="text-xs font-medium">0.7 - 0.9</span>
+                    <span className="text-xs text-blue-600">Good Match</span>
+                  </div>
+                  <div className="flex items-center justify-between p-2 bg-gray-50 rounded-lg">
+                    <span className="text-xs font-medium">0.5 - 0.7</span>
+                    <span className="text-xs text-yellow-600">Moderate Match</span>
+                  </div>
+                  <div className="flex items-center justify-between p-2 bg-gray-50 rounded-lg">
+                    <span className="text-xs font-medium">0.3 - 0.5</span>
+                    <span className="text-xs text-orange-600">Weak Match</span>
+                  </div>
+                  <div className="flex items-center justify-between p-2 bg-gray-50 rounded-lg">
+                    <span className="text-xs font-medium">0.0 - 0.3</span>
+                    <span className="text-xs text-red-600">Poor Match</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Right Column - Recommendations & Usage */}
+              <div className="space-y-4">
+                <div className="bg-purple-50 p-3 rounded-lg border border-purple-200">
+                  <h3 className="font-semibold text-purple-800 mb-2 text-sm">💡 Recommendations</h3>
+                  <ul className="text-xs text-purple-700 space-y-1">
+                    <li>• <strong>0.1-0.3:</strong> Cast a wide net, get many candidates</li>
+                    <li>• <strong>0.4-0.6:</strong> Balanced approach, good quality candidates</li>
+                    <li>• <strong>0.7-0.9:</strong> High quality, fewer but better matches</li>
+                    <li>• <strong>0.9+:</strong> Very strict, only top-tier candidates</li>
+                  </ul>
+                </div>
+
+                <div className="bg-gray-50 p-3 rounded-lg">
+                  <h3 className="font-semibold text-gray-800 mb-2 text-sm">🚀 How to Use</h3>
+                  <ol className="text-xs text-gray-700 space-y-1 list-decimal list-inside">
+                    <li>Set your desired minimum score (0.0 - 1.0)</li>
+                    <li>Click "Create Job Posting" to create the job</li>
+                    <li>Click "Internal" button on job cards to see matching candidates</li>
+                    <li>The candidate count will show on the Internal button</li>
+                    <li>Adjust the score and create new jobs to see different results</li>
+                  </ol>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="flex justify-end mt-6">
+            <Button onClick={() => setIsMinScoreDialogOpen(false)}>
+              Got it!
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

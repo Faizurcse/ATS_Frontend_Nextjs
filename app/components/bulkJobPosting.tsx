@@ -194,7 +194,7 @@ export default function BulkJobPosting({ onJobsCreated }: BulkJobPostingProps) {
       const controller = new AbortController()
       setAbortController(controller)
 
-      const response = await fetch(`https://pyats.workisy.in/job-posting/bulk-generate`, {
+      const response = await fetch(`http://158.220.127.100:8000/job-posting/bulk-generate`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
@@ -444,7 +444,14 @@ export default function BulkJobPosting({ onJobsCreated }: BulkJobPostingProps) {
         </Button>
       </DialogTrigger>
       <DialogContent className="max-w-6xl max-h-[95vh] overflow-y-auto bg-gradient-to-br from-slate-50 to-blue-50 border-0 shadow-2xl">
-       
+        <DialogHeader>
+          <DialogTitle className="text-2xl font-bold text-gray-800 text-center">
+            Bulk Job Posting with AI
+          </DialogTitle>
+          <DialogDescription className="text-center text-gray-600">
+            Generate multiple job postings using AI based on your requirements
+          </DialogDescription>
+        </DialogHeader>
 
         <div className="space-y-6 py-4">
           {/* Generation Form */}
