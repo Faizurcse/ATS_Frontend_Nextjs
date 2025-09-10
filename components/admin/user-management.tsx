@@ -199,7 +199,7 @@ export default function UserManagement() {
         if (err.name === 'AbortError') {
           errorMessage = 'Request timed out. Please check if the backend server is running.'
         } else if (err.message.includes('fetch')) {
-          errorMessage = 'Network error. Please check if the backend server is running on https://atsapi.workisy.in'
+          errorMessage = 'Network error. Please check if the backend server is running on http://158.220.127.100:5000'
         } else {
           errorMessage = err.message
         }
@@ -242,7 +242,7 @@ export default function UserManagement() {
         if (err.name === 'AbortError') {
           errorMessage = 'Request timed out. Please check if the backend server is running.'
         } else if (err.message.includes('fetch')) {
-          errorMessage = 'Network error. Please check if the backend server is running on https://atsapi.workisy.in'
+          errorMessage = 'Network error. Please check if the backend server is running on http://158.220.127.100:5000'
         } else {
           errorMessage = err.message
         }

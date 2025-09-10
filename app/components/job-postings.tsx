@@ -252,7 +252,7 @@ export default function JobPostings({ setActiveTab }: { setActiveTab?: (tab: str
   // Function to fetch candidate count for a job
   const fetchCandidateCount = async (jobId: string, minScore: string = "0.1"): Promise<number> => {
     try {
-      const response = await fetch(`${BASE_API_URL}/api/v1/candidates-matching/candidates-matching/job/${jobId}/candidates-fast?min_score=${minScore}`)
+      const response = await fetch(`http://158.220.127.100:8000/api/v1/candidates-matching/candidates-matching/job/${jobId}/candidates-fast?min_score=${minScore}`)
       if (response.ok) {
         const data = await response.json()
         return data.total_candidates || 0
@@ -812,7 +812,7 @@ export default function JobPostings({ setActiveTab }: { setActiveTab?: (tab: str
       setIsAIGenerating(true)
       setAiMessage(null)
 
-      const response = await fetch(`https://pyats.workisy.in/job-posting/generate`, {
+      const response = await fetch(`http://158.220.127.100:8000/api/v1/job-posting/generate`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ prompt: aiPrompt.trim() })

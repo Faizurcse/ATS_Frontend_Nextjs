@@ -80,7 +80,7 @@ export default function CandidatesSearch() {
   const fetchEmbeddingStatus = async () => {
     try {
       setIsLoadingStatus(true)
-      const response = await fetch("https://pyats.workisy.in/ai-search/embedding-status")
+      const response = await fetch("http://158.220.127.100:8000/api/v1/ai-search/embedding-status")
       if (response.ok) {
         const data = await response.json()
         setEmbeddingStatus(data)
@@ -114,7 +114,7 @@ export default function CandidatesSearch() {
 
     try {
       setIsSearching(true)
-      const response = await fetch("https://pyats.workisy.in/ai-search/search", {
+      const response = await fetch("http://158.220.127.100:8000/api/v1/ai-search/search", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

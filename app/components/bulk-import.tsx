@@ -124,7 +124,7 @@ function ResumeFilesList() {
   const fetchResumeFiles = async () => {
     setLoading(true)
     try {
-      const response = await fetch('https://158.220.127.100:8000/api/v1/download/resumes/with-files')
+      const response = await fetch('http://158.220.127.100:8000/api/v1/download/resumes/with-files')
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`)
       }
