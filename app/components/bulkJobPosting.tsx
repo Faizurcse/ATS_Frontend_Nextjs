@@ -440,13 +440,13 @@ export default function BulkJobPosting({ onJobsCreated }: BulkJobPostingProps) {
       <DialogTrigger asChild>
         <Button className="bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 text-white shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105">
           <Upload className="w-4 h-4 mr-2" />
-          Bulk Job Posting
+           Add Jobs
         </Button>
       </DialogTrigger>
       <DialogContent className="max-w-6xl max-h-[95vh] overflow-y-auto bg-gradient-to-br from-slate-50 to-blue-50 border-0 shadow-2xl">
         <DialogHeader>
           <DialogTitle className="text-2xl font-bold text-gray-800 text-center">
-            Bulk Job Posting with AI
+           Job Posting with AI
           </DialogTitle>
           <DialogDescription className="text-center text-gray-600">
             Generate multiple job postings using AI based on your requirements
@@ -461,7 +461,7 @@ export default function BulkJobPosting({ onJobsCreated }: BulkJobPostingProps) {
                 <div className="w-10 h-10 bg-gradient-to-r from-blue-600 to-indigo-600 rounded-lg flex items-center justify-center shadow-sm">
                   <Sparkles className="w-5 h-5 text-white" />
                 </div>
-                <span className="text-gray-800 font-bold">Bulk Job Posting using AI</span>
+                <span className="text-gray-800 font-bold">Job Posting using AI</span>
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-6 p-6">

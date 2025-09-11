@@ -1884,12 +1884,12 @@ export default function JobPostings({ setActiveTab }: { setActiveTab?: (tab: str
                 clearForm();
               }
             }}>
-              <DialogTrigger asChild>
+              {/* <DialogTrigger asChild>
                 <Button className="bg-blue-600 hover:bg-blue-700">
                   <Plus className="w-4 h-4 mr-2" />
                   Create Job Posting
                 </Button>
-              </DialogTrigger>
+              </DialogTrigger> */}
             <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
               <DialogHeader>
                 <div>
