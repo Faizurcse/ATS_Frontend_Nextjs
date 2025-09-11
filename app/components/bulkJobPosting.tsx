@@ -28,6 +28,7 @@ import {
   Edit,
   Save,
   Send,
+    Plus
 } from "lucide-react"
 import { useToast } from "../../components/ui/use-toast"
 import BASE_API_URL from '../../BaseUrlApi'
@@ -439,8 +440,8 @@ export default function BulkJobPosting({ onJobsCreated }: BulkJobPostingProps) {
     <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
       <DialogTrigger asChild>
         <Button className="bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 text-white shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105">
-          <Upload className="w-4 h-4 mr-2" />
-           Add Jobs
+          {/* <Plus className="w-4 h-4 mr-2" /> */}
+           Add Jobs in Bulk
         </Button>
       </DialogTrigger>
       <DialogContent className="max-w-6xl max-h-[95vh] overflow-y-auto bg-gradient-to-br from-slate-50 to-blue-50 border-0 shadow-2xl">

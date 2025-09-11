@@ -117,7 +117,20 @@ export async function getCandidatesForJob(
     );
 
     if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
+      // Try to get the actual error message from the response
+      let errorMessage = `HTTP error! status: ${response.status}`;
+      try {
+        const errorData = await response.json();
+        if (errorData.detail) {
+          errorMessage = errorData.detail;
+        } else if (errorData.message) {
+          errorMessage = errorData.message;
+        }
+      } catch (e) {
+        // If we can't parse the error response, use the generic message
+        console.warn('Could not parse error response:', e);
+      }
+      throw new Error(errorMessage);
     }
 
     const data = await response.json();

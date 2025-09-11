@@ -118,7 +118,13 @@ export default function JobApplicantsPage() {
         
       } catch (err) {
         console.error('Error fetching data:', err)
-        setError(err instanceof Error ? err.message : 'Failed to fetch data')
+        
+        // Check if it's the "Job has no embeddings" error
+        if (err instanceof Error && err.message.includes('Job has no embeddings')) {
+          setError('This job doesn\'t have AI-generated embeddings yet. Please go back to job posts and try again later.')
+        } else {
+          setError(err instanceof Error ? err.message : 'Failed to fetch data')
+        }
       } finally {
         setLoading(false)
       }
@@ -237,15 +243,53 @@ export default function JobApplicantsPage() {
 
   // Error state
   if (error) {
+    // Check if it's the embeddings error to show special content
+    const isEmbeddingsError = error.includes('AI-generated embeddings');
+    
+    if (isEmbeddingsError) {
+      return (
+        <div className="min-h-screen flex items-center justify-center bg-gray-50">
+          <div className="max-w-md mx-auto text-center p-8 bg-white rounded-lg shadow-lg">
+            <div className="w-20 h-20 mx-auto mb-6 bg-blue-100 rounded-full flex items-center justify-center">
+              <svg className="w-10 h-10 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
+              </svg>
+            </div>
+            <h1 className="text-2xl font-bold text-gray-900 mb-4">AI Matching Not Available</h1>
+            <p className="text-gray-600 mb-6">
+              This job doesn't have AI-generated embeddings yet. To enable smart candidate matching, you need to generate embeddings first.
+            </p>
+            <div className="space-y-4">
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 text-left">
+                <h3 className="font-semibold text-blue-900 mb-2">How to enable AI matching:</h3>
+                <ol className="text-sm text-blue-800 space-y-1">
+                  <li>1. Go back to Job Postings</li>
+                  <li>2. Find this job in the list</li>
+                  <li>3. Use the AI Job Generation feature</li>
+                  <li>4. Generate or regenerate the job posting</li>
+                  <li>5. Return here to see AI-matched candidates</li>
+                </ol>
+              </div>
+              <Button onClick={() => window.location.href = '/?tab=jobs'} className="w-full">
+                <ArrowLeft className="w-4 h-4 mr-2" />
+                Back to Job Posts
+              </Button>
+            </div>
+          </div>
+        </div>
+      )
+    }
+    
+    // For other errors, show the original error display
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">
           <AlertCircle className="w-16 h-16 text-red-500 mx-auto mb-4" />
           <h1 className="text-2xl font-bold text-gray-900 mb-2">Error Loading Data</h1>
           <p className="text-gray-600 mb-4">{error}</p>
-          <Button onClick={() => window.location.reload()}>
+          <Button variant="outline" onClick={() => window.location.href = '/?tab=jobs'}>
             <ArrowLeft className="w-4 h-4 mr-2" />
-            Try Again
+            Back to Job Posts
           </Button>
         </div>
       </div>

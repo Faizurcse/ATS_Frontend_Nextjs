@@ -812,7 +812,7 @@ export default function JobPostings({ setActiveTab }: { setActiveTab?: (tab: str
       setIsAIGenerating(true)
       setAiMessage(null)
 
-      const response = await fetch(`http://158.220.127.100:8000/api/v1/job-posting/generate`, {
+      const response = await fetch(`http://158.220.127.100:8000/job-posting/generate`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ prompt: aiPrompt.trim() })
@@ -1884,12 +1884,12 @@ export default function JobPostings({ setActiveTab }: { setActiveTab?: (tab: str
                 clearForm();
               }
             }}>
-              {/* <DialogTrigger asChild>
+              <DialogTrigger asChild>
                 <Button className="bg-blue-600 hover:bg-blue-700">
-                  <Plus className="w-4 h-4 mr-2" />
-                  Create Job Posting
+                  {/* <Plus className="w-4 h-4 mr-2" /> */}
+                  Add Job Posting
                 </Button>
-              </DialogTrigger> */}
+              </DialogTrigger>
             <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
               <DialogHeader>
                 <div>
