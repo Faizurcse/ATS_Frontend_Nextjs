@@ -37,6 +37,7 @@ interface JobPosting {
   title: string
   company: string
   companyName: string
+  companyLogo?: string
   location: string
   country: string
   city: string
@@ -237,12 +238,16 @@ export default function ApplyJobPage() {
         }
         
         if (foundJob) {
+          console.log('Found job data:', foundJob);
+          console.log('Company logo from API:', foundJob.companyLogo);
+          
           // Transform API data to match our JobPosting interface
           const transformedJob: JobPosting = {
             id: foundJob.id || foundJob._id || jobId,
             title: foundJob.title || "Untitled Job",
             company: foundJob.company || "Unknown Company",
             companyName: foundJob.companyName || foundJob.company || "Unknown Company",
+            companyLogo: foundJob.companyLogo || null,
             location: foundJob.fullLocation || foundJob.location || "Unknown Location",
             country: foundJob.country || "Unknown",
             city: foundJob.city || "Unknown",
@@ -995,8 +1000,22 @@ export default function ApplyJobPage() {
               </div>
             </div>
             <div className="flex-shrink-0">
-              <div className="w-12 h-12 md:w-16 md:h-16 bg-gray-200 rounded-lg flex items-center justify-center">
-                <Building2 className="w-6 h-6 md:w-8 md:h-8 text-gray-500" />
+              <div className="w-12 h-12 md:w-16 md:h-16 rounded-lg overflow-hidden border border-gray-200">
+                <img 
+                  src={job.companyLogo ? `${BASE_API_URL.replace('/api', '')}/${job.companyLogo}` : `${BASE_API_URL.replace('/api', '')}/public/default-company-logo.jpg`} 
+                  alt={`${job.companyName} logo`}
+                  className="w-full h-full object-cover"
+                  onError={(e) => {
+                    console.log('Logo failed to load:', job.companyLogo);
+                    // Fallback to Building2 icon if image fails to load
+                    const target = e.target as HTMLImageElement;
+                    target.style.display = 'none';
+                    const parent = target.parentElement;
+                    if (parent) {
+                      parent.innerHTML = '<div class="w-full h-full bg-gray-200 flex items-center justify-center"><svg class="w-6 h-6 md:w-8 md:h-8 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"></path></svg></div>';
+                    }
+                  }}
+                />
               </div>
             </div>
           </div>

@@ -505,10 +505,24 @@ export default function JobPostings({ setActiveTab }: { setActiveTab?: (tab: str
   const handleAddJob = async () => {
     setIsPostingJob(true)
     try {
+      // Get companyId from localStorage
+      const userData = localStorage.getItem('user_data')
+      if (!userData) {
+        throw new Error('User not authenticated. Please login again.')
+      }
+      
+      const user = JSON.parse(userData)
+      const companyId = user.companyId
+      
+      if (!companyId) {
+        throw new Error('Company information not found. Please contact support.')
+      }
+
       // Prepare the job data according to the API endpoint structure
       const jobData = {
         title: newJob.title,
         company: newJob.company,
+        companyId: companyId,
         department: newJob.department,
         internalSPOC: newJob.internalSPOC,
         recruiter: newJob.recruiter,

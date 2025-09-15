@@ -597,11 +597,9 @@ export default function AdminPage() {
         <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100 p-4">
           <div className="max-w-md w-full">
             <div className="text-center mb-8">
-              <div className="mx-auto w-16 h-16 bg-gradient-to-r from-blue-600 to-purple-600 rounded-full flex items-center justify-center mb-4">
-                <Shield className="h-8 w-8 text-white" />
-              </div>
+             
               <h1 className="text-3xl font-bold text-gray-900 mb-2">Admin Panel</h1>
-              <p className="text-gray-600">Superadmin Login</p>
+              
             </div>
             
             <Card className="shadow-xl">

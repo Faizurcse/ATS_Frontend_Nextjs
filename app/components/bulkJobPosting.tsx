@@ -306,10 +306,29 @@ export default function BulkJobPosting({ onJobsCreated }: BulkJobPostingProps) {
       setIsPosting(true)
       setMessage(null)
 
+      // Get companyId from localStorage
+      const userData = localStorage.getItem('user_data')
+      if (!userData) {
+        throw new Error('User not authenticated. Please login again.')
+      }
+      
+      const user = JSON.parse(userData)
+      const companyId = user.companyId
+      
+      if (!companyId) {
+        throw new Error('Company information not found. Please contact support.')
+      }
+
+      // Add companyId to each job
+      const jobsWithCompanyId = generatedJobs.map(job => ({
+        ...job,
+        companyId: companyId
+      }))
+
       const response = await fetch(`${BASE_API_URL}/jobs/post-job`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(generatedJobs)
+        body: JSON.stringify(jobsWithCompanyId)
       })
 
       if (!response.ok) {
