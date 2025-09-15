@@ -36,6 +36,11 @@ interface JobPosting {
   id: string
   title: string
   company: string
+  company?: {
+    id: number
+    name: string
+    logo: string | null
+  }
   location: string
   country: string
   city: string
@@ -977,7 +982,7 @@ export default function ApplyJobPage() {
               <h1 className="text-xl md:text-2xl font-bold text-gray-900 mb-1">{job.title}</h1>
               <div className="flex items-center text-gray-600 mb-1">
                 <Building2 className="w-4 h-4 mr-2" />
-                <span>{job.company}</span>
+                <span>{job.company?.name || job.company}</span>
               </div>
               <div className="flex items-center text-gray-500">
                 <MapPin className="w-4 h-4 mr-2" />
@@ -985,15 +990,21 @@ export default function ApplyJobPage() {
               </div>
             </div>
             <div className="flex-shrink-0">
-              <img 
-                src="/Appit Logo.png" 
-                alt={`${job.company} Logo`}
-                className="w-12 h-12 md:w-16 md:h-16 object-contain"
-                onError={(e) => {
-                  const target = e.target as HTMLImageElement;
-                  target.style.display = 'none';
-                }}
-              />
+              {job.company?.logo ? (
+                <img 
+                  src={`http://localhost:5000/${job.company.logo.replace(/\\/g, '/')}`}
+                  alt={`${job.company?.name || job.company} Logo`}
+                  className="w-12 h-12 md:w-16 md:h-16 object-contain rounded-lg"
+                  onError={(e) => {
+                    const target = e.target as HTMLImageElement;
+                    target.style.display = 'none';
+                  }}
+                />
+              ) : (
+                <div className="w-12 h-12 md:w-16 md:h-16 bg-gray-200 rounded-lg flex items-center justify-center">
+                  <Building2 className="w-6 h-6 md:w-8 md:h-8 text-gray-500" />
+                </div>
+              )}
             </div>
           </div>
 

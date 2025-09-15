@@ -82,6 +82,7 @@ export default function Dashboard() {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
   const [showQuickActions, setShowQuickActions] = useState(true)
   const [userEmail, setUserEmail] = useState("")
+  const [userData, setUserData] = useState<any>(null)
   const [isClient, setIsClient] = useState(false)
 
   // Mark component as mounted on client
@@ -124,6 +125,7 @@ export default function Dashboard() {
   const handleLogout = () => {
     localStorage.removeItem("authenticated")
     localStorage.removeItem("auth_email")
+    localStorage.removeItem("user_data")
     router.replace("/login")
   }
 
@@ -169,14 +171,15 @@ export default function Dashboard() {
 
       ],
     },
-    {
-      id: "administration",
-      label: "Administration",
-      items: [
-        { id: "user-management", label: "User Management", icon: Shield, component: UserManagement }
-        // { id: "system-settings", label: "System Settings", icon: Database,badge: "New", component: () => <div>System Settings - Coming Soon</div> },
-      ],
-    },
+    // Hide User Management from normal users - only superadmin can access via /admin
+    // {
+    //   id: "administration",
+    //   label: "Administration",
+    //   items: [
+    //     { id: "user-management", label: "User Management", icon: Shield, component: UserManagement }
+    //     // { id: "system-settings", label: "System Settings", icon: Database,badge: "New", component: () => <div>System Settings - Coming Soon</div> },
+    //   ],
+    // },
 
 
   ]
@@ -215,8 +218,17 @@ export default function Dashboard() {
 
   useEffect(() => {
     if (isClient) {
-      const email = localStorage.getItem("auth_email") || ""
-      setUserEmail(email)
+      // Load user data from localStorage
+      const storedUserData = localStorage.getItem("user_data")
+      if (storedUserData) {
+        const user = JSON.parse(storedUserData)
+        setUserData(user)
+        setUserEmail(user.email || "")
+      } else {
+        // Fallback to email
+        const email = localStorage.getItem("auth_email") || ""
+        setUserEmail(email)
+      }
     }
   }, [isClient])
 
@@ -244,12 +256,22 @@ export default function Dashboard() {
           {/* Header */}
           <div className="p-4 border-b border-gray-200">
             <div className="flex items-center space-x-3">
-              <div className="w-8 h-8 bg-gradient-to-br from-blue-600 to-purple-600 rounded-lg flex items-center justify-center">
-                <Rocket className="w-5 h-5 text-white" />
-              </div>
+              {userData?.companyLogo ? (
+                <img
+                  src={`http://localhost:5000/${userData.companyLogo.replace(/\\/g, '/')}`}
+                  alt={userData.companyName || 'Company'}
+                  className="w-8 h-8 rounded-lg object-cover"
+                />
+              ) : (
+                <div className="w-8 h-8 bg-gradient-to-br from-blue-600 to-purple-600 rounded-lg flex items-center justify-center">
+                  <Rocket className="w-5 h-5 text-white" />
+                </div>
+              )}
               {!sidebarCollapsed && (
                 <div>
-                  <h1 className="text-lg font-bold text-gray-900">APPIT ATS</h1>
+                  <h1 className="text-sm font-bold text-gray-900 whitespace-nowrap overflow-hidden text-ellipsis">
+                    {userData?.companyName || 'APPIT ATS'}
+                  </h1>
                   <p className="text-xs text-gray-500">Recruitment Platform</p>
                 </div>
               )}
@@ -399,6 +421,7 @@ function DashboardOverview({ setActiveTab, showQuickActions, setShowQuickActions
   
   const [userName, setUserName] = useState("")
   const [userEmail, setUserEmail] = useState("")
+  const [userData, setUserData] = useState<any>(null)
   const [currentTime, setCurrentTime] = useState("")
   const [dashboardData, setDashboardData] = useState<any>(null)
   const [loading, setLoading] = useState(false)
@@ -415,15 +438,21 @@ function DashboardOverview({ setActiveTab, showQuickActions, setShowQuickActions
     // Get user data from localStorage
     if (isClient) {
       try {
-        const email = localStorage.getItem("auth_email") || ""
-        setUserEmail(email)
-        
-        // Extract name from email (first part before @)
-        const nameFromEmail = email.split("@")[0]
-        // Capitalize first letter of the name
-        const formattedName = nameFromEmail.charAt(0).toUpperCase() + nameFromEmail.slice(1)
-        
-        setUserName(formattedName || "User")
+        // Load user data from localStorage
+        const storedUserData = localStorage.getItem("user_data")
+        if (storedUserData) {
+          const user = JSON.parse(storedUserData)
+          setUserData(user)
+          setUserName(user.name || "User")
+          setUserEmail(user.email || "")
+        } else {
+          // Fallback to email-based name extraction
+          const email = localStorage.getItem("auth_email") || ""
+          setUserEmail(email)
+          const nameFromEmail = email.split("@")[0]
+          const formattedName = nameFromEmail.charAt(0).toUpperCase() + nameFromEmail.slice(1)
+          setUserName(formattedName || "User")
+        }
         
         // Set current time
         const now = new Date()

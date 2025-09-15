@@ -203,7 +203,20 @@ export default function OTPAuth() {
       const data = await handleApiResponse(res)
       console.log("OTP verification successful:", data)
       setSuccess("OTP verified! Redirecting to dashboard...")
+      
+      // Save user data to localStorage
       localStorage.setItem("authenticated", "true")
+      localStorage.setItem("user_data", JSON.stringify({
+        id: data.user.id,
+        name: data.user.name,
+        email: data.user.email,
+        number: data.user.number,
+        userType: data.user.userType,
+        companyId: data.user.companyId,
+        companyName: data.user.companyName,
+        companyLogo: data.user.companyInfo?.logo
+      }))
+      
       toast({ title: "Login Successful", description: "You are now logged in." })
       setTimeout(() => {
         window.location.href = "/"
