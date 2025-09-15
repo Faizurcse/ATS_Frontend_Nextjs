@@ -77,15 +77,18 @@ export default function AdminPage() {
 
   // Check for existing admin session on page load
   useEffect(() => {
-    const savedToken = localStorage.getItem('admin_token');
-    const savedSuperadmin = localStorage.getItem('admin_superadmin');
-    const isAuthenticated = localStorage.getItem('admin_authenticated') === 'true';
-    
-    if (savedToken && savedSuperadmin && isAuthenticated) {
-      setToken(savedToken);
-      setSuperadmin(JSON.parse(savedSuperadmin));
-      setStep('dashboard');
-      fetchCompanies();
+    // Only run on client side
+    if (typeof window !== 'undefined') {
+      const savedToken = localStorage.getItem('admin_token');
+      const savedSuperadmin = localStorage.getItem('admin_superadmin');
+      const isAuthenticated = localStorage.getItem('admin_authenticated') === 'true';
+      
+      if (savedToken && savedSuperadmin && isAuthenticated) {
+        setToken(savedToken);
+        setSuperadmin(JSON.parse(savedSuperadmin));
+        setStep('dashboard');
+        fetchCompanies();
+      }
     }
   }, []);
 
@@ -208,10 +211,12 @@ export default function AdminPage() {
       const data = await response.json();
 
       if (response.ok) {
-        // Save to localStorage for persistence
-        localStorage.setItem('admin_token', data.token);
-        localStorage.setItem('admin_superadmin', JSON.stringify(data.superadmin));
-        localStorage.setItem('admin_authenticated', 'true');
+        // Save to localStorage for persistence (only on client side)
+        if (typeof window !== 'undefined') {
+          localStorage.setItem('admin_token', data.token);
+          localStorage.setItem('admin_superadmin', JSON.stringify(data.superadmin));
+          localStorage.setItem('admin_authenticated', 'true');
+        }
         
         setToken(data.token);
         setSuperadmin(data.superadmin);
@@ -802,9 +807,12 @@ export default function AdminPage() {
               <Button
                 variant="outline"
                 onClick={() => {
-                  localStorage.removeItem('admin_token');
-                  localStorage.removeItem('admin_superadmin');
-                  localStorage.removeItem('admin_authenticated');
+                  // Only run on client side
+                  if (typeof window !== 'undefined') {
+                    localStorage.removeItem('admin_token');
+                    localStorage.removeItem('admin_superadmin');
+                    localStorage.removeItem('admin_authenticated');
+                  }
                   setStep('login');
                   setToken('');
                   setSuperadmin(null);
