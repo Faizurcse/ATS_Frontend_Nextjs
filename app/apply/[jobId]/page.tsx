@@ -36,11 +36,7 @@ interface JobPosting {
   id: string
   title: string
   company: string
-  company?: {
-    id: number
-    name: string
-    logo: string | null
-  }
+  companyName: string
   location: string
   country: string
   city: string
@@ -219,7 +215,9 @@ export default function ApplyJobPage() {
         })
         
         if (!response.ok) {
-          throw new Error(`HTTP error! status: ${response.status}`)
+          const errorText = await response.text()
+          console.error('API Error Response:', errorText)
+          throw new Error(`Failed to fetch jobs: ${response.status} ${response.statusText}`)
         }
         
         const data = await response.json()
@@ -244,6 +242,7 @@ export default function ApplyJobPage() {
             id: foundJob.id || foundJob._id || jobId,
             title: foundJob.title || "Untitled Job",
             company: foundJob.company || "Unknown Company",
+            companyName: foundJob.companyName || foundJob.company || "Unknown Company",
             location: foundJob.fullLocation || foundJob.location || "Unknown Location",
             country: foundJob.country || "Unknown",
             city: foundJob.city || "Unknown",
@@ -452,7 +451,9 @@ export default function ApplyJobPage() {
       })
       
       if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`)
+        const errorText = await response.text()
+        console.error('Resume parsing API Error:', errorText)
+        throw new Error(`Failed to parse resume: ${response.status} ${response.statusText}`)
       }
       
       const result = await response.json()
@@ -747,9 +748,13 @@ export default function ApplyJobPage() {
     setError("")
 
     try {
+      // Validate that we have a job before proceeding
+      if (!job) {
+        throw new Error("Job information is not available. Please refresh the page and try again.")
+      }
       
       // Prepare the application data according to the API format
-             const applicationPayload = {
+      const applicationPayload = {
          firstName: applicationData.firstName,
          lastName: applicationData.lastName,
          email: applicationData.email,
@@ -766,11 +771,11 @@ export default function ApplyJobPage() {
        }
 
       // Construct the URL properly based on the API format
-      const titleSlug = job?.title.toLowerCase().replace(/[^a-z0-9]/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '')
-      const experienceSlug = (job?.experience || 'senior').toLowerCase().replace(/[^a-z0-9]/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '')
-      const jobTypeSlug = (job?.jobType || 'full-time').toLowerCase().replace(/[^a-z0-9]/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '')
-      const companySlug = job?.company.toLowerCase().replace(/[^a-z0-9]/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '')
-      const citySlug = job?.city.toLowerCase().replace(/[^a-z0-9]/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '')
+      const titleSlug = job?.title?.toLowerCase().replace(/[^a-z0-9]/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '') || 'untitled-job'
+      const experienceSlug = (job?.experience || 'senior')?.toLowerCase().replace(/[^a-z0-9]/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '') || 'senior'
+      const jobTypeSlug = (job?.jobType || 'full-time')?.toLowerCase().replace(/[^a-z0-9]/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '') || 'full-time'
+      const companySlug = job?.company?.toLowerCase().replace(/[^a-z0-9]/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '') || 'unknown-company'
+      const citySlug = job?.city?.toLowerCase().replace(/[^a-z0-9]/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '') || 'unknown-city'
       
       // Try the complex URL format first
       let applyUrl = `${BASE_API_URL}/job-listings/job-listings-${titleSlug}-${experienceSlug}-${jobTypeSlug}-${companySlug}-${citySlug}-${job?.id}/apply`
@@ -982,7 +987,7 @@ export default function ApplyJobPage() {
               <h1 className="text-xl md:text-2xl font-bold text-gray-900 mb-1">{job.title}</h1>
               <div className="flex items-center text-gray-600 mb-1">
                 <Building2 className="w-4 h-4 mr-2" />
-                <span>{job.company?.name || job.company}</span>
+                <span>{job.companyName || job.company}</span>
               </div>
               <div className="flex items-center text-gray-500">
                 <MapPin className="w-4 h-4 mr-2" />
@@ -990,21 +995,9 @@ export default function ApplyJobPage() {
               </div>
             </div>
             <div className="flex-shrink-0">
-              {job.company?.logo ? (
-                <img 
-                  src={`http://localhost:5000/${job.company.logo.replace(/\\/g, '/')}`}
-                  alt={`${job.company?.name || job.company} Logo`}
-                  className="w-12 h-12 md:w-16 md:h-16 object-contain rounded-lg"
-                  onError={(e) => {
-                    const target = e.target as HTMLImageElement;
-                    target.style.display = 'none';
-                  }}
-                />
-              ) : (
-                <div className="w-12 h-12 md:w-16 md:h-16 bg-gray-200 rounded-lg flex items-center justify-center">
-                  <Building2 className="w-6 h-6 md:w-8 md:h-8 text-gray-500" />
-                </div>
-              )}
+              <div className="w-12 h-12 md:w-16 md:h-16 bg-gray-200 rounded-lg flex items-center justify-center">
+                <Building2 className="w-6 h-6 md:w-8 md:h-8 text-gray-500" />
+              </div>
             </div>
           </div>
 
@@ -1102,14 +1095,11 @@ export default function ApplyJobPage() {
                       variant="outline"
                       size="sm"
                       onClick={() => {
-                        setApplicationData(prev => ({
-                          ...prev,
-                          resumeFile: null
-                        }))
                         setParsedData(null)
                         setAutoFilledFields(new Set())
                         setApplicationData(prev => ({
                           ...prev,
+                          resumeFile: null,
                           firstName: "",
                           lastName: "",
                           email: "",
