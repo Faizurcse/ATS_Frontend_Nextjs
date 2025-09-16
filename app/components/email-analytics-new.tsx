@@ -30,6 +30,7 @@ import {
   Building,
 } from "lucide-react"
 import BASE_API_URL from "../../BaseUrlApi.js"
+import { useCompany } from "../../lib/company-context"
 
 // Chart.js components
 import {
@@ -131,19 +132,53 @@ interface ApiResponse {
 }
 
 export default function EmailAnalytics() {
+  const { companyId, isAuthenticated, isLoading } = useCompany()
   const [activeTab, setActiveTab] = useState("overview")
   const [searchQuery, setSearchQuery] = useState("")
-  const [isLoading, setIsLoading] = useState(true)
+
+  // Show loading while company context is loading
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center py-8">
+        <div className="text-center">
+          <div className="w-12 h-12 bg-gradient-to-br from-blue-600 to-purple-600 rounded-full flex items-center justify-center mx-auto mb-4 animate-spin">
+            <div className="w-6 h-6 text-white">⏳</div>
+          </div>
+          <p className="text-gray-600">Loading company context...</p>
+        </div>
+      </div>
+    )
+  }
+  const [isDataLoading, setIsDataLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [emailData, setEmailData] = useState<EmailAnalyticsData | null>(null)
 
   // Fetch email analytics data
   const fetchEmailAnalytics = async () => {
+    if (!companyId) {
+      setError('Company context required')
+      setIsDataLoading(false)
+      return
+    }
+
     try {
-      setIsLoading(true)
+      setIsDataLoading(true)
       setError(null)
       
-      const response = await fetch(`${BASE_API_URL}/email-analytics/`)
+      // Get token from localStorage
+      const user = JSON.parse(localStorage.getItem('ats_user') || 'null');
+      const token = user?.token;
+      
+      if (!token) {
+        throw new Error('Authentication token not found. Please login again.');
+      }
+      
+      const response = await fetch(`${BASE_API_URL}/email-analytics/?companyId=${companyId}`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        }
+      })
       const data: ApiResponse = await response.json()
       
       if (data.success) {
@@ -155,13 +190,15 @@ export default function EmailAnalytics() {
       setError('Failed to connect to the server. Please check your connection.')
       console.error('Error fetching email analytics:', err)
     } finally {
-      setIsLoading(false)
+      setIsDataLoading(false)
     }
   }
 
   useEffect(() => {
-    fetchEmailAnalytics()
-  }, [])
+    if (isAuthenticated && companyId) {
+      fetchEmailAnalytics()
+    }
+  }, [isAuthenticated, companyId])
 
   // Chart configurations
   const getEmailTypeDistributionData = () => {

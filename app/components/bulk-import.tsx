@@ -171,7 +171,16 @@ function ResumeFilesList() {
   const fetchResumeFiles = async () => {
     setLoading(true)
     try {
-      const response = await fetch('http://158.220.127.100:8000/api/v1/download/resumes/with-files')
+      // Get company ID from localStorage
+      const user = JSON.parse(localStorage.getItem('ats_user') || 'null');
+      const companyId = user?.companyId;
+      
+      const url = new URL('http://localhost:8000/api/v1/download/resumes/with-files');
+      if (companyId) {
+        url.searchParams.set('company_id', companyId.toString());
+      }
+      
+      const response = await fetch(url.toString())
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`)
       }
@@ -191,8 +200,33 @@ function ResumeFilesList() {
 
   const handleDownload = async (downloadUrl: string, filename: string) => {
     try {
-      const response = await fetch(`http://158.220.127.100:8000${downloadUrl}`)
+      // Get JWT token and company ID from localStorage
+      const user = JSON.parse(localStorage.getItem('ats_user') || 'null');
+      const token = user?.token;
+      const companyId = user?.companyId;
+
+      if (!token || !companyId) {
+        throw new Error('Authentication required. Please login again.');
+      }
+
+      const response = await fetch(`http://localhost:8000${downloadUrl}`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'X-Company-ID': companyId.toString()
+        }
+      })
+      
       if (!response.ok) {
+        // Handle authentication errors
+        if (response.status === 401) {
+          localStorage.removeItem("authenticated");
+          localStorage.removeItem("auth_email");
+          localStorage.removeItem("ats_user");
+          window.location.href = '/login';
+          throw new Error('Session expired. Please login again.');
+        } else if (response.status === 403) {
+          throw new Error('Access denied. You do not have permission to download this file.');
+        }
         throw new Error(`HTTP error! status: ${response.status}`)
       }
       
@@ -278,6 +312,7 @@ function ResumeFilesList() {
     }
   }
 
+
   // Clear selection when filters change
   useEffect(() => {
     setSelectedFiles(new Set())
@@ -338,30 +373,7 @@ function ResumeFilesList() {
     return matchesSearch && matchesFileType && matchesDate
   })
 
-  // Get unique file types for tabs
-  const fileTypes = ["all", ...Array.from(new Set(resumeFiles.map(file => file.file_type.toLowerCase())))]
 
-  // Get file type icon
-  const getFileTypeIcon = (fileType: string) => {
-    switch (fileType.toLowerCase()) {
-      case 'pdf':
-        return <FileText className="w-4 h-4 text-red-500" />
-      case 'docx':
-      case 'doc':
-        return <FileText className="w-4 h-4 text-blue-500" />
-      case 'txt':
-        return <FileText className="w-4 h-4 text-gray-500" />
-      case 'rtf':
-        return <FileText className="w-4 h-4 text-green-500" />
-      case 'png':
-      case 'jpg':
-      case 'jpeg':
-      case 'webp':
-        return <FileText className="w-4 h-4 text-purple-500" />
-      default:
-        return <FileText className="w-4 h-4 text-gray-500" />
-    }
-  }
 
   // Get file type count
   const getFileTypeCount = (fileType: string) => {
@@ -369,6 +381,28 @@ function ResumeFilesList() {
       return resumeFiles.length
     }
     return resumeFiles.filter(file => file.file_type.toLowerCase() === fileType.toLowerCase()).length
+  }
+
+  // Get file icon for results
+  const getFileIcon = (fileType: string) => {
+    switch (fileType.toLowerCase()) {
+      case 'pdf':
+        return <FileText className="w-4 h-4 text-red-500" />
+      case 'doc':
+      case 'docx':
+        return <FileText className="w-4 h-4 text-blue-500" />
+      case 'txt':
+        return <FileText className="w-4 h-4 text-gray-500" />
+      case 'rtf':
+        return <FileText className="w-4 h-4 text-orange-500" />
+      case 'png':
+      case 'jpg':
+      case 'jpeg':
+      case 'webp':
+        return <FileText className="w-4 h-4 text-green-500" />
+      default:
+        return <FileText className="w-4 h-4 text-gray-400" />
+    }
   }
 
   return (
@@ -724,6 +758,14 @@ export default function BulkImport() {
   const [dateFilter, setDateFilter] = useState<string>("all")
   const [startDate, setStartDate] = useState<string>("")
   const [endDate, setEndDate] = useState<string>("")
+  
+  // Resume files state
+  const [resumeFiles, setResumeFiles] = useState<any[]>([])
+  const [selectedFiles, setSelectedFiles] = useState<Set<number>>(new Set())
+  const [activeFileTypeTab, setActiveFileTypeTab] = useState<string>("all")
+  
+  // File types for filtering
+  const fileTypes = ["all", "pdf", "doc", "docx", "txt", "rtf", "png", "jpg", "jpeg", "webp"]
 
   // Helper function to parse JSON string safely
   const parseResumeData = (jsonString: string | undefined | null): ParsedResumeData | null => {
@@ -746,14 +788,25 @@ export default function BulkImport() {
     }
   }
 
-  // Fetch resumes from API
+  // Fetch resumes from Python backend API
   const fetchResumes = async () => {
     setLoading(true)
     try {
-      const response = await fetch(`${BASE_API_URL}/resumes`, {
+      // Get JWT token and company ID from localStorage
+      const user = JSON.parse(localStorage.getItem('ats_user') || 'null');
+      const token = user?.token;
+      const companyId = user?.companyId;
+
+      if (!token || !companyId) {
+        throw new Error('Authentication required. Please login first.');
+      }
+
+      // Use Python backend for fetching resumes
+      const response = await fetch(`http://localhost:8000/api/v1/resumes?company_id=${companyId}`, {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
         },
       })
 
@@ -858,7 +911,21 @@ export default function BulkImport() {
   const fetchBulkProcessingStatus = async () => {
     setIsCheckingStatus(true)
     try {
-      const response = await fetch(`${BASE_API_URL}/bulk-processing-status`)
+      // Get JWT token and company ID from localStorage
+      const user = JSON.parse(localStorage.getItem('ats_user') || 'null');
+      const token = user?.token;
+      const companyId = user?.companyId;
+
+      if (!token || !companyId) {
+        throw new Error('Authentication required. Please login first.');
+      }
+
+      // Use Python backend for fetching bulk processing status
+      const response = await fetch(`http://localhost:8000/api/v1/bulk-processing-status?company_id=${companyId}`, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      })
       if (response.ok) {
         const data = await response.json()
         setBulkProcessingStatus(data)
@@ -873,7 +940,21 @@ export default function BulkImport() {
   // Fetch failed resumes
   const fetchFailedResumes = async () => {
     try {
-      const response = await fetch(`${BASE_API_URL}/failed-resumes`)
+      // Get JWT token and company ID from localStorage
+      const user = JSON.parse(localStorage.getItem('ats_user') || 'null');
+      const token = user?.token;
+      const companyId = user?.companyId;
+
+      if (!token || !companyId) {
+        throw new Error('Authentication required. Please login first.');
+      }
+
+      // Use Python backend for fetching failed resumes
+      const response = await fetch(`http://localhost:8000/api/v1/failed-resumes?company_id=${companyId}`, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      })
       if (response.ok) {
         const data = await response.json()
         setFailedResumes(data.failed_resumes || [])
@@ -886,8 +967,21 @@ export default function BulkImport() {
   // Delete specific failed resume
   const deleteFailedResume = async (resumeId: string) => {
     try {
-      const response = await fetch(`${BASE_API_URL}/failed-resumes/${resumeId}`, {
+      // Get JWT token and company ID from localStorage
+      const user = JSON.parse(localStorage.getItem('ats_user') || 'null');
+      const token = user?.token;
+      const companyId = user?.companyId;
+
+      if (!token || !companyId) {
+        throw new Error('Authentication required. Please login first.');
+      }
+
+      // Use Python backend for deleting failed resume
+      const response = await fetch(`http://localhost:8000/api/v1/failed-resumes/${resumeId}?company_id=${companyId}`, {
         method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
       })
       
       if (response.ok) {
@@ -921,8 +1015,21 @@ export default function BulkImport() {
   // Delete all failed resumes
   const deleteAllFailedResumes = async () => {
     try {
-      const response = await fetch(`${BASE_API_URL}/failed-resumes`, {
+      // Get JWT token and company ID from localStorage
+      const user = JSON.parse(localStorage.getItem('ats_user') || 'null');
+      const token = user?.token;
+      const companyId = user?.companyId;
+
+      if (!token || !companyId) {
+        throw new Error('Authentication required. Please login first.');
+      }
+
+      // Use Python backend for deleting all failed resumes
+      const response = await fetch(`http://localhost:8000/api/v1/failed-resumes?company_id=${companyId}`, {
         method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
       })
       
       if (response.ok) {
@@ -1050,8 +1157,21 @@ export default function BulkImport() {
       setProgressMessage(`Uploading ${uploadedFiles.length} files to server...`)
       setProcessingProgress(20)
 
-      const response = await fetch(`${BASE_API_URL}/bulk-parse-resumes`, {
+      // Get JWT token and company ID from localStorage
+      const user = JSON.parse(localStorage.getItem('ats_user') || 'null')
+      const token = user?.token
+      const companyId = user?.companyId
+
+      if (!token || !companyId) {
+        throw new Error('Authentication required. Please login first.')
+      }
+
+      // Use Python backend for bulk resume parsing
+      const response = await fetch(`http://localhost:8000/api/v1/bulk-parse-resumes?company_id=${companyId}`, {
         method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`
+        },
         body: formData,
         signal: abortControllerRef.current.signal, // Add abort signal
       })
@@ -1183,8 +1303,16 @@ export default function BulkImport() {
 
   const downloadResume = async (resumeId: number) => {
     try {
+      const token = localStorage.getItem('ats_token')
+      if (!token) {
+        throw new Error('Authentication required. Please login first.')
+      }
+
       const response = await fetch(`${BASE_API_URL}/resumes/${resumeId}/download`, {
         method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
       })
 
       if (response.ok) {
@@ -1229,8 +1357,20 @@ export default function BulkImport() {
 
   const deleteAllSuccessfulResumes = async () => {
     try {
+      // Get JWT token and company ID from localStorage
+      const user = JSON.parse(localStorage.getItem('ats_user') || 'null');
+      const token = user?.token;
+      const companyId = user?.companyId;
+
+      if (!token || !companyId) {
+        throw new Error('Authentication required. Please login first.');
+      }
+
       const response = await fetch(`${BASE_API_URL}/resumes`, {
         method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
       })
 
       if (response.ok) {
@@ -1328,8 +1468,16 @@ export default function BulkImport() {
   const deleteResume = async (id: number) => {
     try {
       console.log('Attempting to delete resume with ID:', id)
+      const token = localStorage.getItem('ats_token')
+      if (!token) {
+        throw new Error('Authentication required. Please login first.')
+      }
+
       const response = await fetch(`${BASE_API_URL}/resumes/${id}`, {
         method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
       })
 
       if (response.ok) {
@@ -1464,11 +1612,21 @@ export default function BulkImport() {
         })
       }, 200)
 
+      // Get JWT token and company ID from localStorage
+      const user = JSON.parse(localStorage.getItem('ats_user') || 'null')
+      const token = user?.token
+      const companyId = user?.companyId
+
+      if (!token || !companyId) {
+        throw new Error('Authentication required. Please login first.')
+      }
+
       // Use the dedicated re-upload API
       const response = await fetch(`${BASE_API_URL}/re-upload-failed-resumes`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
         },
         body: JSON.stringify({
           failed_resume_ids: failedResumeIds

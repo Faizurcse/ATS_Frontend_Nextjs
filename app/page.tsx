@@ -84,10 +84,21 @@ export default function Dashboard() {
   const [userEmail, setUserEmail] = useState("")
   const [userData, setUserData] = useState<any>(null)
   const [isClient, setIsClient] = useState(false)
+  const [companyId, setCompanyId] = useState<number | null>(null)
+  const [companyName, setCompanyName] = useState<string>("")
 
   // Mark component as mounted on client
   useEffect(() => {
     setIsClient(true)
+    
+    // Load user and company data from localStorage
+    const user = JSON.parse(localStorage.getItem('ats_user') || 'null');
+    if (user) {
+      setUserData(user);
+      setUserEmail(user.email || '');
+      setCompanyId(user.companyId || null);
+      setCompanyName(user.company?.name || '');
+    }
   }, [])
 
   // Check URL parameters on component mount
@@ -125,7 +136,7 @@ export default function Dashboard() {
   const handleLogout = () => {
     localStorage.removeItem("authenticated")
     localStorage.removeItem("auth_email")
-    localStorage.removeItem("user_data")
+    localStorage.removeItem("ats_user")
     router.replace("/login")
   }
 
@@ -171,16 +182,7 @@ export default function Dashboard() {
 
       ],
     },
-    // Hide User Management from normal users - only superadmin can access via /admin
-    // {
-    //   id: "administration",
-    //   label: "Administration",
-    //   items: [
-    //     { id: "user-management", label: "User Management", icon: Shield, component: UserManagement }
-    //     // { id: "system-settings", label: "System Settings", icon: Database,badge: "New", component: () => <div>System Settings - Coming Soon</div> },
-    //   ],
-    // },
-
+   
 
   ]
 
@@ -219,7 +221,7 @@ export default function Dashboard() {
   useEffect(() => {
     if (isClient) {
       // Load user data from localStorage
-      const storedUserData = localStorage.getItem("user_data")
+      const storedUserData = localStorage.getItem("ats_user")
       if (storedUserData) {
         const user = JSON.parse(storedUserData)
         setUserData(user)
@@ -439,7 +441,7 @@ function DashboardOverview({ setActiveTab, showQuickActions, setShowQuickActions
     if (isClient) {
       try {
         // Load user data from localStorage
-        const storedUserData = localStorage.getItem("user_data")
+        const storedUserData = localStorage.getItem("ats_user")
         if (storedUserData) {
           const user = JSON.parse(storedUserData)
           setUserData(user)
@@ -490,7 +492,20 @@ function DashboardOverview({ setActiveTab, showQuickActions, setShowQuickActions
         const controller = new AbortController()
         const timeoutId = setTimeout(() => controller.abort(), 50000) // 10 second timeout
         
-        const response = await fetch('http://158.220.127.100:5000/api/dashboard', {
+        // Get JWT token from localStorage
+        const user = JSON.parse(localStorage.getItem('ats_user') || 'null');
+        const token = user?.token;
+        
+        if (!token) {
+          throw new Error('No authentication token found. Please login again.');
+        }
+        
+        const response = await fetch('http://localhost:5000/api/dashboard', {
+          method: 'GET',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          },
           signal: controller.signal
         })
         

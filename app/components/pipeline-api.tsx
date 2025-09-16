@@ -42,6 +42,7 @@ import {
   Trash2,
 } from "lucide-react"
 import BASE_API_URL from "../../BaseUrlApi.js"
+import { useCompany } from "../../lib/company-context"
 
 interface PipelineCandidate {
   id: number
@@ -135,8 +136,23 @@ const statusColors = {
 }
 
 export default function PipelineAPI() {
+  const { companyId, isAuthenticated, isLoading } = useCompany()
   const [candidates, setCandidates] = useState<PipelineCandidate[]>([])
   const [pipelineStats, setPipelineStats] = useState<PipelineStats | null>(null)
+
+  // Show loading while company context is loading
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center py-8">
+        <div className="text-center">
+          <div className="w-12 h-12 bg-gradient-to-br from-blue-600 to-purple-600 rounded-full flex items-center justify-center mx-auto mb-4 animate-spin">
+            <div className="w-6 h-6 text-white">⏳</div>
+          </div>
+          <p className="text-gray-600">Loading company context...</p>
+        </div>
+      </div>
+    )
+  }
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [searchQuery, setSearchQuery] = useState("")
@@ -148,13 +164,35 @@ export default function PipelineAPI() {
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc")
 
   useEffect(() => {
-    fetchPipelineData()
-  }, [])
+    if (isAuthenticated && companyId) {
+      fetchPipelineData()
+    }
+  }, [isAuthenticated, companyId])
 
   const fetchPipelineData = async () => {
+    if (!companyId) {
+      setError('Company context required')
+      setLoading(false)
+      return
+    }
+
     try {
       setLoading(true)
-      const response = await fetch(`${BASE_API_URL}/candidates/pipeline`)
+      
+      // Get token from localStorage
+      const user = JSON.parse(localStorage.getItem('ats_user') || 'null');
+      const token = user?.token;
+      
+      if (!token) {
+        throw new Error('Authentication token not found. Please login again.');
+      }
+      
+      const response = await fetch(`${BASE_API_URL}/candidates/pipeline?companyId=${companyId}`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        }
+      })
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`)
       }

@@ -15,6 +15,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { CalendarIcon, FilterIcon, SearchIcon, ClockIcon, UserIcon, BuildingIcon, IndianRupeeIcon, PaperclipIcon, CheckCircleIcon, Trash2Icon, EditIcon, EyeIcon, UploadIcon, PlusIcon, FileSpreadsheetIcon } from "lucide-react";
 import { format } from "date-fns";
 import BASE_API_URL from '../../BaseUrlApi.js';
+import { useCompany } from '../../lib/company-context';
 
 interface TimesheetEntry {
   id: number;
@@ -72,8 +73,23 @@ interface CreateTimesheetForm {
 }
 
 const RecruiterTimesheet = () => {
+  const { companyId, isAuthenticated, isLoading } = useCompany();
   const [timesheetData, setTimesheetData] = useState<TimesheetEntry[]>([]);
   const [loading, setLoading] = useState(true);
+
+  // Show loading while company context is loading
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center py-8">
+        <div className="text-center">
+          <div className="w-12 h-12 bg-gradient-to-br from-blue-600 to-purple-600 rounded-full flex items-center justify-center mx-auto mb-4 animate-spin">
+            <div className="w-6 h-6 text-white">⏳</div>
+          </div>
+          <p className="text-gray-600">Loading company context...</p>
+        </div>
+      </div>
+    )
+  }
   const [error, setError] = useState<string | null>(null);
   
   // Dialog states
@@ -238,13 +254,35 @@ const RecruiterTimesheet = () => {
   }
 
   useEffect(() => {
-    fetchTimesheetData();
-  }, []);
+    if (isAuthenticated && companyId) {
+      fetchTimesheetData();
+    }
+  }, [isAuthenticated, companyId]);
 
   const fetchTimesheetData = async () => {
+    if (!companyId) {
+      setError('Company context required');
+      setLoading(false);
+      return;
+    }
+
     try {
       setLoading(true);
-      const response = await fetch(`${BASE_API_URL}/timesheet`);
+      
+      // Get token from localStorage
+      const user = JSON.parse(localStorage.getItem('ats_user') || 'null');
+      const token = user?.token;
+      
+      if (!token) {
+        throw new Error('Authentication token not found. Please login again.');
+      }
+      
+      const response = await fetch(`${BASE_API_URL}/timesheet?companyId=${companyId}`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        }
+      });
       const data: ApiResponse = await response.json();
       
       if (data.success) {
@@ -262,11 +300,24 @@ const RecruiterTimesheet = () => {
 
   // API Functions
   const createTimesheetEntry = async (formData: CreateTimesheetForm) => {
+    if (!companyId) {
+      return { success: false, message: 'Company context required' };
+    }
+
     try {
+      // Get token from localStorage
+      const user = JSON.parse(localStorage.getItem('ats_user') || 'null');
+      const token = user?.token;
+      
+      if (!token) {
+        return { success: false, message: 'Authentication token not found. Please login again.' };
+      }
+
       const response = await fetch(`${BASE_API_URL}/timesheet`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
         },
         body: JSON.stringify({
           recruiterName: formData.recruiterName,
@@ -277,6 +328,7 @@ const RecruiterTimesheet = () => {
           recruiterEmail: formData.recruiterEmail || null,
           startTime: formData.startTime || null,
           endTime: formData.endTime || null,
+          companyId: companyId,
           breakTime: formData.breakTime ? parseFloat(formData.breakTime) : null,
           entityType: formData.entityType || 'JOB',
           entityId: formData.entityId || null,
@@ -306,11 +358,24 @@ const RecruiterTimesheet = () => {
   };
 
   const updateTimesheetEntry = async (id: number, formData: CreateTimesheetForm) => {
+    if (!companyId) {
+      return { success: false, message: 'Company context required' };
+    }
+
     try {
+      // Get token from localStorage
+      const user = JSON.parse(localStorage.getItem('ats_user') || 'null');
+      const token = user?.token;
+      
+      if (!token) {
+        return { success: false, message: 'Authentication token not found. Please login again.' };
+      }
+
       const response = await fetch(`${BASE_API_URL}/timesheet/${id}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
         },
         body: JSON.stringify({
           recruiterName: formData.recruiterName,
@@ -321,6 +386,7 @@ const RecruiterTimesheet = () => {
           recruiterEmail: formData.recruiterEmail || null,
           startTime: formData.startTime || null,
           endTime: formData.endTime || null,
+          companyId: companyId,
           breakTime: formData.breakTime ? parseFloat(formData.breakTime) : null,
           entityType: formData.entityType || 'JOB',
           entityId: formData.entityId || null,
@@ -350,9 +416,25 @@ const RecruiterTimesheet = () => {
   };
 
   const deleteTimesheetEntry = async (id: number) => {
+    if (!companyId) {
+      return { success: false, message: 'Company context required' };
+    }
+
     try {
-      const response = await fetch(`${BASE_API_URL}/timesheet/${id}`, {
+      // Get token from localStorage
+      const user = JSON.parse(localStorage.getItem('ats_user') || 'null');
+      const token = user?.token;
+      
+      if (!token) {
+        return { success: false, message: 'Authentication token not found. Please login again.' };
+      }
+
+      const response = await fetch(`${BASE_API_URL}/timesheet/${id}?companyId=${companyId}`, {
         method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        }
       });
 
       const data: ApiResponse = await response.json();
@@ -372,13 +454,26 @@ const RecruiterTimesheet = () => {
   };
 
   const approveTimesheetEntry = async (id: number, approvedBy: string) => {
+    if (!companyId) {
+      return { success: false, message: 'Company context required' };
+    }
+
     try {
+      // Get token from localStorage
+      const user = JSON.parse(localStorage.getItem('ats_user') || 'null');
+      const token = user?.token;
+      
+      if (!token) {
+        return { success: false, message: 'Authentication token not found. Please login again.' };
+      }
+
       const response = await fetch(`${BASE_API_URL}/timesheet/${id}/approve`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
         },
-        body: JSON.stringify({ approvedBy }),
+        body: JSON.stringify({ approvedBy, companyId }),
       });
 
       const data: ApiResponse = await response.json();

@@ -37,6 +37,7 @@ interface JobPosting {
   title: string
   company: string
   companyName: string
+  companyId?: number // ✅ Add companyId for resume parsing
   companyLogo?: string
   location: string
   country: string
@@ -123,7 +124,10 @@ interface ParsedResumeData {
 export default function ApplyJobPage() {
   const params = useParams()
   const router = useRouter()
-  const jobId = params.jobId as string
+  const jobSlug = params.jobId as string
+  
+  // Extract job ID from slug (last part after splitting by '-')
+  const jobId = jobSlug.split('-').pop()
 
   const [job, setJob] = useState<JobPosting | null>(null)
   const [loading, setLoading] = useState(true)
@@ -201,14 +205,16 @@ export default function ApplyJobPage() {
       utmCampaign,
     }))
 
-    // Fetch job details from API
+    // Fetch job details from API (PUBLIC - no authentication required)
     const fetchJobDetails = async () => {
       try {
         setLoading(true)
         
-        console.log('Fetching job details for ID:', jobId)
+        console.log('Fetching job details for slug:', jobSlug)
+        console.log('Extracted job ID:', jobId)
         
-        const response = await fetch(`${BASE_API_URL}/jobs/get-jobs`, {
+        // Use public job endpoint with full slug - no authentication required
+        const response = await fetch(`${BASE_API_URL}/job-listings/${jobSlug}`, {
           method: 'GET',
           headers: {
             'Content-Type': 'application/json',
@@ -222,20 +228,10 @@ export default function ApplyJobPage() {
         }
         
         const data = await response.json()
-        console.log('Fetched jobs from API:', data)
+        console.log('Fetched job from API:', data)
         
-        // Find the specific job by ID or by slug
-        const jobsArray = data.jobs || data
-        let foundJob = jobsArray.find((j: any) => j.id?.toString() === jobId || j._id === jobId)
-        
-        // If not found by ID, try to match by slug
-        if (!foundJob) {
-          const slugify = (str: string) => str?.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '')
-          foundJob = jobsArray.find((j: any) => {
-            const jobSlug = `job-listings-${slugify(j.title)}-${slugify(j.experienceLevel || j.experience || 'senior')}-${slugify(j.jobType || 'full-time')}-${slugify(j.company)}-${slugify(j.city)}-${j.id}`
-            return jobSlug === jobId
-          })
-        }
+        // The public endpoint should return the job directly
+        const foundJob = data.job || data
         
         if (foundJob) {
           console.log('Found job data:', foundJob);
@@ -247,6 +243,7 @@ export default function ApplyJobPage() {
             title: foundJob.title || "Untitled Job",
             company: foundJob.company || "Unknown Company",
             companyName: foundJob.companyName || foundJob.company || "Unknown Company",
+            companyId: foundJob.companyId, // ✅ Store companyId from API
             companyLogo: foundJob.companyLogo || null,
             location: foundJob.fullLocation || foundJob.location || "Unknown Location",
             country: foundJob.country || "Unknown",
@@ -447,13 +444,28 @@ export default function ApplyJobPage() {
     try {
       setIsParsing(true)
       
-      const formData = new FormData()
-      formData.append('files', file)
+      console.log('🔍 Resume Parse Debug - Starting parseResume function')
+      console.log('🔍 Resume Parse Debug - File:', file.name, file.size, file.type)
+      console.log('🔍 Resume Parse Debug - Job data:', job)
       
-      const response = await fetch(`${PYTHON_API_URL}/parse-resume`, {
+      const formData = new FormData()
+      formData.append('file', file)
+      
+      // Add companyId as query parameter for company isolation
+      const companyId = job?.companyId
+      const url = companyId ? `${PYTHON_API_URL}/parse-resume?company_id=${companyId}` : `${PYTHON_API_URL}/parse-resume`
+      
+      console.log('🔍 Resume Parse Debug - Company ID:', companyId)
+      console.log('🔍 Resume Parse Debug - Parse URL:', url)
+      console.log('🔍 Resume Parse Debug - Python API URL:', PYTHON_API_URL)
+      
+      const response = await fetch(url, {
         method: 'POST',
         body: formData,
       })
+      
+      console.log('🔍 Resume Parse Debug - Response status:', response.status)
+      console.log('🔍 Resume Parse Debug - Response headers:', Object.fromEntries(response.headers.entries()))
       
       if (!response.ok) {
         const errorText = await response.text()
@@ -462,6 +474,7 @@ export default function ApplyJobPage() {
       }
       
       const result = await response.json()
+      console.log('🔍 Resume Parse Debug - Full response:', result)
       
       if (result.successful_files > 0 && result.results && result.results.length > 0) {
         const firstResult = result.results[0]
@@ -775,18 +788,8 @@ export default function ApplyJobPage() {
          portfolioUrl: applicationData.customAnswers.portfolioUrl || "",
        }
 
-      // Construct the URL properly based on the API format
-      const titleSlug = job?.title?.toLowerCase().replace(/[^a-z0-9]/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '') || 'untitled-job'
-      const experienceSlug = (job?.experience || 'senior')?.toLowerCase().replace(/[^a-z0-9]/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '') || 'senior'
-      const jobTypeSlug = (job?.jobType || 'full-time')?.toLowerCase().replace(/[^a-z0-9]/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '') || 'full-time'
-      const companySlug = job?.company?.toLowerCase().replace(/[^a-z0-9]/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '') || 'unknown-company'
-      const citySlug = job?.city?.toLowerCase().replace(/[^a-z0-9]/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '') || 'unknown-city'
-      
-      // Try the complex URL format first
-      let applyUrl = `${BASE_API_URL}/job-listings/job-listings-${titleSlug}-${experienceSlug}-${jobTypeSlug}-${companySlug}-${citySlug}-${job?.id}/apply`
-      
-      // If that fails, we'll try a simpler format
-      const fallbackUrl = `${BASE_API_URL}/job-listings/${job?.id}/apply`
+      // Use the same slug format for application submission
+      const applyUrl = `${BASE_API_URL}/job-listings/${jobSlug}/apply`
       
       console.log('Submitting application to:', applyUrl)
       console.log('Application payload:', applicationPayload)
@@ -825,9 +828,9 @@ export default function ApplyJobPage() {
         const errorText = await response.text()
         console.error('API Error Response:', errorText)
         
-        // Try fallback URL if the first one failed
+        // Handle error response
         if (response.status === 400 || response.status === 404) {
-          console.log('Trying fallback URL:', fallbackUrl)
+          console.log('Job not found or invalid URL')
           
           if (applicationData.resumeFile) {
             const formData = new FormData()
@@ -836,12 +839,12 @@ export default function ApplyJobPage() {
               formData.append(key, value.toString())
             })
             
-            response = await fetch(fallbackUrl, {
+            response = await fetch(applyUrl, {
               method: 'POST',
               body: formData,
             })
           } else {
-            response = await fetch(fallbackUrl, {
+            response = await fetch(applyUrl, {
               method: 'POST',
               headers: {
                 'Content-Type': 'application/json',

@@ -280,10 +280,19 @@ export default function CandidateManagement({ setActiveTab, showQuickActions, se
         )
       )
 
+      // Get token from localStorage
+      const user = JSON.parse(localStorage.getItem('ats_user') || 'null');
+      const token = user?.token;
+      
+      if (!token) {
+        throw new Error('Authentication token not found. Please login again.');
+      }
+
       const response = await fetch(`${BASE_API_URL}/pipeline/update-status`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
         },
         body: JSON.stringify({
           candidateId,
@@ -371,7 +380,26 @@ export default function CandidateManagement({ setActiveTab, showQuickActions, se
       setLoading(true)
       setError(null)
       
-      const response = await fetch(`${BASE_API_URL}/candidates/all`)
+      // Get company ID and token from localStorage
+      const user = JSON.parse(localStorage.getItem('ats_user') || 'null');
+      const companyId = user?.companyId;
+      const token = user?.token;
+      
+      if (!token) {
+        throw new Error('Authentication token not found. Please login again.');
+      }
+      
+      const url = new URL(`${BASE_API_URL}/candidates/all`);
+      if (companyId) {
+        url.searchParams.set('companyId', companyId.toString());
+      }
+      
+      const response = await fetch(url.toString(), {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        }
+      })
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`)
       }

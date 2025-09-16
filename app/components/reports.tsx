@@ -38,6 +38,7 @@ import {
 import BASE_API_URL from "../../BaseUrlApi"
 import * as XLSX from 'xlsx'
 import { saveAs } from 'file-saver'
+import { useCompany } from "../../lib/company-context"
 
 interface ReportsData {
   metadata: {
@@ -136,20 +137,62 @@ interface ReportsData {
 }
 
 export default function Reports() {
+  const { companyId, isAuthenticated, isLoading } = useCompany()
   const [reportsData, setReportsData] = useState<ReportsData | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
+  // Show loading while company context is loading
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center py-8">
+        <div className="text-center">
+          <div className="w-12 h-12 bg-gradient-to-br from-blue-600 to-purple-600 rounded-full flex items-center justify-center mx-auto mb-4 animate-spin">
+            <div className="w-6 h-6 text-white">⏳</div>
+          </div>
+          <p className="text-gray-600">Loading company context...</p>
+        </div>
+      </div>
+    )
+  }
+
   useEffect(() => {
-    fetchReportsData()
-  }, [])
+    if (isAuthenticated && companyId) {
+      fetchReportsData()
+    }
+  }, [isAuthenticated, companyId])
 
   const fetchReportsData = async () => {
+    if (!companyId) {
+      setError('Company context required')
+      setLoading(false)
+      return
+    }
+
     try {
       setLoading(true)
-      console.log('Fetching reports data from:', `${BASE_API_URL}/reports/reports-all`)
-      const response = await fetch(`${BASE_API_URL}/reports/reports-all`)
+      
+      // Get JWT token from localStorage
+      const user = JSON.parse(localStorage.getItem('ats_user') || 'null');
+      const token = user?.token;
+      
+      if (!token) {
+        throw new Error('No authentication token found. Please login again.');
+      }
+      
+      console.log('Fetching reports data from:', `${BASE_API_URL}/reports/reports-all?companyId=${companyId}`)
+      const response = await fetch(`${BASE_API_URL}/reports/reports-all?companyId=${companyId}`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        }
+      })
+      
       if (!response.ok) {
+        if (response.status === 401) {
+          throw new Error('Authentication failed. Please login again.');
+        }
         throw new Error('Failed to fetch reports data')
       }
       const data = await response.json()

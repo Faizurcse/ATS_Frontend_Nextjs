@@ -1,5 +1,12 @@
 // API service for candidates matching endpoints
-const BASE_URL = 'http://158.220.127.100:8000';
+const BASE_URL = 'http://localhost:8000';
+
+// Helper function to get company ID from localStorage
+const getCompanyId = (): number | null => {
+  if (typeof window === 'undefined') return null;
+  const user = JSON.parse(localStorage.getItem('ats_user') || 'null');
+  return user?.companyId || null;
+};
 
 export interface CandidateMatch {
   candidate_id: number;
@@ -103,20 +110,61 @@ export interface AllMatchesResponse {
  */
 export async function getCandidatesForJob(
   jobId: number,
-  minScore: number = 0.1
+  minScore: number = 0.1,
+  companyId?: number
 ): Promise<CandidatesResponse> {
   try {
-    const response = await fetch(
-      `${BASE_URL}/api/v1/candidates-matching/candidates-matching/job/${jobId}/candidates-fast?min_score=${minScore}`,
-      {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-      }
-    );
+    const finalCompanyId = companyId || getCompanyId();
+    
+    // Get JWT token from localStorage
+    const user = JSON.parse(localStorage.getItem('ats_user') || 'null');
+    const token = user?.token;
+
+    // Debug: Check token
+    console.log('🔍 API Debug:');
+    console.log('user:', user);
+    console.log('token:', token);
+    console.log('token length:', token?.length);
+
+    if (!token) {
+      console.error('❌ No JWT token found in localStorage');
+      throw new Error('Authentication required. Please login again.');
+    }
+
+    const url = new URL(`${BASE_URL}/api/v1/candidates-matching/candidates-matching/job/${jobId}/candidates-fast`);
+    url.searchParams.set('min_score', minScore.toString());
+    if (finalCompanyId) {
+      url.searchParams.set('company_id', finalCompanyId.toString());
+    }
+
+    console.log('🚀 Making API request to:', url.toString());
+    console.log('🔑 Headers:', {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${token}`,
+      'X-Company-ID': finalCompanyId?.toString() || '',
+    });
+
+    const response = await fetch(url.toString(), {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`,
+        'X-Company-ID': finalCompanyId?.toString() || '',
+      },
+    });
 
     if (!response.ok) {
+      // Handle authentication errors
+      if (response.status === 401) {
+        localStorage.removeItem("authenticated");
+        localStorage.removeItem("auth_email");
+        localStorage.removeItem("ats_user");
+        window.location.href = '/login';
+        throw new Error('Session expired. Please login again.');
+      } else if (response.status === 403) {
+        throw new Error('Access denied. You do not have permission to view candidates for this job.');
+      }
+      
       // Try to get the actual error message from the response
       let errorMessage = `HTTP error! status: ${response.status}`;
       try {
@@ -150,17 +198,42 @@ export async function getAllMatches(
   minScore: number = 0.1
 ): Promise<AllMatchesResponse> {
   try {
-    const response = await fetch(
-      `${BASE_URL}/api/v1/candidates-matching/all-matches?min_score=${minScore}`,
-      {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-      }
-    );
+    const companyId = getCompanyId();
+    
+    // Get JWT token from localStorage
+    const user = JSON.parse(localStorage.getItem('ats_user') || 'null');
+    const token = user?.token;
+
+    if (!token) {
+      throw new Error('Authentication required. Please login again.');
+    }
+
+    const url = new URL(`${BASE_URL}/api/v1/candidates-matching/all-matches`);
+    url.searchParams.set('min_score', minScore.toString());
+    if (companyId) {
+      url.searchParams.set('company_id', companyId.toString());
+    }
+
+    const response = await fetch(url.toString(), {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`,
+        'X-Company-ID': companyId?.toString() || '',
+      },
+    });
 
     if (!response.ok) {
+      // Handle authentication errors
+      if (response.status === 401) {
+        localStorage.removeItem("authenticated");
+        localStorage.removeItem("auth_email");
+        localStorage.removeItem("ats_user");
+        window.location.href = '/login';
+        throw new Error('Session expired. Please login again.');
+      } else if (response.status === 403) {
+        throw new Error('Access denied. You do not have permission to view all matches.');
+      }
       throw new Error(`HTTP error! status: ${response.status}`);
     }
 
@@ -179,17 +252,38 @@ export async function getAllMatches(
  */
 export async function getJobById(jobId: number): Promise<any> {
   try {
+    // Get JWT token and company ID from localStorage
+    const user = JSON.parse(localStorage.getItem('ats_user') || 'null');
+    const token = user?.token;
+    const companyId = user?.companyId;
+
+    if (!token) {
+      throw new Error('Authentication required. Please login again.');
+    }
+
     const response = await fetch(
       `${BASE_URL}/api/v1/jobs/${jobId}`,
       {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+          'X-Company-ID': companyId?.toString() || '',
         },
       }
     );
 
     if (!response.ok) {
+      // Handle authentication errors
+      if (response.status === 401) {
+        localStorage.removeItem("authenticated");
+        localStorage.removeItem("auth_email");
+        localStorage.removeItem("ats_user");
+        window.location.href = '/login';
+        throw new Error('Session expired. Please login again.');
+      } else if (response.status === 403) {
+        throw new Error('Access denied. You do not have permission to view this job.');
+      }
       throw new Error(`HTTP error! status: ${response.status}`);
     }
 

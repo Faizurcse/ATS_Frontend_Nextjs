@@ -143,24 +143,173 @@ export default function EmailAnalytics() {
       setIsLoading(true)
       setError(null)
       
-      const response = await fetch(`${BASE_API_URL}/email-analytics/`)
+      // Wait a bit for localStorage to be available
+      await new Promise(resolve => setTimeout(resolve, 500));
+      
+      // Get JWT token and company ID from localStorage
+      console.log('🔍 Checking localStorage...');
+      console.log('🔍 localStorage keys:', Object.keys(localStorage));
+      console.log('🔍 ats_token:', localStorage.getItem('ats_token'));
+      console.log('🔍 ats_user:', localStorage.getItem('ats_user'));
+      
+      // Try multiple ways to get the token and user
+      const token = localStorage.getItem('ats_token') || localStorage.getItem('token') || localStorage.getItem('auth_token');
+      const userString = localStorage.getItem('ats_user') || localStorage.getItem('user') || localStorage.getItem('auth_user');
+      const user = userString ? JSON.parse(userString) : null;
+      
+      // Check if token is in user object
+      const tokenFromUser = user?.token;
+      const finalToken = token || tokenFromUser;
+      const companyId = user?.companyId;
+      
+      console.log('🔍 Token found:', token ? 'Yes' : 'No');
+      console.log('🔍 User found:', user ? 'Yes' : 'No');
+      console.log('🔍 Company ID found:', companyId ? 'Yes' : 'No');
+      console.log('🔍 Token from user object:', tokenFromUser ? 'Yes' : 'No');
+      console.log('🔍 Final token:', finalToken ? 'Yes' : 'No');
+      
+      console.log('🔍 Email Analytics Debug:', {
+        token: token ? 'Present' : 'Missing',
+        user: user,
+        companyId: companyId,
+        tokenFromUser: tokenFromUser ? 'Present' : 'Missing',
+        finalToken: finalToken ? 'Present' : 'Missing',
+        localStorageKeys: Object.keys(localStorage),
+        allLocalStorage: {
+          ats_token: localStorage.getItem('ats_token'),
+          ats_user: localStorage.getItem('ats_user')
+        }
+      });
+      
+      if (!finalToken) {
+        console.error('❌ No token found in localStorage');
+        console.error('❌ Available localStorage keys:', Object.keys(localStorage));
+        console.error('❌ ats_token value:', localStorage.getItem('ats_token'));
+        console.error('❌ token from user:', tokenFromUser);
+        throw new Error('Authentication required. Please login first.');
+      }
+      
+      if (!companyId) {
+        console.error('❌ No companyId found in user object');
+        console.error('❌ User object:', user);
+        throw new Error('Company ID not found. Please login again.');
+      }
+      
+      // Build API URL
+      const apiUrl = `${BASE_API_URL}/email-analytics/`;
+      const url = new URL(apiUrl);
+      if (companyId) {
+        url.searchParams.set('companyId', companyId.toString());
+      }
+      
+      console.log('🔍 Making API request to:', url.toString());
+      console.log('🔍 BASE_API_URL:', BASE_API_URL);
+      console.log('🔍 Final URL:', url.toString());
+      console.log('🔍 Company ID being sent:', companyId);
+      console.log('🔍 Token being sent:', finalToken ? 'Present' : 'Missing');
+      console.log('🔍 Request headers:', {
+        'Authorization': `Bearer ${finalToken}`,
+        'Content-Type': 'application/json'
+      });
+      
+      // Test if the URL is accessible
+      console.log('🔍 Testing URL accessibility...');
+      
+      const response = await fetch(url.toString(), {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${finalToken}`,
+          'Content-Type': 'application/json'
+        }
+      })
+      
+      console.log('🔍 API Response Status:', response.status);
+      console.log('🔍 API Response Headers:', Object.fromEntries(response.headers.entries()));
+      
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('❌ API Error Response:', errorText);
+        throw new Error(`HTTP error! status: ${response.status} - ${errorText}`);
+      }
+      
       const data: ApiResponse = await response.json()
+      console.log('🔍 API Response Data:', data);
+      console.log('🔍 API Response Success:', data.success);
+      console.log('🔍 API Response Message:', data.message);
       
       if (data.success) {
         setEmailData(data.data)
+        console.log('✅ Email analytics data loaded successfully');
+        console.log('✅ Data received:', data.data);
       } else {
+        console.error('❌ API returned error:', data.message);
         setError(data.message || 'Failed to fetch email analytics data')
       }
     } catch (err) {
-      setError('Failed to connect to the server. Please check your connection.')
-      console.error('Error fetching email analytics:', err)
+      console.error('❌ Error fetching email analytics:', err);
+      console.error('❌ Error details:', {
+        name: err.name,
+        message: err.message,
+        stack: err.stack
+      });
+      
+      if (err.name === 'AbortError') {
+        setError('Request timeout. Please check your connection and try again.')
+      } else if (err.message.includes('Failed to fetch')) {
+        setError('Network error. Please check if the backend server is running.')
+      } else if (err.message.includes('HTTP error')) {
+        setError(`Server error: ${err.message}`)
+      } else {
+        setError('Failed to connect to the server. Please check your connection.')
+      }
     } finally {
       setIsLoading(false)
     }
   }
 
   useEffect(() => {
-    fetchEmailAnalytics()
+    // Check if we're in browser environment
+    if (typeof window !== 'undefined') {
+      // Test localStorage access
+      console.log('🔍 Testing localStorage access...');
+      console.log('🔍 localStorage available:', typeof localStorage !== 'undefined');
+      console.log('🔍 localStorage keys:', Object.keys(localStorage));
+      
+      try {
+        const testToken = localStorage.getItem('ats_token') || localStorage.getItem('token') || localStorage.getItem('auth_token');
+        const testUserString = localStorage.getItem('ats_user') || localStorage.getItem('user') || localStorage.getItem('auth_user');
+        const testUser = testUserString ? JSON.parse(testUserString) : null;
+        const tokenFromUser = testUser?.token;
+        const finalTestToken = testToken || tokenFromUser;
+        
+        console.log('🔍 localStorage test:', {
+          token: testToken ? 'Present' : 'Missing',
+          user: testUser ? 'Present' : 'Missing',
+          tokenFromUser: tokenFromUser ? 'Present' : 'Missing',
+          finalToken: finalTestToken ? 'Present' : 'Missing',
+          tokenValue: testToken,
+          userValue: testUser,
+          companyId: testUser?.companyId
+        });
+        
+        if (finalTestToken && testUser && testUser.companyId) {
+          console.log('✅ localStorage data available, calling fetchEmailAnalytics');
+          fetchEmailAnalytics()
+        } else {
+          console.error('❌ localStorage data not available');
+          console.error('❌ testToken:', testToken);
+          console.error('❌ testUser:', testUser);
+          console.error('❌ tokenFromUser:', tokenFromUser);
+          console.error('❌ finalTestToken:', finalTestToken);
+          setError('Please login to view email analytics');
+          setIsLoading(false);
+        }
+      } catch (error) {
+        console.error('❌ localStorage access error:', error);
+        setError('Unable to access authentication data');
+        setIsLoading(false);
+      }
+    }
   }, [])
 
   // Chart configurations

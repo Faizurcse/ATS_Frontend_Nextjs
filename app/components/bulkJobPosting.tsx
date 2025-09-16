@@ -191,21 +191,46 @@ export default function BulkJobPosting({ onJobsCreated }: BulkJobPostingProps) {
       setMessage(null)
       setStartTime(Date.now())
 
+      // Get JWT token and company ID from localStorage
+      const user = JSON.parse(localStorage.getItem('ats_user') || 'null');
+      const token = user?.token;
+      const companyId = user?.companyId;
+
+      if (!token || !companyId) {
+        throw new Error('Authentication required. Please login again.');
+      }
+
       // Create new AbortController for this request
       const controller = new AbortController()
       setAbortController(controller)
 
-      const response = await fetch(`http://158.220.127.100:8000/job-posting/bulk-generate`, {
+      const response = await fetch(`http://localhost:8000/job-posting/bulk-generate`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+          'X-Company-ID': companyId.toString()
+        },
         body: JSON.stringify({ 
           prompt: prompt.trim(),
-          count: count
+          count: count,
+          company_id: companyId
         }),
         signal: controller.signal
       })
 
       if (!response.ok) {
+        // Handle authentication errors
+        if (response.status === 401) {
+          localStorage.removeItem("authenticated");
+          localStorage.removeItem("auth_email");
+          localStorage.removeItem("ats_user");
+          window.location.href = '/login';
+          throw new Error('Session expired. Please login again.');
+        } else if (response.status === 403) {
+          throw new Error('Access denied. You do not have permission to generate bulk job postings.');
+        }
+        
         // Try to get the actual error message from the response
         let errorMessage = `HTTP error! status: ${response.status}`
         try {
@@ -307,7 +332,7 @@ export default function BulkJobPosting({ onJobsCreated }: BulkJobPostingProps) {
       setMessage(null)
 
       // Get companyId from localStorage
-      const userData = localStorage.getItem('user_data')
+      const userData = localStorage.getItem('ats_user')
       if (!userData) {
         throw new Error('User not authenticated. Please login again.')
       }
@@ -319,6 +344,21 @@ export default function BulkJobPosting({ onJobsCreated }: BulkJobPostingProps) {
         throw new Error('Company information not found. Please contact support.')
       }
 
+      // Get JWT token from localStorage
+      let token = null;
+      try {
+        if (typeof window !== 'undefined' && localStorage) {
+          const user = JSON.parse(localStorage.getItem('ats_user') || 'null');
+          token = user?.token;
+        }
+      } catch (error) {
+        console.error('Error accessing localStorage:', error);
+      }
+      
+      if (!token) {
+        throw new Error('Authentication token not found. Please login again.');
+      }
+
       // Add companyId to each job
       const jobsWithCompanyId = generatedJobs.map(job => ({
         ...job,
@@ -327,7 +367,10 @@ export default function BulkJobPosting({ onJobsCreated }: BulkJobPostingProps) {
 
       const response = await fetch(`${BASE_API_URL}/jobs/post-job`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
         body: JSON.stringify(jobsWithCompanyId)
       })
 

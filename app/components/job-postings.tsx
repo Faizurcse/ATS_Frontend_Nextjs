@@ -252,7 +252,27 @@ export default function JobPostings({ setActiveTab }: { setActiveTab?: (tab: str
   // Function to fetch candidate count for a job
   const fetchCandidateCount = async (jobId: string, minScore: string = "0.1"): Promise<number> => {
     try {
-      const response = await fetch(`http://158.220.127.100:8000/api/v1/candidates-matching/candidates-matching/job/${jobId}/candidates-fast?min_score=${minScore}`)
+      // Get JWT token and company ID from localStorage
+      const user = JSON.parse(localStorage.getItem('ats_user') || 'null');
+      const token = user?.token;
+      const companyId = user?.companyId;
+
+      if (!token || !companyId) {
+        console.warn('Authentication required for candidate count fetch');
+        return 0;
+      }
+
+      const url = new URL(`http://localhost:8000/api/v1/candidates-matching/candidates-matching/job/${jobId}/candidates-fast`);
+      url.searchParams.set('min_score', minScore);
+      url.searchParams.set('company_id', companyId.toString());
+
+      const response = await fetch(url.toString(), {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'X-Company-ID': companyId.toString()
+        }
+      })
+      
       if (response.ok) {
         const data = await response.json()
         return data.total_candidates || 0
@@ -283,12 +303,27 @@ export default function JobPostings({ setActiveTab }: { setActiveTab?: (tab: str
     try {
       setIsLoadingJobs(true)
 
-      console.log('Attempting to fetch jobs from:', `${BASE_API_URL}/jobs/get-jobs`)
+      // Get company ID and JWT token from localStorage
+      const user = JSON.parse(localStorage.getItem('ats_user') || 'null');
+      const companyId = user?.companyId;
+      const token = user?.token;
+      
+      if (!token) {
+        throw new Error('No authentication token found. Please login again.');
+      }
+      
+      const url = new URL(`${BASE_API_URL}/jobs/get-jobs`);
+      if (companyId) {
+        url.searchParams.set('companyId', companyId.toString());
+      }
 
-      const response = await fetch(`${BASE_API_URL}/jobs/get-jobs`, {
+      console.log('Attempting to fetch jobs from:', url.toString())
+
+      const response = await fetch(url.toString(), {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
         },
       })
 
@@ -506,7 +541,7 @@ export default function JobPostings({ setActiveTab }: { setActiveTab?: (tab: str
     setIsPostingJob(true)
     try {
       // Get companyId from localStorage
-      const userData = localStorage.getItem('user_data')
+      const userData = localStorage.getItem('ats_user')
       if (!userData) {
         throw new Error('User not authenticated. Please login again.')
       }
@@ -553,11 +588,27 @@ export default function JobPostings({ setActiveTab }: { setActiveTab?: (tab: str
         benefits: newJob.benefits
       }
 
+      // Get JWT token from localStorage
+      let token = null;
+      try {
+        if (typeof window !== 'undefined' && localStorage) {
+          const user = JSON.parse(localStorage.getItem('ats_user') || 'null');
+          token = user?.token;
+        }
+      } catch (error) {
+        console.error('Error accessing localStorage:', error);
+      }
+      
+      if (!token) {
+        throw new Error('Authentication token not found. Please login again.');
+      }
+
       // Make API call to post job
       const response = await fetch(`${BASE_API_URL}/jobs/post-job`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
         },
         body: JSON.stringify(jobData),
       })
@@ -670,16 +721,43 @@ export default function JobPostings({ setActiveTab }: { setActiveTab?: (tab: str
         benefits: editingJob.benefits.join(', ')
       }
 
+      // Get authentication token and company ID
+      const user = JSON.parse(localStorage.getItem('ats_user') || 'null');
+      const token = user?.token;
+      const companyId = user?.companyId;
+
+      if (!token || !companyId) {
+        throw new Error('Authentication required. Please login again.');
+      }
+
+      // Add company ID to job data
+      const jobDataWithCompany = {
+        ...jobData,
+        companyId: companyId
+      };
+
       // Make API call to update job
       const response = await fetch(`${BASE_API_URL}/jobs/update-job/${editingJob.id}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+          'X-Company-ID': companyId.toString()
         },
-        body: JSON.stringify(jobData),
+        body: JSON.stringify(jobDataWithCompany),
       })
 
       if (!response.ok) {
+        // Handle authentication errors
+        if (response.status === 401) {
+          localStorage.removeItem("authenticated");
+          localStorage.removeItem("auth_email");
+          localStorage.removeItem("ats_user");
+          window.location.href = '/login';
+          throw new Error('Session expired. Please login again.');
+        } else if (response.status === 403) {
+          throw new Error('Access denied. You do not have permission to update this job.');
+        }
         throw new Error(`HTTP error! status: ${response.status}`)
       }
 
@@ -750,19 +828,41 @@ export default function JobPostings({ setActiveTab }: { setActiveTab?: (tab: str
 
       console.log('Job email:', jobToDelete.email)
 
+      // Get authentication token and company ID
+      const user = JSON.parse(localStorage.getItem('ats_user') || 'null');
+      const token = user?.token;
+      const companyId = user?.companyId;
+
+      if (!token || !companyId) {
+        throw new Error('Authentication required. Please login again.');
+      }
+
       // Make API call to delete job with email data
       const response = await fetch(`${BASE_API_URL}/jobs/delete-job/${jobToDelete.id}`, {
         method: 'DELETE',
         headers: {
           'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+          'X-Company-ID': companyId.toString()
         },
         body: JSON.stringify({
           email: jobToDelete.email,
-          deleteReason: 'Job deleted from frontend'
+          deleteReason: 'Job deleted from frontend',
+          companyId: companyId
         }),
       })
 
       if (!response.ok) {
+        // Handle authentication errors
+        if (response.status === 401) {
+          localStorage.removeItem("authenticated");
+          localStorage.removeItem("auth_email");
+          localStorage.removeItem("ats_user");
+          window.location.href = '/login';
+          throw new Error('Session expired. Please login again.');
+        } else if (response.status === 403) {
+          throw new Error('Access denied. You do not have permission to delete this job.');
+        }
         throw new Error(`HTTP error! status: ${response.status}`)
       }
 
@@ -826,13 +926,40 @@ export default function JobPostings({ setActiveTab }: { setActiveTab?: (tab: str
       setIsAIGenerating(true)
       setAiMessage(null)
 
-      const response = await fetch(`http://158.220.127.100:8000/job-posting/generate`, {
+      // Get JWT token and company ID from localStorage
+      const user = JSON.parse(localStorage.getItem('ats_user') || 'null');
+      const token = user?.token;
+      const companyId = user?.companyId;
+
+      if (!token || !companyId) {
+        throw new Error('Authentication required. Please login again.');
+      }
+
+      const response = await fetch(`http://localhost:8000/job-posting/generate`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ prompt: aiPrompt.trim() })
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+          'X-Company-ID': companyId.toString()
+        },
+        body: JSON.stringify({ 
+          prompt: aiPrompt.trim(),
+          company_id: companyId
+        })
       })
 
       if (!response.ok) {
+        // Handle authentication errors
+        if (response.status === 401) {
+          localStorage.removeItem("authenticated");
+          localStorage.removeItem("auth_email");
+          localStorage.removeItem("ats_user");
+          window.location.href = '/login';
+          throw new Error('Session expired. Please login again.');
+        } else if (response.status === 403) {
+          throw new Error('Access denied. You do not have permission to generate job postings.');
+        }
+        
         // Try to get the actual error message from the response
         let errorMessage = `HTTP error! status: ${response.status}`
         try {
@@ -1252,6 +1379,15 @@ export default function JobPostings({ setActiveTab }: { setActiveTab?: (tab: str
                       job.title
                     )
 
+                    // Get authentication token and company ID
+                    const user = JSON.parse(localStorage.getItem('ats_user') || 'null');
+                    const token = user?.token;
+                    const companyId = user?.companyId;
+
+                    if (!token || !companyId) {
+                      throw new Error('Authentication required. Please login again.');
+                    }
+
                     // Prepare data for API
                     const jobData = {
                       jobType: value === "full-time" ? "Full-time" :
@@ -1259,7 +1395,8 @@ export default function JobPostings({ setActiveTab }: { setActiveTab?: (tab: str
                           value === "contract" ? "Contract" :
                             value === "freelance" ? "Freelance" :
                               value === "internship" ? "Internship" :
-                                value === "temporary" ? "Temporary" : "Full-time"
+                                value === "temporary" ? "Temporary" : "Full-time",
+                      companyId: companyId
                     }
 
                     // Call API to update job
@@ -1267,11 +1404,23 @@ export default function JobPostings({ setActiveTab }: { setActiveTab?: (tab: str
                       method: 'PUT',
                       headers: {
                         'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`,
+                        'X-Company-ID': companyId.toString()
                       },
                       body: JSON.stringify(jobData),
                     })
 
                     if (!response.ok) {
+                      // Handle authentication errors
+                      if (response.status === 401) {
+                        localStorage.removeItem("authenticated");
+                        localStorage.removeItem("auth_email");
+                        localStorage.removeItem("ats_user");
+                        window.location.href = '/login';
+                        throw new Error('Session expired. Please login again.');
+                      } else if (response.status === 403) {
+                        throw new Error('Access denied. You do not have permission to update this job.');
+                      }
                       throw new Error(`HTTP error! status: ${response.status}`)
                     }
 
@@ -1330,9 +1479,19 @@ export default function JobPostings({ setActiveTab }: { setActiveTab?: (tab: str
                       job.title
                     )
 
+                    // Get authentication token and company ID
+                    const user = JSON.parse(localStorage.getItem('ats_user') || 'null');
+                    const token = user?.token;
+                    const companyId = user?.companyId;
+
+                    if (!token || !companyId) {
+                      throw new Error('Authentication required. Please login again.');
+                    }
+
                     // Prepare data for API
                     const jobData = {
-                      jobStatus: value
+                      jobStatus: value,
+                      companyId: companyId
                     }
 
                     // Call API to update job
@@ -1340,11 +1499,23 @@ export default function JobPostings({ setActiveTab }: { setActiveTab?: (tab: str
                       method: 'PUT',
                       headers: {
                         'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`,
+                        'X-Company-ID': companyId.toString()
                       },
                       body: JSON.stringify(jobData),
                     })
 
                     if (!response.ok) {
+                      // Handle authentication errors
+                      if (response.status === 401) {
+                        localStorage.removeItem("authenticated");
+                        localStorage.removeItem("auth_email");
+                        localStorage.removeItem("ats_user");
+                        window.location.href = '/login';
+                        throw new Error('Session expired. Please login again.');
+                      } else if (response.status === 403) {
+                        throw new Error('Access denied. You do not have permission to update this job.');
+                      }
                       throw new Error(`HTTP error! status: ${response.status}`)
                     }
 
@@ -1422,9 +1593,19 @@ export default function JobPostings({ setActiveTab }: { setActiveTab?: (tab: str
                       job.title
                     )
 
+                    // Get authentication token and company ID
+                    const user = JSON.parse(localStorage.getItem('ats_user') || 'null');
+                    const token = user?.token;
+                    const companyId = user?.companyId;
+
+                    if (!token || !companyId) {
+                      throw new Error('Authentication required. Please login again.');
+                    }
+
                     // Prepare data for API
                     const jobData = {
-                      workType: value
+                      workType: value,
+                      companyId: companyId
                     }
 
                     // Call API to update job
@@ -1432,11 +1613,23 @@ export default function JobPostings({ setActiveTab }: { setActiveTab?: (tab: str
                       method: 'PUT',
                       headers: {
                         'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`,
+                        'X-Company-ID': companyId.toString()
                       },
                       body: JSON.stringify(jobData),
                     })
 
                     if (!response.ok) {
+                      // Handle authentication errors
+                      if (response.status === 401) {
+                        localStorage.removeItem("authenticated");
+                        localStorage.removeItem("auth_email");
+                        localStorage.removeItem("ats_user");
+                        window.location.href = '/login';
+                        throw new Error('Session expired. Please login again.');
+                      } else if (response.status === 403) {
+                        throw new Error('Access denied. You do not have permission to update this job.');
+                      }
                       throw new Error(`HTTP error! status: ${response.status}`)
                     }
 
@@ -1507,12 +1700,22 @@ export default function JobPostings({ setActiveTab }: { setActiveTab?: (tab: str
                       job.title
                     )
 
+                    // Get authentication token and company ID
+                    const user = JSON.parse(localStorage.getItem('ats_user') || 'null');
+                    const token = user?.token;
+                    const companyId = user?.companyId;
+
+                    if (!token || !companyId) {
+                      throw new Error('Authentication required. Please login again.');
+                    }
+
                     // Prepare data for API
                     const jobData = {
                       priority: value === "urgent" ? "Urgent" :
                         value === "high" ? "High" :
                           value === "medium" ? "Medium" :
-                            value === "low" ? "Low" : "Medium"
+                            value === "low" ? "Low" : "Medium",
+                      companyId: companyId
                     }
 
                     // Call API to update job
@@ -1520,11 +1723,23 @@ export default function JobPostings({ setActiveTab }: { setActiveTab?: (tab: str
                       method: 'PUT',
                       headers: {
                         'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`,
+                        'X-Company-ID': companyId.toString()
                       },
                       body: JSON.stringify(jobData),
                     })
 
                     if (!response.ok) {
+                      // Handle authentication errors
+                      if (response.status === 401) {
+                        localStorage.removeItem("authenticated");
+                        localStorage.removeItem("auth_email");
+                        localStorage.removeItem("ats_user");
+                        window.location.href = '/login';
+                        throw new Error('Session expired. Please login again.');
+                      } else if (response.status === 403) {
+                        throw new Error('Access denied. You do not have permission to update this job.');
+                      }
                       throw new Error(`HTTP error! status: ${response.status}`)
                     }
 

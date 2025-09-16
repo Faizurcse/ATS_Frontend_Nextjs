@@ -185,9 +185,29 @@ export default function MyJobs() {
     try {
       setLoading(true)
       setError(null)
-      console.log('Fetching jobs from:', `${BASE_API_URL}/job-details/my-jobs`)
       
-      const response = await fetch(`${BASE_API_URL}/job-details/my-jobs`)
+      // Get company ID and token from localStorage
+      const user = JSON.parse(localStorage.getItem('ats_user') || 'null');
+      const companyId = user?.companyId;
+      const token = user?.token;
+      
+      if (!token) {
+        throw new Error('Authentication token not found. Please login again.');
+      }
+      
+      const url = new URL(`${BASE_API_URL}/job-details/my-jobs`);
+      if (companyId) {
+        url.searchParams.set('companyId', companyId.toString());
+      }
+      
+      console.log('Fetching jobs from:', url.toString())
+      
+      const response = await fetch(url.toString(), {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        }
+      })
       console.log('Response status:', response.status)
       
       if (!response.ok) {

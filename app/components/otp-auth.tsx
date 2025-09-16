@@ -9,10 +9,12 @@ import { Alert } from "../../components/ui/alert"
 import { toast } from "../../components/ui/use-toast"
 import { CheckCircle } from "lucide-react"
 import BASE_API_URL from '../../BaseUrlApi';
+// import { useCompany } from '../../lib/company-context';
 
-console.log("faiz--",BASE_API_URL)
+
 
 export default function OTPAuth() {
+  // const { login } = useCompany();
   const [step, setStep] = useState<"send" | "verify">("send")
   const [email, setEmail] = useState("")
   const [otp, setOtp] = useState("")
@@ -47,16 +49,16 @@ export default function OTPAuth() {
   const checkServerHealth = async (): Promise<boolean> => {
     try {
       const controller = new AbortController()
-      const timeoutId = setTimeout(() => controller.abort(), 5000) // 5 second timeout
+      const timeoutId = setTimeout(() => controller.abort(), 3000) // 3 second timeout
       
       // Try to check server health using a simple GET request to the base URL
-      const response = await fetch(`${BASE_API_URL}`, {
-        method: "GET",
+      const response = await fetch(`${BASE_API_URL}/auth/send-otp`, {
+        method: "OPTIONS",
         signal: controller.signal
       })
       
       clearTimeout(timeoutId)
-      return response.ok || response.status === 404 // 404 means server is running but endpoint doesn't exist
+      return true // If we can reach the endpoint, server is running
     } catch (error) {
       console.log("Server health check failed:", error)
       return false
@@ -107,14 +109,23 @@ export default function OTPAuth() {
   // Helper function to make API requests with timeout and retry
   const makeApiRequest = async (url: string, options: RequestInit, retryCount = 0): Promise<Response> => {
     const controller = new AbortController()
-    const timeoutId = setTimeout(() => controller.abort(), 10000) // 10 second timeout
+    const timeoutId = setTimeout(() => controller.abort(), 15000) // 15 second timeout
     
     try {
       console.log(`Making API request to: ${url}`, { options, retryCount })
-      const response = await fetch(url, {
+      
+      // Add CORS headers
+      const requestOptions = {
         ...options,
-        signal: controller.signal
-      })
+        signal: controller.signal,
+        mode: 'cors' as RequestMode,
+        headers: {
+          'Content-Type': 'application/json',
+          ...options.headers
+        }
+      }
+      
+      const response = await fetch(url, requestOptions)
       
       clearTimeout(timeoutId)
       console.log(`API response status: ${response.status}`, { url })
@@ -122,14 +133,20 @@ export default function OTPAuth() {
     } catch (error: any) {
       clearTimeout(timeoutId)
       
+      console.error(`API request failed (attempt ${retryCount + 1}):`, error)
+      
       if (error.name === 'AbortError') {
         throw new Error('Request timed out. Please check your connection.')
       }
       
+      if (error.message.includes('Failed to fetch')) {
+        throw new Error('Unable to connect to the server. Please check if the backend server is running on http://localhost:5000')
+      }
+      
       if (retryCount < 2) {
-        console.log(`Retrying request (${retryCount + 1}/2) after 2 seconds...`)
-        // Retry after 2 seconds
-        await new Promise(resolve => setTimeout(resolve, 2000))
+        console.log(`Retrying request (${retryCount + 1}/2) after 3 seconds...`)
+        // Retry after 3 seconds
+        await new Promise(resolve => setTimeout(resolve, 3000))
         return makeApiRequest(url, options, retryCount + 1)
       }
       
@@ -144,17 +161,10 @@ export default function OTPAuth() {
     setSuccess("")
     try {
       console.log("Sending OTP request for email:", email)
-      
-      // Check server health first
-      const isServerHealthy = await checkServerHealth()
-      if (!isServerHealthy) {
-        setError("Server is currently unavailable. Please try again in a few minutes.")
-        return
-      }
+      console.log("API URL:", `${BASE_API_URL}/auth/send-otp`)
       
       const res = await makeApiRequest(`${BASE_API_URL}/auth/send-otp`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email }),
       })
       
@@ -184,19 +194,11 @@ export default function OTPAuth() {
       const storedEmail = localStorage.getItem("auth_email") || email
       console.log("Verifying OTP for email:", storedEmail, "OTP:", otp)
       
-      // Check server health first
-      const isServerHealthy = await checkServerHealth()
-      if (!isServerHealthy) {
-        setError("Server is currently unavailable. Please try again in a few minutes.")
-        return
-      }
-      
       const requestBody = { email: storedEmail, otp }
       console.log("Request body:", requestBody)
       
       const res = await makeApiRequest(`${BASE_API_URL}/auth/verify-otp`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
         body: JSON.stringify(requestBody),
       })
       
@@ -206,15 +208,14 @@ export default function OTPAuth() {
       
       // Save user data to localStorage
       localStorage.setItem("authenticated", "true")
-      localStorage.setItem("user_data", JSON.stringify({
+      localStorage.setItem("ats_user", JSON.stringify({
         id: data.user.id,
         name: data.user.name,
         email: data.user.email,
-        number: data.user.number,
         userType: data.user.userType,
         companyId: data.user.companyId,
-        companyName: data.user.companyName,
-        companyLogo: data.user.companyInfo?.logo
+        company: data.user.company,
+        token: data.token
       }))
       
       toast({ title: "Login Successful", description: "You are now logged in." })

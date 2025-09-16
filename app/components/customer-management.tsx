@@ -93,6 +93,9 @@ export default function CustomerManagement() {
   const [showCreateDialog, setShowCreateDialog] = useState(false)
   const [showEditDialog, setShowEditDialog] = useState(false)
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null)
+  const [isCreating, setIsCreating] = useState(false)
+  const [isUpdating, setIsUpdating] = useState(false)
+  const [isDeleting, setIsDeleting] = useState(false)
   const [formData, setFormData] = useState<CustomerFormData>({
     companyName: '',
     industry: '',
@@ -198,16 +201,48 @@ export default function CustomerManagement() {
   const fetchCustomers = async () => {
     try {
       setLoading(true)
+      
+      // Get JWT token and company ID from localStorage
+      const token = localStorage.getItem('ats_token');
+      const user = JSON.parse(localStorage.getItem('ats_user') || 'null');
+      const companyId = user?.companyId;
+
+      // Validate authentication
+      if (!token) {
+        toast({
+          title: "Authentication Error",
+          description: "Please login to view customers",
+          variant: "destructive"
+        });
+        return;
+      }
+
+      if (!companyId) {
+        toast({
+          title: "Company Error", 
+          description: "Company ID not found. Please login again.",
+          variant: "destructive"
+        });
+        return;
+      }
+      
       const params = new URLSearchParams({
         page: currentPage.toString(),
         limit: '10',
         ...(searchTerm && { search: searchTerm }),
         ...(statusFilter !== 'all' && { status: statusFilter }),
         ...(priorityFilter !== 'all' && { priority: priorityFilter }),
-        ...(industryFilter !== 'all' && { industry: industryFilter })
+        ...(industryFilter !== 'all' && { industry: industryFilter }),
+        ...(companyId && { companyId: companyId.toString() })
       })
 
-      const response = await fetch(`${BaseUrlApi}/customers?${params}`)
+      console.log('🔍 Fetching customers with company ID:', companyId);
+
+      const response = await fetch(`${BaseUrlApi}/customers?${params}`, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      })
       const data = await response.json()
 
       if (data.success) {
@@ -234,21 +269,109 @@ export default function CustomerManagement() {
 
   // Create customer
   const createCustomer = async () => {
+    console.log('🔍 createCustomer function called');
+    console.log('🔍 Current form data:', formData);
     try {
+      console.log('🔍 Setting isCreating to true');
+      setIsCreating(true)
+      
+      // Form validation
+      if (!formData.companyName.trim()) {
+        console.log('🔍 Validation failed: Company name is empty');
+        toast({
+          title: "Validation Error",
+          description: "Company name is required",
+          variant: "destructive"
+        });
+        setIsCreating(false);
+        return;
+      }
+
+      if (!formData.industry.trim()) {
+        console.log('🔍 Validation failed: Industry is empty');
+        toast({
+          title: "Validation Error",
+          description: "Industry is required",
+          variant: "destructive"
+        });
+        setIsCreating(false);
+        return;
+      }
+
+      if (!formData.country.trim()) {
+        console.log('🔍 Validation failed: Country is empty');
+        toast({
+          title: "Validation Error",
+          description: "Country is required",
+          variant: "destructive"
+        });
+        setIsCreating(false);
+        return;
+      }
+
+      if (!formData.city.trim()) {
+        console.log('🔍 Validation failed: City is empty');
+        toast({
+          title: "Validation Error",
+          description: "City is required",
+          variant: "destructive"
+        });
+        setIsCreating(false);
+        return;
+      }
+
+      // Get JWT token and company ID from localStorage
+      const token = localStorage.getItem('ats_token');
+      const user = JSON.parse(localStorage.getItem('ats_user') || 'null');
+      const companyId = user?.companyId;
+
+      // Validate authentication
+      if (!token) {
+        console.log('🔍 Authentication failed: No token');
+        toast({
+          title: "Authentication Error",
+          description: "Please login to create customers",
+          variant: "destructive"
+        });
+        setIsCreating(false);
+        return;
+      }
+
+      if (!companyId) {
+        console.log('🔍 Authentication failed: No company ID');
+        toast({
+          title: "Company Error", 
+          description: "Company ID not found. Please login again.",
+          variant: "destructive"
+        });
+        setIsCreating(false);
+        return;
+      }
+
+      console.log('🔍 Creating customer with company ID:', companyId);
+      console.log('🔍 JWT token present:', !!token);
+      console.log('🔍 Form data:', formData);
+
       const response = await fetch(`${BaseUrlApi}/customers`, {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json'
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
         },
         body: JSON.stringify({
           ...formData,
-          contractValue: formData.contractValue ? parseFloat(formData.contractValue) : null
+          contractValue: formData.contractValue ? parseFloat(formData.contractValue) : null,
+          companyId: companyId
         })
       })
 
-      const data = await response.json()
+      console.log('🔍 Response status:', response.status);
+      console.log('🔍 Response headers:', Object.fromEntries(response.headers.entries()));
 
-      if (data.success) {
+      const data = await response.json()
+      console.log('🔍 Response data:', data);
+
+      if (response.ok && data.success) {
         toast({
           title: "Success",
           description: "Customer created successfully"
@@ -259,7 +382,7 @@ export default function CustomerManagement() {
       } else {
         toast({
           title: "Error",
-          description: data.message || "Failed to create customer",
+          description: data.message || data.error || `Failed to create customer (${response.status})`,
           variant: "destructive"
         })
       }
@@ -270,6 +393,8 @@ export default function CustomerManagement() {
         description: "Failed to create customer",
         variant: "destructive"
       })
+    } finally {
+      setIsCreating(false)
     }
   }
 
@@ -278,14 +403,44 @@ export default function CustomerManagement() {
     if (!selectedCustomer) return
 
     try {
+      setIsUpdating(true)
+      
+      // Get JWT token and company ID from localStorage
+      const token = localStorage.getItem('ats_token');
+      const user = JSON.parse(localStorage.getItem('ats_user') || 'null');
+      const companyId = user?.companyId;
+
+      // Validate authentication
+      if (!token) {
+        toast({
+          title: "Authentication Error",
+          description: "Please login to update customers",
+          variant: "destructive"
+        });
+        return;
+      }
+
+      if (!companyId) {
+        toast({
+          title: "Company Error", 
+          description: "Company ID not found. Please login again.",
+          variant: "destructive"
+        });
+        return;
+      }
+
+      console.log('🔍 Updating customer with company ID:', companyId);
+
       const response = await fetch(`${BaseUrlApi}/customers/${selectedCustomer.id}`, {
         method: 'PUT',
         headers: {
-          'Content-Type': 'application/json'
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
         },
         body: JSON.stringify({
           ...formData,
-          contractValue: formData.contractValue ? parseFloat(formData.contractValue) : null
+          contractValue: formData.contractValue ? parseFloat(formData.contractValue) : null,
+          companyId: companyId
         })
       })
 
@@ -313,6 +468,8 @@ export default function CustomerManagement() {
         description: "Failed to update customer",
         variant: "destructive"
       })
+    } finally {
+      setIsUpdating(false)
     }
   }
 
@@ -321,8 +478,39 @@ export default function CustomerManagement() {
     if (!confirm('Are you sure you want to delete this customer?')) return
 
     try {
+      setIsDeleting(true)
+      
+      // Get JWT token and company ID from localStorage
+      const token = localStorage.getItem('ats_token');
+      const user = JSON.parse(localStorage.getItem('ats_user') || 'null');
+      const companyId = user?.companyId;
+
+      // Validate authentication
+      if (!token) {
+        toast({
+          title: "Authentication Error",
+          description: "Please login to delete customers",
+          variant: "destructive"
+        });
+        return;
+      }
+
+      if (!companyId) {
+        toast({
+          title: "Company Error", 
+          description: "Company ID not found. Please login again.",
+          variant: "destructive"
+        });
+        return;
+      }
+
+      console.log('🔍 Deleting customer with company ID:', companyId);
+
       const response = await fetch(`${BaseUrlApi}/customers/${id}`, {
-        method: 'DELETE'
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
       })
 
       const data = await response.json()
@@ -347,6 +535,8 @@ export default function CustomerManagement() {
         description: "Failed to delete customer",
         variant: "destructive"
       })
+    } finally {
+      setIsDeleting(false)
     }
   }
 
@@ -436,7 +626,21 @@ export default function CustomerManagement() {
   // Fetch stats separately (always show total counts, not filtered)
   const fetchStats = async () => {
     try {
-      const response = await fetch(`${BaseUrlApi}/customers?limit=1000`)
+      // Get JWT token and company ID from localStorage
+      const token = localStorage.getItem('ats_token');
+      const user = JSON.parse(localStorage.getItem('ats_user') || 'null');
+      const companyId = user?.companyId;
+
+      if (!token || !companyId) {
+        console.log('🔍 Stats fetch skipped - no auth data');
+        return;
+      }
+
+      const response = await fetch(`${BaseUrlApi}/customers?limit=1000`, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      })
       const data = await response.json()
 
       if (data.success) {
@@ -602,6 +806,8 @@ export default function CustomerManagement() {
                   minimumCharacters={minimumCharacters}
                   renderCharacterCount={(value: string, field: string) => renderCharacterCount(value, field as keyof typeof characterLimits)}
                   handleInputChange={(field: string, value: string, setter: (value: string) => void) => handleInputChange(field as keyof typeof characterLimits, value, setter)}
+                  isCreating={isCreating}
+                  isUpdating={isUpdating}
                 />
               </DialogContent>
             </Dialog>
@@ -843,9 +1049,14 @@ export default function CustomerManagement() {
                                  variant="ghost"
                                  size="sm"
                                  onClick={() => deleteCustomer(customer.id)}
-                                 className="h-8 w-8 p-0 hover:bg-red-50 hover:text-red-600"
+                                 disabled={isDeleting}
+                                 className="h-8 w-8 p-0 hover:bg-red-50 hover:text-red-600 disabled:opacity-50"
                                >
-                                 <Trash2 className="w-4 h-4" />
+                                 {isDeleting ? (
+                                   <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-red-600"></div>
+                                 ) : (
+                                   <Trash2 className="w-4 h-4" />
+                                 )}
                                </Button>
                              </div>
                            </TableCell>
@@ -911,6 +1122,8 @@ export default function CustomerManagement() {
               minimumCharacters={minimumCharacters}
               renderCharacterCount={(value: string, field: string) => renderCharacterCount(value, field as keyof typeof characterLimits)}
               handleInputChange={(field: string, value: string, setter: (value: string) => void) => handleInputChange(field as keyof typeof characterLimits, value, setter)}
+              isCreating={isCreating}
+              isUpdating={isUpdating}
             />
           </DialogContent>
         </Dialog>
@@ -929,7 +1142,9 @@ function CustomerForm({
   characterLimits,
   minimumCharacters,
   renderCharacterCount,
-  handleInputChange
+  handleInputChange,
+  isCreating,
+  isUpdating
 }: { 
   formData: CustomerFormData
   setFormData: (data: CustomerFormData) => void
@@ -940,9 +1155,15 @@ function CustomerForm({
   minimumCharacters: Record<string, number>
   renderCharacterCount: (value: string, field: string) => React.ReactNode
   handleInputChange: (field: string, value: string, setter: (value: string) => void) => void
+  isCreating: boolean
+  isUpdating: boolean
 }) {
   return (
-    <div className="space-y-8">
+    <form onSubmit={(e) => {
+      e.preventDefault();
+      console.log('🔍 Form submitted, calling onSubmit');
+      onSubmit();
+    }} className="space-y-8">
       {/* Basic Information */}
       <div className="space-y-6">
         <div className="flex items-center gap-3">
@@ -957,7 +1178,13 @@ function CustomerForm({
             <label className="text-sm font-medium text-slate-700">Company Name *</label>
             <Input
               value={formData.companyName}
-              onChange={(e) => handleInputChange('companyName', e.target.value, (value) => setFormData({ ...formData, companyName: value }))}
+              onChange={(e) => {
+                console.log('🔍 Company name changed:', e.target.value);
+                handleInputChange('companyName', e.target.value, (value) => {
+                  console.log('🔍 Setting company name to:', value);
+                  setFormData({ ...formData, companyName: value });
+                });
+              }}
               placeholder="Enter company name"
               className="h-12 border-slate-200 focus:border-blue-500 focus:ring-blue-500"
               maxLength={characterLimits.companyName}
@@ -966,7 +1193,10 @@ function CustomerForm({
           </div>
           <div className="space-y-2">
             <label className="text-sm font-medium text-slate-700">Industry *</label>
-            <Select value={formData.industry} onValueChange={(value) => setFormData({ ...formData, industry: value })}>
+            <Select value={formData.industry} onValueChange={(value) => {
+              console.log('🔍 Industry changed:', value);
+              setFormData({ ...formData, industry: value });
+            }}>
               <SelectTrigger className="h-12 border-slate-200 focus:border-blue-500 focus:ring-blue-500">
                 <SelectValue placeholder="Select industry" />
               </SelectTrigger>
@@ -1092,7 +1322,13 @@ function CustomerForm({
             <label className="text-sm font-medium text-slate-700">Country *</label>
             <Input
               value={formData.country}
-              onChange={(e) => handleInputChange('country', e.target.value, (value) => setFormData({ ...formData, country: value }))}
+              onChange={(e) => {
+                console.log('🔍 Country changed:', e.target.value);
+                handleInputChange('country', e.target.value, (value) => {
+                  console.log('🔍 Setting country to:', value);
+                  setFormData({ ...formData, country: value });
+                });
+              }}
               placeholder="Enter country"
               className="h-12 border-slate-200 focus:border-blue-500 focus:ring-blue-500"
               maxLength={characterLimits.country}
@@ -1103,7 +1339,13 @@ function CustomerForm({
             <label className="text-sm font-medium text-slate-700">City *</label>
             <Input
               value={formData.city}
-              onChange={(e) => handleInputChange('city', e.target.value, (value) => setFormData({ ...formData, city: value }))}
+              onChange={(e) => {
+                console.log('🔍 City changed:', e.target.value);
+                handleInputChange('city', e.target.value, (value) => {
+                  console.log('🔍 Setting city to:', value);
+                  setFormData({ ...formData, city: value });
+                });
+              }}
               placeholder="Enter city"
               className="h-12 border-slate-200 focus:border-blue-500 focus:ring-blue-500"
               maxLength={characterLimits.city}
@@ -1185,12 +1427,16 @@ function CustomerForm({
           Cancel
         </Button>
         <Button 
-          onClick={onSubmit}
-          className="h-12 px-6 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 shadow-lg"
+          type="submit"
+          disabled={isCreating || isUpdating}
+          className="h-12 px-6 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 shadow-lg disabled:opacity-50"
         >
+          {(isCreating || isUpdating) && (
+            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+          )}
           {submitText}
         </Button>
       </div>
-    </div>
+    </form>
   )
 }

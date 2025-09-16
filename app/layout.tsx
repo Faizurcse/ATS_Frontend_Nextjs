@@ -2,6 +2,7 @@ import type React from "react"
 import type { Metadata } from "next"
 import "./globals.css"
 import { ClientToaster } from "../components/ui/client-toaster"
+import { CompanyProvider } from "../lib/company-context"
 import Script from "next/script"
 
 export const metadata: Metadata = {
@@ -19,7 +20,9 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body suppressHydrationWarning={true}>
-        {children}
+        <CompanyProvider>
+          {children}
+        </CompanyProvider>
         <ClientToaster />
         <Script
           id="hydration-fix"

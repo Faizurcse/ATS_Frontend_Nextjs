@@ -216,12 +216,39 @@ export default function InterviewManagement() {
     setError(null)
 
     try {
+      // Get company ID and token from localStorage
+      const user = JSON.parse(localStorage.getItem('ats_user') || 'null');
+      const companyId = user?.companyId;
+      const token = user?.token;
+      
+      if (!token) {
+        throw new Error('Authentication token not found. Please login again.');
+      }
+      
       // Fetch selected interviews data
-      const selectedResponse = await fetch(`${BASE_API_URL}/interviews/selected`)
+      const selectedUrl = new URL(`${BASE_API_URL}/interviews/selected`);
+      if (companyId) {
+        selectedUrl.searchParams.set('companyId', companyId.toString());
+      }
+      const selectedResponse = await fetch(selectedUrl.toString(), {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        }
+      })
       const selectedResult = await selectedResponse.json()
 
       // Fetch scheduled interviews data
-      const scheduledResponse = await fetch(`${BASE_API_URL}/interviews/scheduled`)
+      const scheduledUrl = new URL(`${BASE_API_URL}/interviews/scheduled`);
+      if (companyId) {
+        scheduledUrl.searchParams.set('companyId', companyId.toString());
+      }
+      const scheduledResponse = await fetch(scheduledUrl.toString(), {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        }
+      })
       const scheduledResult = await scheduledResponse.json()
 
       if (selectedResult.success) {
@@ -243,10 +270,19 @@ export default function InterviewManagement() {
   const handleSingleSchedule = async () => {
     setSchedulingLoading(true)
     try {
+      // Get token from localStorage
+      const user = JSON.parse(localStorage.getItem('ats_user') || 'null');
+      const token = user?.token;
+      
+      if (!token) {
+        throw new Error('Authentication token not found. Please login again.');
+      }
+
       const response = await fetch(`${BASE_API_URL}/interviews/schedule`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
         },
         body: JSON.stringify(singleInterviewForm),
       })
@@ -294,10 +330,19 @@ export default function InterviewManagement() {
   const handleBulkSchedule = async () => {
     setSchedulingLoading(true)
     try {
+      // Get token from localStorage
+      const user = JSON.parse(localStorage.getItem('ats_user') || 'null');
+      const token = user?.token;
+      
+      if (!token) {
+        throw new Error('Authentication token not found. Please login again.');
+      }
+
       const response = await fetch(`${BASE_API_URL}/interviews/bulk-schedule`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
         },
         body: JSON.stringify(bulkInterviewForm),
       })

@@ -82,8 +82,19 @@ export default function JobApplicantsPage() {
         setLoading(true)
         setError(null)
         
-        // Fetch candidates for the job
-        const candidatesResponse = await getCandidatesForJob(parseInt(jobId), minScore)
+        // Get company ID from localStorage
+        const user = JSON.parse(localStorage.getItem('ats_user') || 'null');
+        const companyId = user?.companyId;
+        
+        // Debug: Check localStorage data
+        console.log('🔍 Debug localStorage:');
+        console.log('ats_user:', localStorage.getItem('ats_user'));
+        console.log('user object:', user);
+        console.log('token:', user?.token);
+        console.log('companyId:', companyId);
+        
+        // Fetch candidates for the job with company context
+        const candidatesResponse = await getCandidatesForJob(parseInt(jobId), minScore, companyId)
         console.log('API Response:', candidatesResponse)
         console.log('First candidate URLs:', candidatesResponse.candidates[0] ? {
           resume_download_url: candidatesResponse.candidates[0].resume_download_url,

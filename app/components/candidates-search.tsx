@@ -80,11 +80,48 @@ export default function CandidatesSearch() {
   const fetchEmbeddingStatus = async () => {
     try {
       setIsLoadingStatus(true)
-      const response = await fetch("http://158.220.127.100:8000/api/v1/ai-search/embedding-status")
+      
+      // Get JWT token and company ID from localStorage
+      const user = JSON.parse(localStorage.getItem('ats_user') || 'null');
+      const token = user?.token;
+      const companyId = user?.companyId;
+
+      if (!token || !companyId) {
+        toast({
+          title: "Error",
+          description: "Authentication required. Please login again.",
+          variant: "destructive",
+        })
+        return;
+      }
+
+      const response = await fetch("http://localhost:8000/api/v1/ai-search/embedding-status", {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'X-Company-ID': companyId.toString()
+        }
+      })
+      
       if (response.ok) {
         const data = await response.json()
         setEmbeddingStatus(data)
       } else {
+        // Handle authentication errors
+        if (response.status === 401) {
+          localStorage.removeItem("authenticated");
+          localStorage.removeItem("auth_email");
+          localStorage.removeItem("ats_user");
+          window.location.href = '/login';
+          return;
+        } else if (response.status === 403) {
+          toast({
+            title: "Error",
+            description: "Access denied. You do not have permission to view embedding status.",
+            variant: "destructive",
+          })
+          return;
+        }
+        
         toast({
           title: "Error",
           description: "Failed to fetch embedding status",
@@ -114,15 +151,33 @@ export default function CandidatesSearch() {
 
     try {
       setIsSearching(true)
-      const response = await fetch("http://158.220.127.100:8000/api/v1/ai-search/search", {
+      
+      // Get JWT token and company ID from localStorage
+      const user = JSON.parse(localStorage.getItem('ats_user') || 'null');
+      const token = user?.token;
+      const companyId = user?.companyId;
+
+      if (!token || !companyId) {
+        toast({
+          title: "Error",
+          description: "Authentication required. Please login again.",
+          variant: "destructive",
+        })
+        return;
+      }
+
+      const response = await fetch("http://localhost:8000/api/v1/ai-search/search", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
+          'Authorization': `Bearer ${token}`,
+          'X-Company-ID': companyId.toString()
         },
         body: JSON.stringify({
           query: searchQuery,
           similarity_threshold: similarityThreshold[0] / 100,
           max_results: maxResults[0],
+          company_id: companyId
         }),
       })
 
@@ -134,6 +189,22 @@ export default function CandidatesSearch() {
           description: `Found ${data.results?.length || 0} candidates`,
         })
       } else {
+        // Handle authentication errors
+        if (response.status === 401) {
+          localStorage.removeItem("authenticated");
+          localStorage.removeItem("auth_email");
+          localStorage.removeItem("ats_user");
+          window.location.href = '/login';
+          return;
+        } else if (response.status === 403) {
+          toast({
+            title: "Error",
+            description: "Access denied. You do not have permission to search candidates.",
+            variant: "destructive",
+          })
+          return;
+        }
+        
         toast({
           title: "Error",
           description: "Failed to perform search",

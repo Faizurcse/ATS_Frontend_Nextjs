@@ -232,16 +232,47 @@ export default function Analytics() {
   const [analyticsData, setAnalyticsData] = useState<AnalyticsData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [companyId, setCompanyId] = useState<number | null>(null);
 
   useEffect(() => {
+    // Load company context from localStorage
+    const user = JSON.parse(localStorage.getItem('ats_user') || 'null');
+    if (user?.companyId) {
+      setCompanyId(user.companyId);
+    }
     fetchAnalyticsData();
   }, []);
 
   const fetchAnalyticsData = async () => {
     try {
       setLoading(true);
-      const response = await fetch(`${BASE_API_URL}/analytics`);
+      
+      // Get company ID and JWT token from localStorage
+      const user = JSON.parse(localStorage.getItem('ats_user') || 'null');
+      const companyId = user?.companyId;
+      const token = user?.token;
+      
+      if (!token) {
+        throw new Error('No authentication token found. Please login again.');
+      }
+      
+      const url = new URL(`${BASE_API_URL}/analytics`);
+      if (companyId) {
+        url.searchParams.set('companyId', companyId.toString());
+      }
+      
+      const response = await fetch(url.toString(), {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        }
+      });
+      
       if (!response.ok) {
+        if (response.status === 401) {
+          throw new Error('Authentication failed. Please login again.');
+        }
         throw new Error('Failed to fetch analytics data');
       }
       const result = await response.json();
